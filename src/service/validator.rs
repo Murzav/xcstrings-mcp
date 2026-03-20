@@ -59,18 +59,6 @@ pub fn validate_translations(
         let source_specs = extract_specifiers(source_text);
 
         if let Some(plural_forms) = &translation.plural_forms {
-            // For plural keys where source has no string_unit but has plural variations,
-            // extract specifiers from the first source plural form instead.
-            let effective_source_specs = if source_specs.is_empty() {
-                source_loc
-                    .and_then(|loc| loc.variations.as_ref())
-                    .and_then(|v| v.plural.as_ref())
-                    .and_then(|p| p.values().next())
-                    .map(|var| extract_specifiers(&var.string_unit.value))
-                    .unwrap_or_default()
-            } else {
-                source_specs.clone()
-            };
             // Validate required plural forms are present
             let required = required_plural_forms(&translation.locale);
             for req in &required {
@@ -83,16 +71,34 @@ pub fn validate_translations(
                 }
             }
 
-            // Validate specifiers in each plural form value
-            for (form, value) in plural_forms {
-                let target_specs = extract_specifiers(value);
-                if let Some(reason) = check_specifier_mismatch(
-                    &effective_source_specs,
-                    &target_specs,
-                    &translation.key,
-                    Some(form),
-                ) {
-                    rejected.push(reason);
+            // Substitution plural forms use %arg placeholders, not format specifiers
+            // from the parent string_unit (which contains %#@VAR@ markers).
+            // Skip specifier validation for substitution translations.
+            if translation.substitution_name.is_none() {
+                // For plural keys where source has no string_unit but has plural variations,
+                // extract specifiers from the first source plural form instead.
+                let effective_source_specs = if source_specs.is_empty() {
+                    source_loc
+                        .and_then(|loc| loc.variations.as_ref())
+                        .and_then(|v| v.plural.as_ref())
+                        .and_then(|p| p.values().next())
+                        .map(|var| extract_specifiers(&var.string_unit.value))
+                        .unwrap_or_default()
+                } else {
+                    source_specs.clone()
+                };
+
+                // Validate specifiers in each plural form value
+                for (form, value) in plural_forms {
+                    let target_specs = extract_specifiers(value);
+                    if let Some(reason) = check_specifier_mismatch(
+                        &effective_source_specs,
+                        &target_specs,
+                        &translation.key,
+                        Some(form),
+                    ) {
+                        rejected.push(reason);
+                    }
                 }
             }
         } else {
@@ -393,5 +399,32 @@ mod tests {
             .filter(|r| r.reason.contains("missing required plural form"))
             .collect();
         assert!(plural_rejections.is_empty());
+    }
+
+    #[test]
+    fn test_substitution_skips_specifier_validation() {
+        // Source has %#@BIRDS@ substitution marker — NOT a format specifier.
+        // Substitution plural forms use %arg, which is different.
+        // Validator must skip specifier check when substitution_name is set.
+        let file = make_file(vec![("bird", simple_entry("I saw %#@BIRDS@ in the park"))]);
+
+        let mut plural_forms = BTreeMap::new();
+        plural_forms.insert("one".to_string(), "%arg bird".to_string());
+        plural_forms.insert("other".to_string(), "%arg birds".to_string());
+
+        let translations = vec![CompletedTranslation {
+            key: "bird".to_string(),
+            locale: "de".to_string(),
+            value: String::new(),
+            plural_forms: Some(plural_forms),
+            substitution_name: Some("BIRDS".to_string()),
+        }];
+
+        let rejected = validate_translations(&file, &translations);
+        assert!(
+            rejected.is_empty(),
+            "substitution plural forms should not be rejected for specifier mismatch: {:?}",
+            rejected
+        );
     }
 }
