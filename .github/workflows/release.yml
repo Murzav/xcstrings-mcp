@@ -82,3 +82,82 @@ jobs:
       - run: cargo publish
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  homebrew:
+    name: Update Homebrew formula
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA256 hashes
+        id: sha
+        run: |
+          for target in aarch64-apple-darwin x86_64-apple-darwin x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu; do
+            curl -sL "https://github.com/Murzav/xcstrings-mcp/releases/download/${GITHUB_REF_NAME}/xcstrings-mcp-${target}.tar.gz" -o "${target}.tar.gz"
+            sha=$(sha256sum "${target}.tar.gz" | cut -d' ' -f1)
+            key=$(echo "${target}" | tr '-' '_')
+            echo "${key}=${sha}" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v6
+        with:
+          repository: Murzav/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Generate formula
+        run: |
+          mkdir -p Formula
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA_MACOS_ARM="${{ steps.sha.outputs.aarch64_apple_darwin }}"
+          SHA_MACOS_X64="${{ steps.sha.outputs.x86_64_apple_darwin }}"
+          SHA_LINUX_ARM="${{ steps.sha.outputs.aarch64_unknown_linux_gnu }}"
+          SHA_LINUX_X64="${{ steps.sha.outputs.x86_64_unknown_linux_gnu }}"
+          cat > Formula/xcstrings-mcp.rb << EOF
+          class XcstringsMcp < Formula
+            desc "MCP server for iOS/macOS .xcstrings localization files"
+            homepage "https://github.com/Murzav/xcstrings-mcp"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/Murzav/xcstrings-mcp/releases/download/v#{version}/xcstrings-mcp-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_MACOS_ARM}"
+              else
+                url "https://github.com/Murzav/xcstrings-mcp/releases/download/v#{version}/xcstrings-mcp-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_MACOS_X64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/Murzav/xcstrings-mcp/releases/download/v#{version}/xcstrings-mcp-aarch64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_ARM}"
+              else
+                url "https://github.com/Murzav/xcstrings-mcp/releases/download/v#{version}/xcstrings-mcp-x86_64-unknown-linux-gnu.tar.gz"
+                sha256 "${SHA_LINUX_X64}"
+              end
+            end
+
+            def install
+              bin.install "xcstrings-mcp"
+            end
+
+            test do
+              assert_match "xcstrings-mcp", shell_output("#{bin}/xcstrings-mcp --help 2>&1")
+            end
+          end
+          EOF
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' Formula/xcstrings-mcp.rb
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/xcstrings-mcp.rb
+          git diff --cached --quiet && echo "No changes" || (git commit -m "Update xcstrings-mcp to ${{ steps.version.outputs.version }}" && git push)

@@ -7,7 +7,8 @@ use tracing_subscriber::EnvFilter;
 #[derive(clap::Parser)]
 #[command(
     name = "xcstrings-mcp",
-    about = "MCP server for .xcstrings localization files"
+    about = "MCP server for .xcstrings localization files",
+    version
 )]
 struct Cli {}
 

@@ -15,6 +15,8 @@ Xcode String Catalogs (`.xcstrings`) are large JSON files that waste LLM context
 ### Install
 
 ```sh
+brew install Murzav/tap/xcstrings-mcp
+# or
 cargo install xcstrings-mcp
 # or
 cargo binstall xcstrings-mcp
