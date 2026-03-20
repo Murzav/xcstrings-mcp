@@ -140,8 +140,7 @@ pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<Validati
                             key: key.clone(),
                             issue_type: "suspicious_length".into(),
                             message: format!(
-                                "translation length {} chars is suspicious (source length {} chars)",
-                                tgt_chars, src_chars
+                                "translation length {tgt_chars} chars is suspicious (source length {src_chars} chars)",
                             ),
                         });
                     }
