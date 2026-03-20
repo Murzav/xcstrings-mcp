@@ -44,11 +44,14 @@ pub fn validate_translations(
         }
 
         // Check 4: Format specifier validation
-        // Get source text — fall back to the key itself if no source localization exists
-        let source_text = entry
+        // Get source localization for specifier extraction
+        let source_loc = entry
             .localizations
             .as_ref()
-            .and_then(|locs| locs.get(&file.source_language))
+            .and_then(|locs| locs.get(&file.source_language));
+
+        // Get source text — fall back to the key itself if no source localization exists
+        let source_text = source_loc
             .and_then(|loc| loc.string_unit.as_ref())
             .map(|su| su.value.as_str())
             .unwrap_or(&translation.key);
@@ -56,13 +59,22 @@ pub fn validate_translations(
         let source_specs = extract_specifiers(source_text);
 
         if let Some(plural_forms) = &translation.plural_forms {
+            // For plural keys where source has no string_unit but has plural variations,
+            // extract specifiers from the first source plural form instead.
+            let effective_source_specs = if source_specs.is_empty() {
+                source_loc
+                    .and_then(|loc| loc.variations.as_ref())
+                    .and_then(|v| v.plural.as_ref())
+                    .and_then(|p| p.values().next())
+                    .map(|var| extract_specifiers(&var.string_unit.value))
+                    .unwrap_or_default()
+            } else {
+                source_specs.clone()
+            };
             // Validate required plural forms are present
             let required = required_plural_forms(&translation.locale);
             for req in &required {
-                let form_name = serde_json::to_string(req)
-                    .unwrap_or_else(|_| "\"unknown\"".to_string())
-                    .trim_matches('"')
-                    .to_string();
+                let form_name = req.as_str().to_string();
                 if !plural_forms.contains_key(&form_name) {
                     rejected.push(RejectedTranslation {
                         key: translation.key.clone(),
@@ -75,7 +87,7 @@ pub fn validate_translations(
             for (form, value) in plural_forms {
                 let target_specs = extract_specifiers(value);
                 if let Some(reason) = check_specifier_mismatch(
-                    &source_specs,
+                    &effective_source_specs,
                     &target_specs,
                     &translation.key,
                     Some(form),
@@ -184,6 +196,7 @@ mod tests {
             locale: locale.to_string(),
             value: value.to_string(),
             plural_forms: None,
+            substitution_name: None,
         }
     }
 
@@ -259,11 +272,101 @@ mod tests {
             locale: "uk".to_string(),
             value: String::new(),
             plural_forms: Some(plural_forms),
+            substitution_name: None,
         }];
 
         let rejected = validate_translations(&file, &translations);
         assert!(rejected.iter().any(|r| r.reason.contains("few")));
         assert!(rejected.iter().any(|r| r.reason.contains("many")));
+    }
+
+    #[test]
+    fn test_plural_only_key_specifier_validation() {
+        // Source key has only plural variations (no string_unit) — specifiers
+        // should be extracted from the first plural form value
+        let mut localizations = IndexMap::new();
+        localizations.insert(
+            "en".to_string(),
+            Localization {
+                string_unit: None,
+                variations: Some(crate::model::xcstrings::Variations {
+                    plural: Some({
+                        let mut plural = std::collections::BTreeMap::new();
+                        plural.insert(
+                            "one".to_string(),
+                            crate::model::xcstrings::PluralVariation {
+                                string_unit: StringUnit {
+                                    state: TranslationState::Translated,
+                                    value: "%lld item".to_string(),
+                                },
+                            },
+                        );
+                        plural.insert(
+                            "other".to_string(),
+                            crate::model::xcstrings::PluralVariation {
+                                string_unit: StringUnit {
+                                    state: TranslationState::Translated,
+                                    value: "%lld items".to_string(),
+                                },
+                            },
+                        );
+                        plural
+                    }),
+                    device: None,
+                }),
+                substitutions: None,
+            },
+        );
+        let entry = StringEntry {
+            extraction_state: None,
+            should_translate: true,
+            comment: None,
+            localizations: Some(localizations),
+        };
+        let file = make_file(vec![("items", entry)]);
+
+        // Submit plural forms WITH correct specifier (%lld) — should pass
+        let mut plural_forms_ok = std::collections::BTreeMap::new();
+        plural_forms_ok.insert("one".to_string(), "%lld Artikel".to_string());
+        plural_forms_ok.insert("other".to_string(), "%lld Artikel".to_string());
+
+        let translations_ok = vec![CompletedTranslation {
+            key: "items".to_string(),
+            locale: "de".to_string(),
+            value: String::new(),
+            plural_forms: Some(plural_forms_ok),
+            substitution_name: None,
+        }];
+
+        let rejected = validate_translations(&file, &translations_ok);
+        assert!(
+            rejected.is_empty(),
+            "valid plural translation for plural-only source should not be rejected: {:?}",
+            rejected
+        );
+
+        // Submit plural forms WITHOUT specifier — should be rejected
+        let mut plural_forms_bad = std::collections::BTreeMap::new();
+        plural_forms_bad.insert("one".to_string(), "Ein Artikel".to_string());
+        plural_forms_bad.insert("other".to_string(), "Artikel".to_string());
+
+        let translations_bad = vec![CompletedTranslation {
+            key: "items".to_string(),
+            locale: "de".to_string(),
+            value: String::new(),
+            plural_forms: Some(plural_forms_bad),
+            substitution_name: None,
+        }];
+
+        let rejected = validate_translations(&file, &translations_bad);
+        assert!(
+            !rejected.is_empty(),
+            "missing specifier in plural form should be rejected"
+        );
+        assert!(
+            rejected.iter().any(|r| r.reason.contains("specifier")),
+            "rejection should mention specifier mismatch"
+        );
     }
 
     #[test]
@@ -279,6 +382,7 @@ mod tests {
             locale: "en".to_string(),
             value: String::new(),
             plural_forms: Some(plural_forms),
+            substitution_name: None,
         }];
 
         let rejected = validate_translations(&file, &translations);

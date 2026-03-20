@@ -154,6 +154,7 @@ mod tests {
                 locale: "de".to_string(),
                 value: "Willkommen in der App".to_string(),
                 plural_forms: None,
+                substitution_name: None,
             }],
             dry_run: true,
         };
@@ -189,6 +190,7 @@ mod tests {
                 locale: "de".to_string(),
                 value: "Willkommen in der App".to_string(),
                 plural_forms: None,
+                substitution_name: None,
             }],
             dry_run: false,
         };
@@ -240,6 +242,7 @@ mod tests {
                 locale: "de".to_string(),
                 value: "Hallo".to_string(),
                 plural_forms: None,
+                substitution_name: None,
             }],
             dry_run: false,
         };

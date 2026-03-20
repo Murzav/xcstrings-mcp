@@ -12,7 +12,20 @@ pub enum PluralCategory {
     Other,
 }
 
-#[allow(dead_code, reason = "will be used by service layer")]
+impl PluralCategory {
+    /// Returns the CLDR string representation of this plural category.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            PluralCategory::Zero => "zero",
+            PluralCategory::One => "one",
+            PluralCategory::Two => "two",
+            PluralCategory::Few => "few",
+            PluralCategory::Many => "many",
+            PluralCategory::Other => "other",
+        }
+    }
+}
+
 pub(crate) fn required_plural_forms(locale: &str) -> Vec<PluralCategory> {
     let lang = locale.split('-').next().unwrap_or(locale);
     match lang {

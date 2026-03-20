@@ -15,6 +15,7 @@ use crate::tools::{
     extract::{GetStaleParams, GetUntranslatedParams, handle_get_stale, handle_get_untranslated},
     manage::{AddLocaleParams, ListLocalesParams, handle_add_locale, handle_list_locales},
     parse::{CachedFile, ParseParams, handle_parse},
+    plural::{GetContextParams, GetPluralsParams, handle_get_context, handle_get_plurals},
     translate::{SubmitTranslationsParams, handle_submit_translations},
 };
 
@@ -194,6 +195,44 @@ impl XcStringsMcpServer {
             }
         }
     }
+
+    /// Get keys requiring plural/device translation for a locale.
+    #[tool(
+        name = "get_plurals",
+        description = "Get keys needing plural or device-variant translation. Returns plural forms needed, existing translations, and required CLDR forms. Use for translating plurals/substitutions/device variants."
+    )]
+    async fn get_plurals(
+        &self,
+        Parameters(params): Parameters<GetPluralsParams>,
+    ) -> Result<String, String> {
+        match handle_get_plurals(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "get_plurals failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Get nearby context keys for a translation key.
+    #[tool(
+        name = "get_context",
+        description = "Get nearby keys sharing a common prefix with the given key. Helps translators understand context by seeing related strings and their translations."
+    )]
+    async fn get_context(
+        &self,
+        Parameters(params): Parameters<GetContextParams>,
+    ) -> Result<String, String> {
+        match handle_get_context(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "get_context failed");
+                Err(e.to_string())
+            }
+        }
+    }
 }
 
 #[tool_handler]
@@ -204,7 +243,8 @@ impl ServerHandler for XcStringsMcpServer {
             .with_instructions(
                 "MCP server for iOS/macOS .xcstrings (String Catalog) localization files. \
                      Use parse_xcstrings to load a file, get_untranslated to find strings needing \
-                     translation, submit_translations to write translations back, get_coverage for \
+                     translation, get_plurals for plural/device variant keys, get_context for nearby \
+                     related keys, submit_translations to write translations back, get_coverage for \
                      per-locale statistics, get_stale to find removed strings, validate_translations \
                      to check correctness, list_locales to see all locales, and add_locale to add a \
                      new locale.",

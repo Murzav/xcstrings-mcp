@@ -1,3 +1,4 @@
+pub mod context;
 pub mod coverage;
 pub mod extractor;
 pub mod file_validator;
@@ -5,6 +6,7 @@ pub mod formatter;
 pub mod locale;
 pub mod merger;
 pub mod parser;
+pub mod plural_extractor;
 pub mod validator;
 
 use crate::model::xcstrings::{StringEntry, TranslationState};

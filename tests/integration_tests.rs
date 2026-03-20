@@ -4,18 +4,22 @@ use std::path::PathBuf;
 
 use helpers::MemoryStore;
 use indexmap::IndexMap;
+use xcstrings_mcp::_test_support::service::{
+    context, coverage, extractor, file_validator, formatter, locale, merger, parser,
+    plural_extractor, validator,
+};
 use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
     Localization, StringEntry, StringUnit, TranslationState, XcStringsFile,
-};
-use xcstrings_mcp::service::{
-    coverage, extractor, file_validator, formatter, locale, merger, parser, validator,
 };
 
 const SIMPLE_FIXTURE: &str = include_str!("fixtures/simple.xcstrings");
 const SHOULD_NOT_TRANSLATE_FIXTURE: &str = include_str!("fixtures/should_not_translate.xcstrings");
 const GOLDEN: &str = include_str!("fixtures/golden.xcstrings");
 const WITH_STALE: &str = include_str!("fixtures/with_stale.xcstrings");
+const WITH_PLURALS: &str = include_str!("fixtures/with_plurals.xcstrings");
+const WITH_SUBSTITUTIONS: &str = include_str!("fixtures/with_substitutions.xcstrings");
+const WITH_DEVICE_VARIANTS: &str = include_str!("fixtures/with_device_variants.xcstrings");
 
 // ── Integration test 1: parse → get_untranslated ──
 
@@ -45,6 +49,7 @@ fn parse_validate_merge_roundtrip() {
         locale: "uk".to_string(),
         value: "Ласкаво просимо до застосунку".to_string(),
         plural_forms: None,
+        substitution_name: None,
     }];
 
     // Validate first
@@ -109,6 +114,7 @@ fn specifier_mismatch_rejected() {
         locale: "uk".to_string(),
         value: "Привіт".to_string(), // missing %@
         plural_forms: None,
+        substitution_name: None,
     }];
 
     let rejected = validator::validate_translations(&file, &translations);
@@ -136,6 +142,7 @@ fn should_not_translate_filtered_in_flow() {
         locale: "de".to_string(),
         value: "MeineApp".to_string(),
         plural_forms: None,
+        substitution_name: None,
     }];
     let rejected = validator::validate_translations(&file, &translations);
     assert_eq!(rejected.len(), 1);
@@ -154,6 +161,7 @@ fn sequential_merges_no_corruption() {
         locale: "de".to_string(),
         value: "Hallo".to_string(),
         plural_forms: None,
+        substitution_name: None,
     }];
     let r1 = merger::merge_translations(&mut file, &t1);
     assert_eq!(r1.accepted, 1);
@@ -164,6 +172,7 @@ fn sequential_merges_no_corruption() {
         locale: "de".to_string(),
         value: "Willkommen in der App".to_string(),
         plural_forms: None,
+        substitution_name: None,
     }];
     let r2 = merger::merge_translations(&mut file, &t2);
     assert_eq!(r2.accepted, 1);
@@ -210,6 +219,7 @@ fn full_roundtrip_with_memory_store() {
             locale: "de".to_string(),
             value: format!("DE: {}", unit.source_text),
             plural_forms: None,
+            substitution_name: None,
         })
         .collect();
 
@@ -294,6 +304,7 @@ fn xcode_generated_submit_and_reformat() {
         locale: "ko".to_string(),
         value: "사용 가능한 제품".to_string(),
         plural_forms: None,
+        substitution_name: None,
     }];
 
     let rejected = validator::validate_translations(&file, &translations);
@@ -452,6 +463,208 @@ fn snapshot_untranslated_batch() {
     insta::assert_json_snapshot!(batch);
 }
 
+// ── Phase 3 integration tests ──
+
+#[test]
+fn plural_extract_then_submit() {
+    let mut file = parser::parse(WITH_PLURALS).unwrap();
+
+    // Get untranslated plural keys for "de"
+    let (batch, total) = plural_extractor::get_untranslated_plurals(&file, "de", 100, 0).unwrap();
+    assert!(total > 0, "should have untranslated plural keys for de");
+
+    // Find "days_remaining" — needs plural translation
+    let days = batch.iter().find(|u| u.key == "days_remaining").unwrap();
+    assert!(days.required_forms.contains(&"one".to_string()));
+    assert!(days.required_forms.contains(&"other".to_string()));
+
+    // Submit plural forms
+    let mut plural_forms = std::collections::BTreeMap::new();
+    plural_forms.insert("one".to_string(), "%lld Tag verbleibend".to_string());
+    plural_forms.insert("other".to_string(), "%lld Tage verbleibend".to_string());
+
+    let translations = vec![CompletedTranslation {
+        key: "days_remaining".to_string(),
+        locale: "de".to_string(),
+        value: String::new(),
+        plural_forms: Some(plural_forms),
+        substitution_name: None,
+    }];
+
+    // Note: validator specifier check uses string_unit fallback (key name) for
+    // plural-only keys, so we skip validate_translations here and go straight
+    // to merge which is format-agnostic.
+
+    let result = merger::merge_translations(&mut file, &translations);
+    assert_eq!(result.accepted, 1);
+
+    // Verify merged correctly
+    let locs = file.strings["days_remaining"]
+        .localizations
+        .as_ref()
+        .unwrap();
+    let de = &locs["de"];
+    let plural = de.variations.as_ref().unwrap().plural.as_ref().unwrap();
+    assert_eq!(plural["one"].string_unit.value, "%lld Tag verbleibend");
+    assert_eq!(plural["other"].string_unit.value, "%lld Tage verbleibend");
+}
+
+#[test]
+fn substitution_roundtrip() {
+    let mut file = parser::parse(WITH_SUBSTITUTIONS).unwrap();
+
+    // Get untranslated plurals — should find substitution keys
+    let (batch, total) = plural_extractor::get_untranslated_plurals(&file, "de", 100, 0).unwrap();
+    assert!(total > 0);
+
+    let bird = batch.iter().find(|u| u.key == "bird_sighting").unwrap();
+    assert!(bird.has_substitutions);
+
+    // Submit substitution translation with substitution_name
+    let mut plural_forms = std::collections::BTreeMap::new();
+    plural_forms.insert("one".to_string(), "%arg Vogel".to_string());
+    plural_forms.insert("other".to_string(), "%arg Vögel".to_string());
+
+    let translations = vec![CompletedTranslation {
+        key: "bird_sighting".to_string(),
+        locale: "de".to_string(),
+        value: String::new(),
+        plural_forms: Some(plural_forms),
+        substitution_name: Some("BIRDS".to_string()),
+    }];
+
+    let result = merger::merge_translations(&mut file, &translations);
+    assert_eq!(result.accepted, 1);
+
+    // Verify written to substitutions
+    let locs = file.strings["bird_sighting"]
+        .localizations
+        .as_ref()
+        .unwrap();
+    let de = &locs["de"];
+    let subs = de.substitutions.as_ref().unwrap();
+    let birds = &subs["BIRDS"];
+    let one_val = birds["variations"]["plural"]["one"]["stringUnit"]["value"]
+        .as_str()
+        .unwrap();
+    assert_eq!(one_val, "%arg Vogel");
+
+    // Format roundtrip
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    let de2 = &reparsed.strings["bird_sighting"]
+        .localizations
+        .as_ref()
+        .unwrap()["de"];
+    let subs2 = de2.substitutions.as_ref().unwrap();
+    assert!(subs2.contains_key("BIRDS"));
+}
+
+#[test]
+fn context_nearby_keys() {
+    // Build a file with dot-separated keys to test prefix matching
+    let json = r#"{
+        "sourceLanguage": "en",
+        "strings": {
+            "settings.notifications.title": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Notifications" } }
+                }
+            },
+            "settings.notifications.body": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Body text" } },
+                    "uk": { "stringUnit": { "state": "translated", "value": "Текст тіла" } }
+                }
+            },
+            "settings.general.title": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "General" } }
+                }
+            },
+            "login.title": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Login" } }
+                }
+            }
+        },
+        "version": "1.0"
+    }"#;
+    let file = parser::parse(json).unwrap();
+
+    let result = context::get_context(&file, "settings.notifications.title", "uk", 10);
+    assert!(!result.is_empty());
+
+    // First result should be the key with longest shared prefix
+    assert_eq!(result[0].key, "settings.notifications.body");
+    assert_eq!(result[0].source_text, "Body text");
+    assert_eq!(result[0].translated_text.as_deref(), Some("Текст тіла"));
+
+    // Second should be settings.general.title (1 shared segment)
+    assert_eq!(result[1].key, "settings.general.title");
+
+    // Third should be login.title (0 shared segments)
+    assert_eq!(result[2].key, "login.title");
+}
+
+#[test]
+fn device_variant_extraction() {
+    let file = parser::parse(WITH_DEVICE_VARIANTS).unwrap();
+
+    let (batch, total) = plural_extractor::get_untranslated_plurals(&file, "de", 100, 0).unwrap();
+    assert!(total > 0, "should find device variant keys");
+
+    let tap = batch.iter().find(|u| u.key == "tap_action").unwrap();
+    assert!(!tap.device_forms.is_empty());
+    assert!(tap.device_forms.contains(&"iphone".to_string()));
+    assert!(tap.device_forms.contains(&"ipad".to_string()));
+    assert!(tap.device_forms.contains(&"mac".to_string()));
+}
+
+#[test]
+fn plural_validate_then_merge_full_flow() {
+    let mut file = parser::parse(WITH_PLURALS).unwrap();
+
+    // Get plural keys for "de"
+    let (batch, _) = plural_extractor::get_untranslated_plurals(&file, "de", 100, 0).unwrap();
+    let days = batch.iter().find(|u| u.key == "days_remaining").unwrap();
+
+    // Build valid plural forms using required_forms from PluralUnit
+    let mut plural_forms = std::collections::BTreeMap::new();
+    plural_forms.insert("one".to_string(), "%lld Tag verbleibend".to_string());
+    plural_forms.insert("other".to_string(), "%lld Tage verbleibend".to_string());
+
+    let translations = vec![CompletedTranslation {
+        key: days.key.clone(),
+        locale: "de".to_string(),
+        value: String::new(),
+        plural_forms: Some(plural_forms),
+        substitution_name: None,
+    }];
+
+    // Validate — should pass (validator now handles plural-only source keys)
+    let rejected = validator::validate_translations(&file, &translations);
+    assert!(
+        rejected.is_empty(),
+        "valid plural translation should pass validation: {:?}",
+        rejected
+    );
+
+    // Merge
+    let result = merger::merge_translations(&mut file, &translations);
+    assert_eq!(result.accepted, 1);
+
+    // Format roundtrip
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    let de = &reparsed.strings["days_remaining"]
+        .localizations
+        .as_ref()
+        .unwrap()["de"];
+    let plural = de.variations.as_ref().unwrap().plural.as_ref().unwrap();
+    assert_eq!(plural["one"].string_unit.value, "%lld Tag verbleibend");
+}
+
 // ── Property-based tests ──
 
 mod proptest_tests {
@@ -529,6 +742,7 @@ mod proptest_tests {
                     locale: "de".to_string(),
                     value: format!("DE: {k}"),
                     plural_forms: None,
+                    substitution_name: None,
                 })
                 .collect();
 
@@ -555,6 +769,7 @@ mod proptest_tests {
                     locale: "de".to_string(),
                     value: format!("DE: {k}"),
                     plural_forms: None,
+                    substitution_name: None,
                 })
                 .collect();
 

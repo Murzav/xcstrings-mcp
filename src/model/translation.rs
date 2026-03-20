@@ -22,6 +22,8 @@ pub struct CompletedTranslation {
     pub value: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plural_forms: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub substitution_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -87,4 +89,35 @@ pub struct LocaleInfo {
     pub translated: usize,
     pub total: usize,
     pub percentage: f64,
+}
+
+/// A key requiring plural translation (returned by get_plurals).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct PluralUnit {
+    pub key: String,
+    pub source_text: String,
+    pub target_locale: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+    pub format_specifiers: Vec<String>,
+    /// Required plural forms for target locale (from CLDR).
+    pub required_forms: Vec<String>,
+    /// Source language plural forms (if available).
+    pub source_forms: BTreeMap<String, String>,
+    /// Existing translations per plural form (if partially translated).
+    pub existing_translations: BTreeMap<String, String>,
+    /// True if this key uses substitutions (%#@VAR@).
+    pub has_substitutions: bool,
+    /// Device variant forms needed (if any).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub device_forms: Vec<String>,
+}
+
+/// A nearby key sharing a common prefix, used for translator context.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ContextKey {
+    pub key: String,
+    pub source_text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub translated_text: Option<String>,
 }
