@@ -1,0 +1,21 @@
+[advisories]
+# cargo-deny 0.19+ removed vulnerability/unmaintained fields
+# advisories are denied by default
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+]
+
+[licenses.private]
+ignore = true
+
+[bans]
+wildcards = "deny"

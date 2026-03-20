@@ -1,0 +1,17 @@
+---
+source: tests/integration_tests.rs
+assertion_line: 238
+expression: summary
+---
+{
+  "source_language": "en",
+  "total_keys": 2,
+  "translatable_keys": 2,
+  "locales": [
+    "en",
+    "uk"
+  ],
+  "keys_by_state": {
+    "translated": 3
+  }
+}
