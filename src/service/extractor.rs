@@ -34,13 +34,13 @@ pub fn get_untranslated(
         // These need plural translation via get_untranslated_plurals, not simple translation.
         // Keys with BOTH string_unit and substitutions are included here for the simple
         // string_unit translation; their substitution plurals are handled separately.
-        if let Some(localizations) = &entry.localizations {
-            if let Some(source_loc) = localizations.get(&file.source_language) {
-                if source_loc.substitutions.is_some() && source_loc.string_unit.is_none() {
-                    warn!(key = %key, "skipping substitution-only key — handled by plural_extractor");
-                    continue;
-                }
-            }
+        if let Some(localizations) = &entry.localizations
+            && let Some(source_loc) = localizations.get(&file.source_language)
+            && source_loc.substitutions.is_some()
+            && source_loc.string_unit.is_none()
+        {
+            warn!(key = %key, "skipping substitution-only key — handled by plural_extractor");
+            continue;
         }
 
         let is_untranslated = match &entry.localizations {

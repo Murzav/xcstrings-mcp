@@ -28,15 +28,15 @@ impl FsFileStore {
             .unwrap_or(50);
 
         // Cleanup orphan temp files from previous crashes
-        if let Ok(cwd) = std::env::current_dir() {
-            if let Ok(entries) = fs::read_dir(&cwd) {
-                for entry in entries.flatten() {
-                    let name = entry.file_name();
-                    let name_str = name.to_string_lossy();
-                    if name_str.starts_with(".xcstrings-mcp-") && name_str.ends_with(".tmp") {
-                        let _ = fs::remove_file(entry.path());
-                        info!("cleaned up orphan temp file: {}", name_str);
-                    }
+        if let Ok(cwd) = std::env::current_dir()
+            && let Ok(entries) = fs::read_dir(&cwd)
+        {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                let name_str = name.to_string_lossy();
+                if name_str.starts_with(".xcstrings-mcp-") && name_str.ends_with(".tmp") {
+                    let _ = fs::remove_file(entry.path());
+                    info!("cleaned up orphan temp file: {}", name_str);
                 }
             }
         }

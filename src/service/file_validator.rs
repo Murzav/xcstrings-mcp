@@ -100,21 +100,21 @@ pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<Validati
             }
 
             // Missing plural forms
-            if let Some(variations) = &target_loc.variations {
-                if let Some(plural) = &variations.plural {
-                    let required = required_plural_forms(locale);
-                    for req in &required {
-                        let form_name = serde_json::to_string(req)
-                            .unwrap_or_else(|_| "\"unknown\"".to_string())
-                            .trim_matches('"')
-                            .to_string();
-                        if !plural.contains_key(&form_name) {
-                            errors.push(ValidationIssue {
-                                key: key.clone(),
-                                issue_type: "missing_plural_form".into(),
-                                message: format!("missing required plural form: {form_name}"),
-                            });
-                        }
+            if let Some(variations) = &target_loc.variations
+                && let Some(plural) = &variations.plural
+            {
+                let required = required_plural_forms(locale);
+                for req in &required {
+                    let form_name = serde_json::to_string(req)
+                        .unwrap_or_else(|_| "\"unknown\"".to_string())
+                        .trim_matches('"')
+                        .to_string();
+                    if !plural.contains_key(&form_name) {
+                        errors.push(ValidationIssue {
+                            key: key.clone(),
+                            issue_type: "missing_plural_form".into(),
+                            message: format!("missing required plural form: {form_name}"),
+                        });
                     }
                 }
             }

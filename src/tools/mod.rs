@@ -44,21 +44,21 @@ pub(crate) async fn resolve_file(
         match guard.as_ref() {
             Some(cached) => {
                 // Validate mtime — re-read if file changed externally
-                if let Ok(current_mtime) = store.modified_time(&cached.path) {
-                    if current_mtime != cached.modified {
-                        let path = cached.path.clone();
-                        drop(guard);
-                        let raw = store.read(&path)?;
-                        let file = parser::parse(&raw)?;
-                        let mtime = store.modified_time(&path)?;
-                        let mut guard = cache.lock().await;
-                        *guard = Some(CachedFile {
-                            path: path.clone(),
-                            content: file.clone(),
-                            modified: mtime,
-                        });
-                        return Ok((path, file));
-                    }
+                if let Ok(current_mtime) = store.modified_time(&cached.path)
+                    && current_mtime != cached.modified
+                {
+                    let path = cached.path.clone();
+                    drop(guard);
+                    let raw = store.read(&path)?;
+                    let file = parser::parse(&raw)?;
+                    let mtime = store.modified_time(&path)?;
+                    let mut guard = cache.lock().await;
+                    *guard = Some(CachedFile {
+                        path: path.clone(),
+                        content: file.clone(),
+                        modified: mtime,
+                    });
+                    return Ok((path, file));
                 }
                 Ok((cached.path.clone(), cached.content.clone()))
             }

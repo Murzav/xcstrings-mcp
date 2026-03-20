@@ -77,11 +77,11 @@ pub fn get_untranslated_plurals(
 
         // Collect source plural forms
         let mut source_forms = BTreeMap::new();
-        if let Some(variations) = &source_loc.variations {
-            if let Some(plural) = &variations.plural {
-                for (form, var) in plural {
-                    source_forms.insert(form.clone(), var.string_unit.value.clone());
-                }
+        if let Some(variations) = &source_loc.variations
+            && let Some(plural) = &variations.plural
+        {
+            for (form, var) in plural {
+                source_forms.insert(form.clone(), var.string_unit.value.clone());
             }
         }
 
@@ -93,10 +93,11 @@ pub fn get_untranslated_plurals(
             .unwrap_or_default();
 
         // For substitution keys without direct plural variations, use substitution plurals
-        if source_forms.is_empty() && !sub_plurals.is_empty() {
-            if let Some((_, forms)) = sub_plurals.first() {
-                source_forms.clone_from(forms);
-            }
+        if source_forms.is_empty()
+            && !sub_plurals.is_empty()
+            && let Some((_, forms)) = sub_plurals.first()
+        {
+            source_forms.clone_from(forms);
         }
 
         // Collect device forms from source
@@ -136,12 +137,13 @@ pub fn get_untranslated_plurals(
                 }
 
                 // Check device variations for target
-                if let Some(device) = &variations.device {
-                    if !device_forms.is_empty() && device.len() >= device_forms.len() {
-                        // Has all device forms — for device-only keys this counts as complete
-                        if !has_plural_variations && !has_substitutions {
-                            target_has_all_forms = true;
-                        }
+                if let Some(device) = &variations.device
+                    && !device_forms.is_empty()
+                    && device.len() >= device_forms.len()
+                {
+                    // Has all device forms — for device-only keys this counts as complete
+                    if !has_plural_variations && !has_substitutions {
+                        target_has_all_forms = true;
                     }
                 }
             }

@@ -51,10 +51,10 @@ pub fn add_locale(file: &mut XcStringsFile, locale: &str) -> Result<usize, XcStr
 
     // Check if locale already exists in any entry
     for entry in file.strings.values() {
-        if let Some(locs) = &entry.localizations {
-            if locs.contains_key(locale) {
-                return Err(XcStringsError::LocaleAlreadyExists(locale.into()));
-            }
+        if let Some(locs) = &entry.localizations
+            && locs.contains_key(locale)
+        {
+            return Err(XcStringsError::LocaleAlreadyExists(locale.into()));
         }
     }
 
