@@ -1,0 +1,69 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "active_key" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Активний"
+          }
+        }
+      }
+    },
+    "no_translate_stale" : {
+      "extractionState" : "stale",
+      "shouldTranslate" : false,
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NoTranslate"
+          }
+        }
+      }
+    },
+    "removed_feature" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Old Feature"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Стара функція"
+          }
+        }
+      }
+    },
+    "renamed_key" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renamed"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейменований"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

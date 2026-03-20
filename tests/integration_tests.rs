@@ -8,11 +8,14 @@ use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
     Localization, StringEntry, StringUnit, TranslationState, XcStringsFile,
 };
-use xcstrings_mcp::service::{extractor, formatter, merger, parser, validator};
+use xcstrings_mcp::service::{
+    coverage, extractor, file_validator, formatter, locale, merger, parser, validator,
+};
 
 const SIMPLE_FIXTURE: &str = include_str!("fixtures/simple.xcstrings");
 const SHOULD_NOT_TRANSLATE_FIXTURE: &str = include_str!("fixtures/should_not_translate.xcstrings");
-const XCODE_GENERATED: &str = include_str!("fixtures/xcode_generated.xcstrings");
+const GOLDEN: &str = include_str!("fixtures/golden.xcstrings");
+const WITH_STALE: &str = include_str!("fixtures/with_stale.xcstrings");
 
 // ── Integration test 1: parse → get_untranslated ──
 
@@ -233,7 +236,7 @@ fn full_roundtrip_with_memory_store() {
 
 #[test]
 fn xcode_generated_roundtrip_byte_identical() {
-    let file = parser::parse(XCODE_GENERATED).unwrap();
+    let file = parser::parse(GOLDEN).unwrap();
 
     // Verify summary
     let summary = parser::summarize(&file);
@@ -265,7 +268,7 @@ fn xcode_generated_roundtrip_byte_identical() {
 
 #[test]
 fn xcode_generated_get_untranslated() {
-    let file = parser::parse(XCODE_GENERATED).unwrap();
+    let file = parser::parse(GOLDEN).unwrap();
 
     // All 9 locales should exist and have translations
     let summary = parser::summarize(&file);
@@ -283,7 +286,7 @@ fn xcode_generated_get_untranslated() {
 
 #[test]
 fn xcode_generated_submit_and_reformat() {
-    let mut file = parser::parse(XCODE_GENERATED).unwrap();
+    let mut file = parser::parse(GOLDEN).unwrap();
 
     // Add a translation for a hypothetical new locale "ko"
     let translations = vec![CompletedTranslation {
@@ -313,6 +316,117 @@ fn xcode_generated_submit_and_reformat() {
         .as_ref()
         .unwrap();
     assert_eq!(ko_loc.value, "사용 가능한 제품");
+}
+
+// ── Phase 2 integration tests ──
+
+#[test]
+fn coverage_full_flow() {
+    let file = parser::parse(GOLDEN).unwrap();
+    let report = coverage::get_coverage(&file);
+
+    assert_eq!(report.source_language, "en");
+    assert_eq!(report.total_keys, 638);
+    assert!(report.translatable_keys > 0);
+    // Golden file has 9 locales
+    assert_eq!(report.locales.len(), 9);
+    // All locales should have high coverage (>90%)
+    for lc in &report.locales {
+        assert!(
+            lc.percentage > 90.0,
+            "locale {} has only {:.1}% coverage",
+            lc.locale,
+            lc.percentage
+        );
+    }
+    // Locales should be sorted alphabetically
+    let locale_codes: Vec<&str> = report.locales.iter().map(|l| l.locale.as_str()).collect();
+    let mut sorted = locale_codes.clone();
+    sorted.sort();
+    assert_eq!(locale_codes, sorted, "locales should be sorted");
+}
+
+#[test]
+fn add_locale_then_get_untranslated() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+    let translatable = file.strings.values().filter(|e| e.should_translate).count();
+
+    let added = locale::add_locale(&mut file, "ko").unwrap();
+    assert_eq!(added, translatable);
+
+    // New locale should have all keys as untranslated (state=New, empty value)
+    let (batch, total) = extractor::get_untranslated(&file, "ko", 100, 0).unwrap();
+    assert_eq!(total, translatable);
+    assert_eq!(batch.len(), translatable);
+}
+
+#[test]
+fn validate_after_bad_submit() {
+    // File with specifier mismatch between source and translation
+    let json = r#"{
+        "sourceLanguage": "en",
+        "strings": {
+            "msg": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Hello %@" } },
+                    "uk": { "stringUnit": { "state": "translated", "value": "Привіт" } }
+                }
+            }
+        },
+        "version": "1.0"
+    }"#;
+    let file_with_bad = parser::parse(json).unwrap();
+
+    let reports = file_validator::validate_file(&file_with_bad, Some("uk"));
+    assert_eq!(reports.len(), 1);
+    assert_eq!(reports[0].locale, "uk");
+    assert!(
+        !reports[0].errors.is_empty(),
+        "should have specifier mismatch error"
+    );
+    assert!(
+        reports[0]
+            .errors
+            .iter()
+            .any(|e| e.issue_type.contains("specifier"))
+    );
+}
+
+#[test]
+fn stale_keys_from_fixture() {
+    let file = parser::parse(WITH_STALE).unwrap();
+
+    let (batch, total) = extractor::get_stale(&file, "uk", 100, 0).unwrap();
+    // with_stale.xcstrings has 2 stale+translatable keys: removed_feature, renamed_key
+    // (no_translate_stale has shouldTranslate=false)
+    assert_eq!(total, 2);
+    assert_eq!(batch.len(), 2);
+
+    let keys: Vec<&str> = batch.iter().map(|u| u.key.as_str()).collect();
+    assert!(keys.contains(&"removed_feature"));
+    assert!(keys.contains(&"renamed_key"));
+}
+
+#[test]
+fn add_locale_format_roundtrip() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+
+    locale::add_locale(&mut file, "ja").unwrap();
+
+    // Format and re-parse — locale must survive roundtrip
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+
+    // Verify "ja" exists in the reparsed file
+    let locales = locale::list_locales(&reparsed);
+    assert!(
+        locales.iter().any(|l| l.locale == "ja"),
+        "ja locale should exist after roundtrip"
+    );
+
+    // Verify Xcode formatting
+    assert!(formatted.contains("\"state\" : \"new\""));
+    assert!(formatted.ends_with('\n'));
 }
 
 // ── Snapshot tests ──

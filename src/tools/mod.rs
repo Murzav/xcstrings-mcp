@@ -1,4 +1,6 @@
+pub(crate) mod coverage;
 pub(crate) mod extract;
+pub(crate) mod manage;
 pub(crate) mod parse;
 pub(crate) mod translate;
 

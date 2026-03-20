@@ -45,3 +45,46 @@ pub struct RejectedTranslation {
     pub key: String,
     pub reason: String,
 }
+
+/// Per-locale translation coverage statistics.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LocaleCoverage {
+    pub locale: String,
+    pub total_keys: usize,
+    pub translatable_keys: usize,
+    pub translated: usize,
+    pub percentage: f64,
+}
+
+/// Full coverage report across all locales.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct CoverageReport {
+    pub source_language: String,
+    pub total_keys: usize,
+    pub translatable_keys: usize,
+    pub locales: Vec<LocaleCoverage>,
+}
+
+/// Validation result with errors and warnings for a single locale.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ValidationReport {
+    pub locale: String,
+    pub errors: Vec<ValidationIssue>,
+    pub warnings: Vec<ValidationIssue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ValidationIssue {
+    pub key: String,
+    pub issue_type: String,
+    pub message: String,
+}
+
+/// Locale info for list_locales output.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct LocaleInfo {
+    pub locale: String,
+    pub translated: usize,
+    pub total: usize,
+    pub percentage: f64,
+}

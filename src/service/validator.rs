@@ -1,5 +1,6 @@
 use crate::model::plural::required_plural_forms;
 use crate::model::specifier::{FormatSpecifier, extract_specifiers};
+
 use crate::model::translation::{CompletedTranslation, RejectedTranslation};
 use crate::model::xcstrings::XcStringsFile;
 

@@ -3,7 +3,7 @@ use tracing::warn;
 use crate::error::XcStringsError;
 use crate::model::specifier::extract_specifiers;
 use crate::model::translation::TranslationUnit;
-use crate::model::xcstrings::{TranslationState, XcStringsFile};
+use crate::model::xcstrings::{ExtractionState, TranslationState, XcStringsFile};
 
 /// Extract untranslated strings for a specific locale.
 /// Returns `(batch, total_untranslated_count)`.
@@ -106,6 +106,80 @@ pub fn get_untranslated(
         .skip(offset)
         .take(batch_size)
         .collect();
+
+    Ok((batch, total))
+}
+
+/// Extract strings with `extractionState == Stale`.
+/// The `locale` parameter sets `target_locale` on returned units (stale is a key-level
+/// property, not locale-specific — all locales return the same stale keys).
+/// Returns `(batch, total_stale_count)`.
+pub fn get_stale(
+    file: &XcStringsFile,
+    locale: &str,
+    batch_size: usize,
+    offset: usize,
+) -> Result<(Vec<TranslationUnit>, usize), XcStringsError> {
+    if locale.is_empty() {
+        return Err(XcStringsError::LocaleNotFound("locale is empty".into()));
+    }
+    if batch_size == 0 || batch_size > 100 {
+        return Err(XcStringsError::InvalidBatchSize(format!(
+            "batch_size must be 1..=100, got {batch_size}"
+        )));
+    }
+
+    let mut stale = Vec::new();
+
+    for (key, entry) in &file.strings {
+        if !entry.should_translate {
+            continue;
+        }
+
+        if entry.extraction_state != Some(ExtractionState::Stale) {
+            continue;
+        }
+
+        let source_text = entry
+            .localizations
+            .as_ref()
+            .and_then(|locs| locs.get(&file.source_language))
+            .and_then(|loc| loc.string_unit.as_ref())
+            .map(|su| su.value.clone())
+            .unwrap_or_else(|| key.clone());
+
+        let specifiers = extract_specifiers(&source_text);
+        let format_specifier_strings: Vec<String> =
+            specifiers.iter().map(|s| s.raw.clone()).collect();
+
+        let has_plurals = entry
+            .localizations
+            .as_ref()
+            .and_then(|locs| locs.get(&file.source_language))
+            .and_then(|loc| loc.variations.as_ref())
+            .is_some_and(|v| v.plural.is_some());
+
+        let has_substitutions = entry
+            .localizations
+            .as_ref()
+            .and_then(|locs| locs.get(&file.source_language))
+            .and_then(|loc| loc.substitutions.as_ref())
+            .is_some();
+
+        stale.push(TranslationUnit {
+            key: key.clone(),
+            source_text,
+            target_locale: locale.to_string(),
+            comment: entry.comment.clone(),
+            format_specifiers: format_specifier_strings,
+            has_plurals,
+            has_substitutions,
+        });
+    }
+
+    let total = stale.len();
+
+    let batch: Vec<TranslationUnit> = stale.into_iter().skip(offset).take(batch_size).collect();
 
     Ok((batch, total))
 }
@@ -265,5 +339,80 @@ mod tests {
 
         let (batch, _) = get_untranslated(&file, "de", 10, 0).unwrap();
         assert_eq!(batch[0].format_specifiers, vec!["%@", "%lld"]);
+    }
+
+    // --- get_stale tests ---
+
+    fn make_stale_entry(source_value: Option<&str>) -> StringEntry {
+        let mut entry = make_entry(source_value, &[]);
+        entry.extraction_state = Some(ExtractionState::Stale);
+        entry
+    }
+
+    #[test]
+    fn test_stale_no_stale_keys() {
+        let mut strings = IndexMap::new();
+        strings.insert(
+            "key1".to_string(),
+            make_entry(
+                Some("Hello"),
+                &[("de", "Hallo", TranslationState::Translated)],
+            ),
+        );
+        let file = make_file(strings);
+
+        let (batch, total) = get_stale(&file, "de", 10, 0).unwrap();
+        assert!(batch.is_empty());
+        assert_eq!(total, 0);
+    }
+
+    #[test]
+    fn test_stale_keys_returned() {
+        let mut strings = IndexMap::new();
+        strings.insert("stale_key".to_string(), make_stale_entry(Some("Old text")));
+        strings.insert("fresh_key".to_string(), make_entry(Some("Fresh"), &[]));
+        let file = make_file(strings);
+
+        let (batch, total) = get_stale(&file, "de", 10, 0).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].key, "stale_key");
+        assert_eq!(batch[0].source_text, "Old text");
+    }
+
+    #[test]
+    fn test_stale_should_not_translate_excluded() {
+        let mut strings = IndexMap::new();
+        let mut entry = make_stale_entry(Some("Do not translate"));
+        entry.should_translate = false;
+        strings.insert("no_translate".to_string(), entry);
+        strings.insert(
+            "stale_ok".to_string(),
+            make_stale_entry(Some("Translate me")),
+        );
+        let file = make_file(strings);
+
+        let (batch, total) = get_stale(&file, "de", 10, 0).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(batch[0].key, "stale_ok");
+    }
+
+    #[test]
+    fn test_stale_batch_pagination() {
+        let mut strings = IndexMap::new();
+        for i in 0..5 {
+            strings.insert(
+                format!("stale_{i}"),
+                make_stale_entry(Some(&format!("val {i}"))),
+            );
+        }
+        let file = make_file(strings);
+
+        let (batch, total) = get_stale(&file, "de", 2, 0).unwrap();
+        assert_eq!(total, 5);
+        assert_eq!(batch.len(), 2);
+
+        let (batch, _) = get_stale(&file, "de", 2, 4).unwrap();
+        assert_eq!(batch.len(), 1);
     }
 }
