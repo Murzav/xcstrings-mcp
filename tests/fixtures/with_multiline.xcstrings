@@ -1,0 +1,28 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "multiline_message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line 1\nLine 2\nLine 3"
+          }
+        }
+      }
+    },
+    "terms_of_service" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By using this app, you agree to our Terms of Service.\n\nPlease read them carefully.\n\n1. You must be 18 or older.\n2. You may not misuse the service."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

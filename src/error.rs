@@ -44,6 +44,9 @@ pub enum XcStringsError {
     #[error("key marked as shouldTranslate=false: {0}")]
     ShouldNotTranslate(String),
 
+    #[error("file is locked by another process (likely Xcode): {path}")]
+    FileLocked { path: PathBuf },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

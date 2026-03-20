@@ -20,6 +20,8 @@ const WITH_STALE: &str = include_str!("fixtures/with_stale.xcstrings");
 const WITH_PLURALS: &str = include_str!("fixtures/with_plurals.xcstrings");
 const WITH_SUBSTITUTIONS: &str = include_str!("fixtures/with_substitutions.xcstrings");
 const WITH_DEVICE_VARIANTS: &str = include_str!("fixtures/with_device_variants.xcstrings");
+const WITH_INTERPOLATION: &str = include_str!("fixtures/with_interpolation.xcstrings");
+const WITH_MULTILINE: &str = include_str!("fixtures/with_multiline.xcstrings");
 
 // ── Integration test 1: parse → get_untranslated ──
 
@@ -663,6 +665,123 @@ fn plural_validate_then_merge_full_flow() {
         .unwrap()["de"];
     let plural = de.variations.as_ref().unwrap().plural.as_ref().unwrap();
     assert_eq!(plural["one"].string_unit.value, "%lld Tag verbleibend");
+}
+
+// ── Phase 4 fixture tests ──
+
+#[test]
+fn interpolation_fixture_specifiers() {
+    let file = parser::parse(WITH_INTERPOLATION).unwrap();
+
+    assert_eq!(file.strings.len(), 3);
+
+    // greeting_name source contains %@
+    let greeting = &file.strings["greeting_name"];
+    let en = greeting.localizations.as_ref().unwrap()["en"]
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert!(en.value.contains("%@"), "greeting_name should contain %@");
+
+    // items_count_format source contains both %lld and %@
+    let items = &file.strings["items_count_format"];
+    let en_items = items.localizations.as_ref().unwrap()["en"]
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert!(
+        en_items.value.contains("%lld"),
+        "items_count_format should contain %lld"
+    );
+    assert!(
+        en_items.value.contains("%@"),
+        "items_count_format should contain %@"
+    );
+
+    // Long key name survives parse
+    let long_key = "MyApp.Features.Settings.Notifications.PushNotificationPermissionAlert.Title";
+    assert!(
+        file.strings.contains_key(long_key),
+        "long auto-generated key should survive parse"
+    );
+}
+
+#[test]
+fn interpolation_long_key_full_flow() {
+    let file = parser::parse(WITH_INTERPOLATION).unwrap();
+
+    let long_key = "MyApp.Features.Settings.Notifications.PushNotificationPermissionAlert.Title";
+
+    let (batch, total) = extractor::get_untranslated(&file, "de", 100, 0).unwrap();
+    assert_eq!(total, 3, "all 3 keys should be untranslated for de");
+
+    let keys: Vec<&str> = batch.iter().map(|u| u.key.as_str()).collect();
+    assert!(
+        keys.contains(&long_key),
+        "long key should appear in untranslated batch"
+    );
+}
+
+#[test]
+fn multiline_roundtrip() {
+    let file = parser::parse(WITH_MULTILINE).unwrap();
+
+    // Verify multiline_message source value contains \n
+    let msg = &file.strings["multiline_message"];
+    let en = msg.localizations.as_ref().unwrap()["en"]
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert!(
+        en.value.contains('\n'),
+        "multiline_message source should contain newline characters"
+    );
+
+    // Format → re-parse → format must be idempotent
+    let formatted1 = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted1).unwrap();
+    let formatted2 = formatter::format_xcstrings(&reparsed).unwrap();
+
+    assert_eq!(
+        formatted1, formatted2,
+        "multiline fixture formatting must be idempotent"
+    );
+}
+
+#[test]
+fn multiline_specifier_safe() {
+    let mut file = parser::parse(WITH_MULTILINE).unwrap();
+
+    let translations = vec![CompletedTranslation {
+        key: "multiline_message".to_string(),
+        locale: "uk".to_string(),
+        value: "Рядок 1\nРядок 2\nРядок 3".to_string(),
+        plural_forms: None,
+        substitution_name: None,
+    }];
+
+    let rejected = validator::validate_translations(&file, &translations);
+    assert!(
+        rejected.is_empty(),
+        "multiline translation should pass validation"
+    );
+
+    let result = merger::merge_translations(&mut file, &translations);
+    assert_eq!(result.accepted, 1);
+
+    // Verify merged value preserves newlines
+    let uk = file.strings["multiline_message"]
+        .localizations
+        .as_ref()
+        .unwrap()["uk"]
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert!(
+        uk.value.contains('\n'),
+        "merged translation should preserve newline characters"
+    );
+    assert_eq!(uk.value, "Рядок 1\nРядок 2\nРядок 3");
 }
 
 // ── Property-based tests ──

@@ -1,9 +1,10 @@
 use std::fs;
 use std::io::Write;
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::error::XcStringsError;
 
@@ -118,6 +119,30 @@ impl FileStore for FsFileStore {
                 reason: "no parent directory".into(),
             })?;
 
+        // Acquire advisory lock on target file (best-effort: skip if file doesn't exist yet)
+        let _lock_file = if canonical.exists() {
+            let lock_file = fs::File::open(&canonical)?;
+            let fd = lock_file.as_raw_fd();
+            // SAFETY: flock is a POSIX syscall, fd is valid because lock_file is alive
+            let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+            if ret != 0 {
+                let errno = std::io::Error::last_os_error();
+                if errno.kind() == std::io::ErrorKind::WouldBlock {
+                    return Err(XcStringsError::FileLocked { path: canonical });
+                }
+                // Non-blocking lock not supported (e.g. network FS) — proceed without lock
+                warn!(
+                    "advisory flock unavailable for {}: {errno} — proceeding without lock",
+                    canonical.display()
+                );
+                None
+            } else {
+                Some(lock_file)
+            }
+        } else {
+            None
+        };
+
         let tmp_name = format!(
             ".xcstrings-mcp-{}-{}.tmp",
             std::process::id(),
@@ -142,6 +167,7 @@ impl FileStore for FsFileStore {
             let _ = fs::remove_file(&tmp_path);
         }
 
+        // Lock is released when _lock_file is dropped
         result?;
 
         info!("wrote {} bytes to {}", content.len(), canonical.display());
@@ -291,6 +317,40 @@ mod tests {
     fn test_default_impl() {
         let store = FsFileStore::default();
         assert!(!store.exists(Path::new("/nonexistent")));
+    }
+
+    #[test]
+    fn test_flock_blocks_concurrent_write() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("locked.xcstrings");
+        let store = FsFileStore::new();
+
+        // Create the file first
+        store.write(&file_path, "initial").unwrap();
+
+        // Hold an exclusive lock on the file
+        let lock_file = fs::File::open(&file_path).unwrap();
+        let fd = lock_file.as_raw_fd();
+        // SAFETY: fd is valid, lock_file is alive
+        let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
+        assert_eq!(ret, 0, "should acquire lock");
+
+        // Attempt to write while locked — should fail with FileLocked
+        let err = store.write(&file_path, "updated").unwrap_err();
+        assert!(
+            matches!(err, XcStringsError::FileLocked { .. }),
+            "expected FileLocked, got: {err}"
+        );
+
+        // Release lock
+        // SAFETY: fd is valid, lock_file is alive
+        unsafe { libc::flock(fd, libc::LOCK_UN) };
+        drop(lock_file);
+
+        // Now write should succeed
+        store.write(&file_path, "updated").unwrap();
+        let content = store.read(&file_path).unwrap();
+        assert_eq!(content, "updated");
     }
 
     #[test]
