@@ -75,7 +75,7 @@ pub(crate) async fn handle_export_xliff(
     mcp_log(
         peer,
         LoggingLevel::Info,
-        &format!("Exported {} keys to XLIFF", count),
+        &format!("Exported {count} keys to XLIFF"),
     )
     .await;
 
@@ -117,7 +117,10 @@ pub(crate) async fn handle_import_xliff(
     mcp_log(
         peer,
         LoggingLevel::Info,
-        &format!("Importing translations from {}", params.xliff_path),
+        &format!(
+            "Importing translations from {xliff}",
+            xliff = params.xliff_path
+        ),
     )
     .await;
 

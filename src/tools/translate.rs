@@ -46,7 +46,10 @@ pub(crate) async fn handle_submit_translations(
     mcp_log(
         peer,
         LoggingLevel::Info,
-        &format!("Validating {} translations...", params.translations.len()),
+        &format!(
+            "Validating {n} translations...",
+            n = params.translations.len()
+        ),
     )
     .await;
 
