@@ -6,7 +6,7 @@ use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::model::translation::TranslationUnit;
 use crate::service::extractor;
-use crate::tools::parse::CachedFile;
+use crate::tools::FileCache;
 use crate::tools::resolve_file;
 
 fn default_batch_size() -> usize {
@@ -40,7 +40,7 @@ pub(crate) struct GetUntranslatedResult {
 /// Extract untranslated strings for a locale with batching.
 pub(crate) async fn handle_get_untranslated(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: GetUntranslatedParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -88,7 +88,7 @@ pub(crate) struct GetStaleResult {
 /// Extract stale strings for a locale with batching.
 pub(crate) async fn handle_get_stale(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: GetStaleParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -119,7 +119,7 @@ mod tests {
     async fn test_get_untranslated_with_file_path() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetUntranslatedParams {
             file_path: Some("/test/file.xcstrings".to_string()),
@@ -138,7 +138,7 @@ mod tests {
     async fn test_get_untranslated_from_cache() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
@@ -160,7 +160,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_untranslated_no_cache_no_path() {
         let store = MemoryStore::new();
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetUntranslatedParams {
             file_path: None,
@@ -178,7 +178,7 @@ mod tests {
     async fn test_get_stale_returns_stale_keys() {
         let store = MemoryStore::new();
         store.add_file("/test/stale.xcstrings", STALE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetStaleParams {
             file_path: Some("/test/stale.xcstrings".to_string()),
@@ -197,7 +197,7 @@ mod tests {
     async fn test_get_stale_no_stale_keys() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetStaleParams {
             file_path: Some("/test/file.xcstrings".to_string()),

@@ -1,9 +1,18 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use rmcp::{
-    ServerHandler,
-    handler::server::{router::tool::ToolRouter, wrapper::Parameters},
-    model::{ProtocolVersion, ServerCapabilities, ServerInfo},
+    RoleServer, ServerHandler,
+    handler::server::{
+        router::{prompt::PromptRouter, tool::ToolRouter},
+        wrapper::Parameters,
+    },
+    model::{
+        GetPromptRequestParams, GetPromptResult, ListPromptsResult, PaginatedRequestParams,
+        ProtocolVersion, ServerCapabilities, ServerInfo,
+    },
+    prompt_handler,
+    service::RequestContext,
     tool, tool_handler, tool_router,
 };
 use tokio::sync::Mutex;
@@ -11,29 +20,45 @@ use tracing::error;
 
 use crate::io::FileStore;
 use crate::tools::{
+    FileCache,
     coverage::{GetCoverageParams, ValidateFileParams, handle_get_coverage, handle_validate_file},
+    diff::{GetDiffParams, handle_get_diff},
     extract::{GetStaleParams, GetUntranslatedParams, handle_get_stale, handle_get_untranslated},
-    manage::{AddLocaleParams, ListLocalesParams, handle_add_locale, handle_list_locales},
-    parse::{CachedFile, ParseParams, handle_parse},
+    files::{ListFilesParams, handle_list_files},
+    glossary::{
+        GetGlossaryParams, UpdateGlossaryParams, handle_get_glossary, handle_update_glossary,
+    },
+    manage::{
+        AddLocaleParams, ListLocalesParams, RemoveLocaleParams, handle_add_locale,
+        handle_list_locales, handle_remove_locale,
+    },
+    parse::{ParseParams, handle_parse},
     plural::{GetContextParams, GetPluralsParams, handle_get_context, handle_get_plurals},
     translate::{SubmitTranslationsParams, handle_submit_translations},
+    xliff::{ExportXliffParams, ImportXliffParams, handle_export_xliff, handle_import_xliff},
 };
 
 #[derive(Clone)]
 pub struct XcStringsMcpServer {
     store: Arc<dyn FileStore>,
-    cache: Arc<Mutex<Option<CachedFile>>>,
+    cache: Arc<Mutex<FileCache>>,
     write_lock: Arc<Mutex<()>>,
+    glossary_path: PathBuf,
+    glossary_write_lock: Arc<Mutex<()>>,
     tool_router: ToolRouter<Self>,
+    prompt_router: PromptRouter<Self>,
 }
 
 impl XcStringsMcpServer {
-    pub fn new(store: Arc<dyn FileStore>) -> Self {
+    pub fn new(store: Arc<dyn FileStore>, glossary_path: PathBuf) -> Self {
         Self {
             store,
-            cache: Arc::new(Mutex::new(None)),
+            cache: Arc::new(Mutex::new(FileCache::new())),
             write_lock: Arc::new(Mutex::new(())),
+            glossary_path,
+            glossary_write_lock: Arc::new(Mutex::new(())),
             tool_router: Self::tool_router(),
+            prompt_router: crate::prompts::build_prompt_router(),
         }
     }
 }
@@ -196,6 +221,26 @@ impl XcStringsMcpServer {
         }
     }
 
+    /// Remove a locale from the file.
+    #[tool(
+        name = "remove_locale",
+        description = "Remove a locale from the file. Deletes all translations for that locale from every entry. Cannot remove the source locale. Writes the file atomically."
+    )]
+    async fn remove_locale(
+        &self,
+        Parameters(params): Parameters<RemoveLocaleParams>,
+    ) -> Result<String, String> {
+        match handle_remove_locale(self.store.as_ref(), &self.cache, &self.write_lock, params).await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "remove_locale failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
     /// Get keys requiring plural/device translation for a locale.
     #[tool(
         name = "get_plurals",
@@ -233,12 +278,140 @@ impl XcStringsMcpServer {
             }
         }
     }
+
+    /// List all cached .xcstrings files.
+    #[tool(
+        name = "list_files",
+        description = "List all cached .xcstrings files with source language, key count, and active status."
+    )]
+    async fn list_files(
+        &self,
+        Parameters(_params): Parameters<ListFilesParams>,
+    ) -> Result<String, String> {
+        match handle_list_files(&self.cache).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "list_files failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Compare cached file with current on-disk version.
+    #[tool(
+        name = "get_diff",
+        description = "Compare cached file with current on-disk version. Shows added keys, removed keys, and keys whose source language text changed. Does not track translation changes in non-source locales."
+    )]
+    async fn get_diff(
+        &self,
+        Parameters(params): Parameters<GetDiffParams>,
+    ) -> Result<String, String> {
+        match handle_get_diff(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "get_diff failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Get glossary entries for a language pair.
+    #[tool(
+        name = "get_glossary",
+        description = "Get glossary entries for a source/target locale pair. The glossary persists across sessions and stores preferred translations for terms. Supports optional substring filter."
+    )]
+    async fn get_glossary(
+        &self,
+        Parameters(params): Parameters<GetGlossaryParams>,
+    ) -> Result<String, String> {
+        match handle_get_glossary(self.store.as_ref(), &self.glossary_path, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "get_glossary failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Update glossary entries for a language pair.
+    #[tool(
+        name = "update_glossary",
+        description = "Add or update glossary entries for a source/target locale pair. The glossary persists across sessions. Upserts entries — existing terms are overwritten, new terms are added."
+    )]
+    async fn update_glossary(
+        &self,
+        Parameters(params): Parameters<UpdateGlossaryParams>,
+    ) -> Result<String, String> {
+        match handle_update_glossary(
+            self.store.as_ref(),
+            &self.glossary_path,
+            &self.glossary_write_lock,
+            params,
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "update_glossary failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Export translations to XLIFF 1.2 format for external tools.
+    #[tool(
+        name = "export_xliff",
+        description = "Export translations to XLIFF 1.2 format for external tools. Only exports simple strings; plural forms not included. By default exports untranslated strings only."
+    )]
+    async fn export_xliff(
+        &self,
+        Parameters(params): Parameters<ExportXliffParams>,
+    ) -> Result<String, String> {
+        match handle_export_xliff(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "export_xliff failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Import translations from XLIFF 1.2 file.
+    #[tool(
+        name = "import_xliff",
+        description = "Import translations from XLIFF 1.2 file. Only simple strings imported; use submit_translations for plurals. Validates specifiers, merges accepted. Use dry_run=true to preview."
+    )]
+    async fn import_xliff(
+        &self,
+        Parameters(params): Parameters<ImportXliffParams>,
+    ) -> Result<String, String> {
+        match handle_import_xliff(self.store.as_ref(), &self.cache, &self.write_lock, params).await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "import_xliff failed");
+                Err(e.to_string())
+            }
+        }
+    }
 }
 
 #[tool_handler]
+#[prompt_handler]
 impl ServerHandler for XcStringsMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_prompts()
+                .build(),
+        )
             .with_protocol_version(ProtocolVersion::V_2025_06_18)
             .with_instructions(
                 "MCP server for iOS/macOS .xcstrings (String Catalog) localization files. \
@@ -246,8 +419,12 @@ impl ServerHandler for XcStringsMcpServer {
                      translation, get_plurals for plural/device variant keys, get_context for nearby \
                      related keys, submit_translations to write translations back, get_coverage for \
                      per-locale statistics, get_stale to find removed strings, validate_translations \
-                     to check correctness, list_locales to see all locales, and add_locale to add a \
-                     new locale.",
+                     to check correctness, list_locales to see all locales, add_locale to add a \
+                     new locale, remove_locale to remove a locale, list_files to see all cached files, \
+                     get_diff to compare cached vs on-disk versions, get_glossary to retrieve \
+                     glossary terms, update_glossary to add or update glossary entries, \
+                     export_xliff to export translations to XLIFF 1.2, and import_xliff to \
+                     import translations from XLIFF files.",
             )
     }
 }

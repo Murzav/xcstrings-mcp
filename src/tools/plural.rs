@@ -6,7 +6,7 @@ use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::model::translation::{ContextKey, PluralUnit};
 use crate::service::{context, plural_extractor};
-use crate::tools::parse::CachedFile;
+use crate::tools::FileCache;
 use crate::tools::resolve_file;
 
 fn default_plural_batch_size() -> usize {
@@ -44,7 +44,7 @@ pub(crate) struct GetPluralsResult {
 /// Extract plural/device keys needing translation for a locale.
 pub(crate) async fn handle_get_plurals(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: GetPluralsParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -86,7 +86,7 @@ pub(crate) struct GetContextParams {
 /// Get nearby context keys for a specific key.
 pub(crate) async fn handle_get_context(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: GetContextParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -109,7 +109,7 @@ mod tests {
     async fn test_get_plurals_success() {
         let store = MemoryStore::new();
         store.add_file("/test/plurals.xcstrings", PLURALS_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetPluralsParams {
             file_path: Some("/test/plurals.xcstrings".to_string()),
@@ -125,7 +125,7 @@ mod tests {
     async fn test_get_plurals_empty() {
         let store = MemoryStore::new();
         store.add_file("/test/simple.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetPluralsParams {
             file_path: Some("/test/simple.xcstrings".to_string()),
@@ -141,7 +141,7 @@ mod tests {
     async fn test_get_context_success() {
         let store = MemoryStore::new();
         store.add_file("/test/simple.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetContextParams {
             file_path: Some("/test/simple.xcstrings".to_string()),
@@ -158,7 +158,7 @@ mod tests {
     async fn test_get_context_missing_key() {
         let store = MemoryStore::new();
         store.add_file("/test/simple.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetContextParams {
             file_path: Some("/test/simple.xcstrings".to_string()),

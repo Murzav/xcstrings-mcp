@@ -40,6 +40,8 @@ pub struct SubmitResult {
     pub accepted: usize,
     pub rejected: Vec<RejectedTranslation>,
     pub dry_run: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub accepted_keys: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
@@ -120,4 +122,19 @@ pub struct ContextKey {
     pub source_text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub translated_text: Option<String>,
+}
+
+/// Report of differences between cached and on-disk versions.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct DiffReport {
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+    pub modified: Vec<ModifiedKey>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ModifiedKey {
+    pub key: String,
+    pub old_value: String,
+    pub new_value: String,
 }

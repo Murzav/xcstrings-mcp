@@ -59,6 +59,10 @@ impl FileStore for MemoryStore {
         let files = self.files.lock().unwrap();
         files.contains_key(path)
     }
+
+    fn create_parent_dirs(&self, _path: &Path) -> Result<(), XcStringsError> {
+        Ok(())
+    }
 }
 
 /// Generate a large xcstrings fixture for benchmarking.

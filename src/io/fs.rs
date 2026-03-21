@@ -183,6 +183,11 @@ impl FileStore for FsFileStore {
     fn exists(&self, path: &Path) -> bool {
         path.exists()
     }
+
+    fn create_parent_dirs(&self, path: &Path) -> Result<(), XcStringsError> {
+        fs::create_dir_all(path.parent().unwrap_or(path))?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

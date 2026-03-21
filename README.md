@@ -40,6 +40,8 @@ Typical workflow:
 parse_xcstrings → get_untranslated → submit_translations
 ```
 
+Multi-file projects: parse each file — the server caches all of them and tracks the active one. Use `list_files` to see cached files.
+
 ## Tools
 
 | Tool | Description |
@@ -52,8 +54,33 @@ parse_xcstrings → get_untranslated → submit_translations
 | `validate_translations` | File-wide validation report |
 | `list_locales` | List locales with stats |
 | `add_locale` | Add new locale with empty translations |
+| `remove_locale` | Remove a locale from all entries |
 | `get_plurals` | Extract keys needing plural translation |
 | `get_context` | Find related keys by shared prefix |
+| `list_files` | List all cached files with active status |
+| `get_diff` | Compare cached vs on-disk file (added/removed/modified keys) |
+| `get_glossary` | Get translation glossary entries for a locale pair |
+| `update_glossary` | Add or update glossary terms |
+| `export_xliff` | Export to XLIFF 1.2 for external translation tools |
+| `import_xliff` | Import translations from XLIFF 1.2 file |
+
+### Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `translate_batch` | Step-by-step instructions for batch translation |
+| `review_translations` | Instructions for quality review of translations |
+| `full_translate` | Complete workflow for translating an entire file |
+
+### CLI Options
+
+```sh
+xcstrings-mcp --glossary-path ./my-glossary.json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--glossary-path` | `glossary.json` | Path to glossary file for consistent terminology |
 
 ## Performance
 

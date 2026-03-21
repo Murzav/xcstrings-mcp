@@ -13,6 +13,7 @@ pub fn merge_translations(
     translations: &[CompletedTranslation],
 ) -> SubmitResult {
     let mut accepted = 0;
+    let mut accepted_keys = Vec::new();
     let mut rejected = Vec::new();
 
     for translation in translations {
@@ -128,6 +129,7 @@ pub fn merge_translations(
             });
         }
 
+        accepted_keys.push(translation.key.clone());
         accepted += 1;
     }
 
@@ -135,6 +137,7 @@ pub fn merge_translations(
         accepted,
         rejected,
         dry_run: false,
+        accepted_keys,
     }
 }
 

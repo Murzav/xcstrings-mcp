@@ -5,7 +5,7 @@ use tokio::sync::Mutex;
 use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::service::{coverage, file_validator};
-use crate::tools::parse::CachedFile;
+use crate::tools::FileCache;
 use crate::tools::resolve_file;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -17,7 +17,7 @@ pub(crate) struct GetCoverageParams {
 
 pub(crate) async fn handle_get_coverage(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: GetCoverageParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -37,7 +37,7 @@ pub(crate) struct ValidateFileParams {
 
 pub(crate) async fn handle_validate_file(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: ValidateFileParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -54,7 +54,7 @@ mod tests {
     async fn test_get_coverage_returns_data() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = GetCoverageParams {
             file_path: Some("/test/file.xcstrings".to_string()),
@@ -71,7 +71,7 @@ mod tests {
     async fn test_validate_file_clean() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = ValidateFileParams {
             file_path: Some("/test/file.xcstrings".to_string()),

@@ -81,6 +81,41 @@ pub fn add_locale(file: &mut XcStringsFile, locale: &str) -> Result<usize, XcStr
     Ok(count)
 }
 
+/// Remove a locale from all entries in the file.
+/// Returns the number of entries the locale was removed from.
+pub fn remove_locale(
+    file: &mut XcStringsFile,
+    locale: &str,
+    source_language: &str,
+) -> Result<usize, XcStringsError> {
+    if locale == source_language {
+        return Err(XcStringsError::CannotRemoveSourceLocale(locale.into()));
+    }
+
+    // Verify locale exists in at least one entry
+    let exists = file.strings.values().any(|entry| {
+        entry
+            .localizations
+            .as_ref()
+            .is_some_and(|locs| locs.contains_key(locale))
+    });
+
+    if !exists {
+        return Err(XcStringsError::LocaleNotFound(locale.into()));
+    }
+
+    let mut count = 0;
+    for entry in file.strings.values_mut() {
+        if let Some(locs) = &mut entry.localizations
+            && locs.shift_remove(locale).is_some()
+        {
+            count += 1;
+        }
+    }
+
+    Ok(count)
+}
+
 #[cfg(test)]
 mod tests {
     use indexmap::IndexMap;
@@ -231,5 +266,119 @@ mod tests {
             result.unwrap_err(),
             XcStringsError::InvalidFormat(_)
         ));
+    }
+
+    #[test]
+    fn remove_locale_success() {
+        let mut strings = IndexMap::new();
+        strings.insert(
+            "key1".to_string(),
+            make_entry(&[
+                ("en", TranslationState::Translated),
+                ("de", TranslationState::Translated),
+            ]),
+        );
+        strings.insert(
+            "key2".to_string(),
+            make_entry(&[
+                ("en", TranslationState::Translated),
+                ("de", TranslationState::New),
+            ]),
+        );
+        let mut file = make_file(strings);
+
+        let count = remove_locale(&mut file, "de", "en").unwrap();
+        assert_eq!(count, 2);
+
+        for entry in file.strings.values() {
+            let locs = entry.localizations.as_ref().unwrap();
+            assert!(!locs.contains_key("de"));
+        }
+    }
+
+    #[test]
+    fn remove_locale_rejects_source() {
+        let mut strings = IndexMap::new();
+        strings.insert(
+            "key1".to_string(),
+            make_entry(&[("en", TranslationState::Translated)]),
+        );
+        let mut file = make_file(strings);
+
+        let result = remove_locale(&mut file, "en", "en");
+        assert!(matches!(
+            result.unwrap_err(),
+            XcStringsError::CannotRemoveSourceLocale(_)
+        ));
+    }
+
+    #[test]
+    fn remove_locale_not_found() {
+        let mut strings = IndexMap::new();
+        strings.insert(
+            "key1".to_string(),
+            make_entry(&[("en", TranslationState::Translated)]),
+        );
+        let mut file = make_file(strings);
+
+        let result = remove_locale(&mut file, "ja", "en");
+        assert!(matches!(
+            result.unwrap_err(),
+            XcStringsError::LocaleNotFound(_)
+        ));
+    }
+
+    #[test]
+    fn remove_locale_includes_nontranslatable() {
+        let mut strings = IndexMap::new();
+        // Nontranslatable entry that still has locale data
+        let mut nt_entry = make_nontranslatable_entry();
+        let mut locs = IndexMap::new();
+        locs.insert(
+            "de".to_string(),
+            Localization {
+                string_unit: Some(StringUnit {
+                    state: TranslationState::Translated,
+                    value: "val".to_string(),
+                }),
+                variations: None,
+                substitutions: None,
+            },
+        );
+        nt_entry.localizations = Some(locs);
+        strings.insert("nt_key".to_string(), nt_entry);
+
+        strings.insert(
+            "key1".to_string(),
+            make_entry(&[
+                ("en", TranslationState::Translated),
+                ("de", TranslationState::Translated),
+            ]),
+        );
+        let mut file = make_file(strings);
+
+        // remove_locale removes from ALL entries, including nontranslatable
+        let count = remove_locale(&mut file, "de", "en").unwrap();
+        assert_eq!(count, 2);
+    }
+
+    #[test]
+    fn remove_locale_preserves_order() {
+        let mut strings = IndexMap::new();
+        strings.insert(
+            "key1".to_string(),
+            make_entry(&[
+                ("en", TranslationState::Translated),
+                ("de", TranslationState::Translated),
+                ("fr", TranslationState::Translated),
+            ]),
+        );
+        let mut file = make_file(strings);
+
+        remove_locale(&mut file, "de", "en").unwrap();
+
+        let locs = file.strings["key1"].localizations.as_ref().unwrap();
+        let keys: Vec<&String> = locs.keys().collect();
+        assert_eq!(keys, vec!["en", "fr"]);
     }
 }

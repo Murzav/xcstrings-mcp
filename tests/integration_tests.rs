@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use helpers::MemoryStore;
 use indexmap::IndexMap;
 use xcstrings_mcp::_test_support::service::{
-    context, coverage, extractor, file_validator, formatter, locale, merger, parser,
-    plural_extractor, validator,
+    context, coverage, diff, extractor, file_validator, formatter, glossary, locale, merger,
+    parser, plural_extractor, validator, xliff,
 };
 use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
@@ -784,6 +784,246 @@ fn multiline_specifier_safe() {
     assert_eq!(uk.value, "Рядок 1\nРядок 2\nРядок 3");
 }
 
+// ── Phase 5 integration tests ──
+
+#[test]
+fn multi_file_parse_and_switch() {
+    // File A: two translatable keys
+    let file_a = parser::parse(SIMPLE_FIXTURE).unwrap();
+    let summary_a = parser::summarize(&file_a);
+    assert_eq!(summary_a.translatable_keys, 2);
+
+    // File B: a different file with one key
+    let json_b = r#"{
+        "sourceLanguage": "en",
+        "strings": {
+            "logout_button": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Log Out" } }
+                }
+            }
+        },
+        "version": "1.0"
+    }"#;
+    let file_b = parser::parse(json_b).unwrap();
+    let summary_b = parser::summarize(&file_b);
+    assert_eq!(summary_b.translatable_keys, 1);
+
+    // get_untranslated on file B (the "active" file)
+    let (batch_b, total_b) = extractor::get_untranslated(&file_b, "de", 100, 0).unwrap();
+    assert_eq!(total_b, 1);
+    assert_eq!(batch_b[0].key, "logout_button");
+
+    // get_untranslated on file A (switch back)
+    let (batch_a, total_a) = extractor::get_untranslated(&file_a, "de", 100, 0).unwrap();
+    assert_eq!(total_a, 2);
+    let keys_a: Vec<&str> = batch_a.iter().map(|u| u.key.as_str()).collect();
+    assert!(keys_a.contains(&"greeting"));
+    assert!(keys_a.contains(&"welcome_message"));
+}
+
+#[test]
+fn add_then_remove_locale_roundtrip() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+    let source_lang = file.source_language.clone();
+
+    // Add locale "fr"
+    let added = locale::add_locale(&mut file, "fr").unwrap();
+    assert!(added > 0);
+
+    // Verify "fr" exists
+    let locales = locale::list_locales(&file);
+    assert!(
+        locales.iter().any(|l| l.locale == "fr"),
+        "fr should exist after add"
+    );
+
+    // Remove locale "fr"
+    let removed = locale::remove_locale(&mut file, "fr", &source_lang).unwrap();
+    assert_eq!(removed, added);
+
+    // Verify "fr" gone
+    let locales = locale::list_locales(&file);
+    assert!(
+        !locales.iter().any(|l| l.locale == "fr"),
+        "fr should be gone after remove"
+    );
+
+    // Verify file is still valid (parse roundtrip)
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.strings.len(), file.strings.len());
+}
+
+#[test]
+fn batch_retry_continue_on_error_writes_valid() {
+    let json = r#"{
+        "sourceLanguage": "en",
+        "strings": {
+            "plain_key": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Hello" } }
+                }
+            },
+            "specifier_key": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Hello %@" } }
+                }
+            }
+        },
+        "version": "1.0"
+    }"#;
+    let mut file = parser::parse(json).unwrap();
+
+    let translations = vec![
+        // Valid: plain_key has no specifiers, translation has none
+        CompletedTranslation {
+            key: "plain_key".to_string(),
+            locale: "de".to_string(),
+            value: "Hallo".to_string(),
+            plural_forms: None,
+            substitution_name: None,
+        },
+        // Invalid: specifier_key needs %@ but translation lacks it
+        CompletedTranslation {
+            key: "specifier_key".to_string(),
+            locale: "de".to_string(),
+            value: "Hallo ohne Spezifizierer".to_string(),
+            plural_forms: None,
+            substitution_name: None,
+        },
+    ];
+
+    // Validate to find rejected ones
+    let rejected = validator::validate_translations(&file, &translations);
+    assert_eq!(rejected.len(), 1, "specifier_key should be rejected");
+    assert_eq!(rejected[0].key, "specifier_key");
+
+    // Filter out rejected and merge only valid translations
+    let rejected_keys: std::collections::HashSet<&str> =
+        rejected.iter().map(|r| r.key.as_str()).collect();
+    let valid: Vec<CompletedTranslation> = translations
+        .into_iter()
+        .filter(|t| !rejected_keys.contains(t.key.as_str()))
+        .collect();
+
+    let result = merger::merge_translations(&mut file, &valid);
+    assert_eq!(result.accepted, 1);
+    assert!(result.accepted_keys.contains(&"plain_key".to_string()));
+
+    // Verify plain_key is translated, specifier_key is not
+    let (batch, total) = extractor::get_untranslated(&file, "de", 100, 0).unwrap();
+    assert_eq!(total, 1);
+    assert_eq!(batch[0].key, "specifier_key");
+}
+
+#[test]
+fn diff_detects_external_changes() {
+    let old = parser::parse(SIMPLE_FIXTURE).unwrap();
+
+    // Build a modified version: add a key, remove a key, change source text
+    let modified_json = r#"{
+        "sourceLanguage": "en",
+        "strings": {
+            "greeting": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "Hi there!" } },
+                    "uk": { "stringUnit": { "state": "translated", "value": "Привіт" } }
+                }
+            },
+            "new_key": {
+                "localizations": {
+                    "en": { "stringUnit": { "state": "translated", "value": "New!" } }
+                }
+            }
+        },
+        "version": "1.0"
+    }"#;
+    let new = parser::parse(modified_json).unwrap();
+
+    let report = diff::compute_diff(&old, &new);
+
+    // "new_key" was added
+    assert!(report.added.contains(&"new_key".to_string()));
+    // "welcome_message" was removed
+    assert!(report.removed.contains(&"welcome_message".to_string()));
+    // "greeting" source changed from "Hello" to "Hi there!"
+    assert_eq!(report.modified.len(), 1);
+    assert_eq!(report.modified[0].key, "greeting");
+    assert_eq!(report.modified[0].old_value, "Hello");
+    assert_eq!(report.modified[0].new_value, "Hi there!");
+}
+
+#[test]
+fn xliff_export_import_roundtrip() {
+    let file = parser::parse(SIMPLE_FIXTURE).unwrap();
+
+    // Export to XLIFF (all entries, not just untranslated)
+    let (xml, exported_count) =
+        xliff::export_xliff(&file, "uk", "Localizable.xcstrings", false).unwrap();
+    assert!(exported_count > 0);
+
+    // Import the XLIFF back
+    let (locale, translations) = xliff::import_xliff(&xml).unwrap();
+    assert_eq!(locale, "uk");
+
+    // Only entries with non-empty target text are imported.
+    // "greeting" has uk translation -> imported. "welcome_message" does not -> skipped.
+    assert!(
+        !translations.is_empty(),
+        "should import at least one translation"
+    );
+
+    // The imported translations should have the correct locale
+    for t in &translations {
+        assert_eq!(t.locale, "uk");
+    }
+
+    // Verify the greeting translation survived the roundtrip
+    let greeting = translations.iter().find(|t| t.key == "greeting");
+    assert!(greeting.is_some());
+    assert_eq!(greeting.unwrap().value, "Привіт");
+}
+
+#[test]
+fn glossary_create_update_read() {
+    let mut g = glossary::parse_glossary(None).unwrap();
+
+    // Add terms
+    let mut terms = std::collections::BTreeMap::new();
+    terms.insert("Settings".to_string(), "Einstellungen".to_string());
+    terms.insert("Cancel".to_string(), "Abbrechen".to_string());
+    let count = glossary::update_entries(&mut g, "en", "de", terms);
+    assert_eq!(count, 2);
+
+    // Read back
+    let entries = glossary::get_entries(&g, "en", "de", None);
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries["Settings"], "Einstellungen");
+    assert_eq!(entries["Cancel"], "Abbrechen");
+
+    // Overwrite "Settings"
+    let mut update = std::collections::BTreeMap::new();
+    update.insert("Settings".to_string(), "Optionen".to_string());
+    glossary::update_entries(&mut g, "en", "de", update);
+
+    let entries = glossary::get_entries(&g, "en", "de", None);
+    assert_eq!(entries["Settings"], "Optionen");
+    // Cancel should still be there
+    assert_eq!(entries["Cancel"], "Abbrechen");
+
+    // Filter
+    let filtered = glossary::get_entries(&g, "en", "de", Some("cancel"));
+    assert_eq!(filtered.len(), 1);
+    assert!(filtered.contains_key("Cancel"));
+
+    // Serialize and re-parse
+    let json = glossary::serialize_glossary(&g).unwrap();
+    let reloaded = glossary::parse_glossary(Some(&json)).unwrap();
+    let entries = glossary::get_entries(&reloaded, "en", "de", None);
+    assert_eq!(entries.len(), 2);
+}
+
 // ── Property-based tests ──
 
 mod proptest_tests {
@@ -899,6 +1139,103 @@ mod proptest_tests {
             let (_, after) = extractor::get_untranslated(&file, "de", 100, 0).unwrap();
             prop_assert!(after <= before,
                 "submitting translations must not increase untranslated count: before={before}, after={after}, translatable={translatable}");
+        }
+
+        // ── Phase 5 property tests ──
+
+        #[test]
+        fn diff_identity(keys in prop::collection::vec("[a-z]{1,10}", 0..20)) {
+            // Deduplicate keys (IndexMap collapses dupes)
+            let mut strings = IndexMap::new();
+            for key in &keys {
+                let mut localizations = IndexMap::new();
+                localizations.insert(
+                    "en".to_string(),
+                    Localization {
+                        string_unit: Some(StringUnit {
+                            state: TranslationState::Translated,
+                            value: format!("Value for {key}"),
+                        }),
+                        variations: None,
+                        substitutions: None,
+                    },
+                );
+                strings.insert(
+                    key.clone(),
+                    StringEntry {
+                        extraction_state: None,
+                        should_translate: true,
+                        comment: None,
+                        localizations: Some(localizations),
+                    },
+                );
+            }
+            let file = XcStringsFile {
+                source_language: "en".to_string(),
+                strings,
+                version: "1.0".to_string(),
+            };
+
+            let report = diff::compute_diff(&file, &file);
+            prop_assert!(report.added.is_empty(), "diff of identical files should have no added keys");
+            prop_assert!(report.removed.is_empty(), "diff of identical files should have no removed keys");
+            prop_assert!(report.modified.is_empty(), "diff of identical files should have no modified keys");
+        }
+
+        #[test]
+        fn remove_add_locale_preserves_key_count(
+            keys in prop::collection::vec("[a-z]{1,10}", 1..10)
+        ) {
+            // Build file with unique keys
+            let mut strings = IndexMap::new();
+            for key in &keys {
+                let mut localizations = IndexMap::new();
+                localizations.insert(
+                    "en".to_string(),
+                    Localization {
+                        string_unit: Some(StringUnit {
+                            state: TranslationState::Translated,
+                            value: format!("Value for {key}"),
+                        }),
+                        variations: None,
+                        substitutions: None,
+                    },
+                );
+                strings.insert(
+                    key.clone(),
+                    StringEntry {
+                        extraction_state: None,
+                        should_translate: true,
+                        comment: None,
+                        localizations: Some(localizations),
+                    },
+                );
+            }
+            let mut file = XcStringsFile {
+                source_language: "en".to_string(),
+                strings,
+                version: "1.0".to_string(),
+            };
+
+            let translatable = file.strings.values().filter(|e| e.should_translate).count();
+
+            // Add locale "test_xx"
+            locale::add_locale(&mut file, "test_xx").unwrap();
+            let locales_after_add = locale::list_locales(&file);
+            let test_locale = locales_after_add.iter().find(|l| l.locale == "test_xx").unwrap();
+            prop_assert_eq!(test_locale.total, translatable);
+
+            // Remove locale "test_xx"
+            locale::remove_locale(&mut file, "test_xx", "en").unwrap();
+            let locales_after_remove = locale::list_locales(&file);
+            prop_assert!(
+                !locales_after_remove.iter().any(|l| l.locale == "test_xx"),
+                "test_xx locale should be gone after remove"
+            );
+
+            // Key count unchanged
+            prop_assert_eq!(file.strings.len(), keys.iter().collect::<std::collections::HashSet<_>>().len(),
+                "key count should match unique input keys");
         }
     }
 }

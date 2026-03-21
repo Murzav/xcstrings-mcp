@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::service::{formatter, locale, parser};
+use crate::tools::FileCache;
 use crate::tools::parse::CachedFile;
 use crate::tools::resolve_file;
 
@@ -17,7 +18,7 @@ pub(crate) struct ListLocalesParams {
 
 pub(crate) async fn handle_list_locales(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     params: ListLocalesParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
@@ -42,7 +43,7 @@ struct AddLocaleResult {
 
 pub(crate) async fn handle_add_locale(
     store: &dyn FileStore,
-    cache: &Mutex<Option<CachedFile>>,
+    cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: AddLocaleParams,
 ) -> Result<serde_json::Value, XcStringsError> {
@@ -64,14 +65,73 @@ pub(crate) async fn handle_add_locale(
     // Update cache
     let mtime = store.modified_time(&path)?;
     let mut guard = cache.lock().await;
-    *guard = Some(CachedFile {
-        path,
-        content: fresh_file,
-        modified: mtime,
-    });
+    guard.insert(
+        path.clone(),
+        CachedFile {
+            path,
+            content: fresh_file,
+            modified: mtime,
+        },
+    );
 
     let result = AddLocaleResult {
         added,
+        locale: params.locale,
+    };
+    Ok(serde_json::to_value(result)?)
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct RemoveLocaleParams {
+    /// Path to .xcstrings file (optional if already parsed)
+    #[serde(default)]
+    pub file_path: Option<String>,
+    /// Locale code to remove (e.g., "ko", "ja")
+    pub locale: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct RemoveLocaleResult {
+    removed: usize,
+    locale: String,
+}
+
+pub(crate) async fn handle_remove_locale(
+    store: &dyn FileStore,
+    cache: &Mutex<FileCache>,
+    write_lock: &Mutex<()>,
+    params: RemoveLocaleParams,
+) -> Result<serde_json::Value, XcStringsError> {
+    let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let source_language = file.source_language.clone();
+
+    // Acquire write lock
+    let _write_guard = write_lock.lock().await;
+
+    // Re-read fresh from disk
+    let raw = store.read(&path)?;
+    let mut fresh_file = parser::parse(&raw)?;
+
+    let removed = locale::remove_locale(&mut fresh_file, &params.locale, &source_language)?;
+
+    // Format and write
+    let formatted = formatter::format_xcstrings(&fresh_file)?;
+    store.write(&path, &formatted)?;
+
+    // Update cache
+    let mtime = store.modified_time(&path)?;
+    let mut guard = cache.lock().await;
+    guard.insert(
+        path.clone(),
+        CachedFile {
+            path,
+            content: fresh_file,
+            modified: mtime,
+        },
+    );
+
+    let result = RemoveLocaleResult {
+        removed,
         locale: params.locale,
     };
     Ok(serde_json::to_value(result)?)
@@ -89,7 +149,7 @@ mod tests {
     async fn test_list_locales_returns_locales() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
 
         let params = ListLocalesParams {
             file_path: Some("/test/file.xcstrings".to_string()),
@@ -106,7 +166,7 @@ mod tests {
     async fn test_add_locale_success() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
         let write_lock = Mutex::new(());
 
         let parse_params = ParseParams {
@@ -136,7 +196,7 @@ mod tests {
     async fn test_add_locale_duplicate_error() {
         let store = MemoryStore::new();
         store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(None);
+        let cache = Mutex::new(FileCache::new());
         let write_lock = Mutex::new(());
 
         let parse_params = ParseParams {
@@ -149,6 +209,66 @@ mod tests {
             locale: "uk".to_string(),
         };
         let result = handle_add_locale(&store, &cache, &write_lock, params).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_remove_locale_success() {
+        let store = MemoryStore::new();
+        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
+        let cache = Mutex::new(FileCache::new());
+        let write_lock = Mutex::new(());
+
+        let parse_params = ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        };
+        handle_parse(&store, &cache, parse_params).await.unwrap();
+
+        let params = RemoveLocaleParams {
+            file_path: None,
+            locale: "uk".to_string(),
+        };
+        let result = handle_remove_locale(&store, &cache, &write_lock, params)
+            .await
+            .unwrap();
+
+        assert_eq!(result["locale"], "uk");
+        assert!(result["removed"].as_u64().unwrap() > 0);
+
+        // Verify the locale was removed from written file
+        let content = store
+            .get_content(Path::new("/test/file.xcstrings"))
+            .unwrap();
+        // "uk" might still appear as substring in other contexts,
+        // but it should not be a localization key anymore
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        for (_key, entry) in parsed["strings"].as_object().unwrap() {
+            if let Some(locs) = entry.get("localizations") {
+                assert!(
+                    locs.get("uk").is_none(),
+                    "uk locale should have been removed"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_remove_source_locale_error() {
+        let store = MemoryStore::new();
+        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
+        let cache = Mutex::new(FileCache::new());
+        let write_lock = Mutex::new(());
+
+        let parse_params = ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        };
+        handle_parse(&store, &cache, parse_params).await.unwrap();
+
+        let params = RemoveLocaleParams {
+            file_path: None,
+            locale: "en".to_string(),
+        };
+        let result = handle_remove_locale(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
     }
 }

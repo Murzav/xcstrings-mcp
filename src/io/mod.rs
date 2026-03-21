@@ -10,4 +10,5 @@ pub trait FileStore: Send + Sync {
     fn write(&self, path: &Path, content: &str) -> Result<(), XcStringsError>;
     fn modified_time(&self, path: &Path) -> Result<SystemTime, XcStringsError>;
     fn exists(&self, path: &Path) -> bool;
+    fn create_parent_dirs(&self, path: &Path) -> Result<(), XcStringsError>;
 }

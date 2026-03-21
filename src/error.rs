@@ -47,6 +47,18 @@ pub enum XcStringsError {
     #[error("file is locked by another process (likely Xcode): {path}")]
     FileLocked { path: PathBuf },
 
+    #[error("cannot remove source locale: {0}")]
+    CannotRemoveSourceLocale(String),
+
+    #[error("glossary error: {0}")]
+    GlossaryError(String),
+
+    #[error("XLIFF parse error: {0}")]
+    XliffParse(String),
+
+    #[error("XLIFF format error: {0}")]
+    XliffFormat(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
