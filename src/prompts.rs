@@ -55,6 +55,14 @@ pub(crate) struct FullTranslateParams {
     file_path: String,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct ExtractStringsParams {
+    /// Source language code (e.g. "en")
+    source_language: String,
+    /// Path to the .xcstrings file to create or update
+    file_path: String,
+}
+
 #[prompt_router]
 impl XcStringsMcpServer {
     /// Instructions for translating a batch of strings to a target locale
@@ -270,6 +278,64 @@ impl XcStringsMcpServer {
             content,
         )])
         .with_description(format!("Fix validation errors for \"{}\"", params.locale)))
+    }
+
+    /// Extract hardcoded strings from Swift source code into .xcstrings
+    #[prompt(
+        name = "extract_strings",
+        description = "Guided workflow to extract hardcoded strings from Swift source code into an .xcstrings file"
+    )]
+    fn extract_strings(
+        &self,
+        Parameters(params): Parameters<ExtractStringsParams>,
+    ) -> Result<GetPromptResult, rmcp::ErrorData> {
+        let content = format!(
+            "Extract hardcoded strings from Swift source code into {file_path}.\n\
+            \n\
+            Step 1: Create or parse the .xcstrings file\n\
+            \x20 If {file_path} does not exist:\n\
+            \x20   Call create_xcstrings with file_path=\"{file_path}\" and \
+            source_language=\"{source_language}\"\n\
+            \x20 If it already exists:\n\
+            \x20   Call parse_xcstrings with file_path=\"{file_path}\"\n\
+            \n\
+            Step 2: Scan Swift files for hardcoded strings\n\
+            \x20 Look for patterns like:\n\
+            \x20   - Text(\"...\") and Label(\"...\")\n\
+            \x20   - String literals in .alert(), .navigationTitle(), etc.\n\
+            \x20   - NSLocalizedString(\"...\", comment: \"...\")\n\
+            \x20   - Any user-visible string literal\n\
+            \x20 Skip: debug logs, print(), assert messages, identifiers\n\
+            \n\
+            Step 3: Generate key names\n\
+            \x20 Use dot.separated.convention based on context:\n\
+            \x20   - screen.element.description (e.g., settings.title, login.button.submit)\n\
+            \x20   - Keep keys short but descriptive\n\
+            \x20   - Group related keys with shared prefixes\n\
+            \n\
+            Step 4: Add keys to the .xcstrings file\n\
+            \x20 Call add_keys with the generated keys and source text\n\
+            \x20 Include developer comments describing the context\n\
+            \n\
+            Step 5: Replace hardcoded strings in Swift code\n\
+            \x20 Replace each hardcoded string with String(localized: \"key.name\")\n\
+            \x20 For strings with format specifiers, use appropriate interpolation\n\
+            \n\
+            Step 6: Validate\n\
+            \x20 Call parse_xcstrings to verify the file is valid\n\
+            \x20 Ensure all replaced strings have corresponding keys",
+            file_path = params.file_path,
+            source_language = params.source_language,
+        );
+
+        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+            PromptMessageRole::User,
+            content,
+        )])
+        .with_description(format!(
+            "Extract strings from Swift code into {}",
+            params.file_path
+        )))
     }
 
     /// Add a new language and begin translating

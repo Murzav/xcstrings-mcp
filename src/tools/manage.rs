@@ -270,8 +270,6 @@ mod tests {
         let content = store
             .get_content(Path::new("/test/file.xcstrings"))
             .unwrap();
-        // "uk" might still appear as substring in other contexts,
-        // but it should not be a localization key anymore
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         for (_key, entry) in parsed["strings"].as_object().unwrap() {
             if let Some(locs) = entry.get("localizations") {

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.0.0] - 2026-03-21
+
+### Added
+- **`create_xcstrings` tool** -- create a new empty .xcstrings file with a given source language
+- **`add_keys` tool** -- add new localization keys with source text to an .xcstrings file
+- **`discover_files` tool** -- recursively search a directory for .xcstrings files
+- **`update_comments` tool** -- update developer comments on existing localization keys
+- **`extract_strings` prompt** -- guided workflow to extract hardcoded strings from Swift code
+- **Multi-locale `get_untranslated`** -- `locales` parameter to find strings untranslated in any of multiple locales
+- `FileAlreadyExists` error variant for create_xcstrings safety
+- Service layer `creator` module with pure functions for file creation, key addition, and comment updates
+
 ## [0.5.0] - 2025-03-21
 
 ### Added

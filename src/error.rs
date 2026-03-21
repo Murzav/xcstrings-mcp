@@ -47,6 +47,9 @@ pub enum XcStringsError {
     #[error("XLIFF format error: {0}")]
     XliffFormat(String),
 
+    #[error("file already exists: {path}")]
+    FileAlreadyExists { path: PathBuf },
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 

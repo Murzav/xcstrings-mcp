@@ -22,11 +22,108 @@ cargo install xcstrings-mcp
 cargo binstall xcstrings-mcp
 ```
 
-### Configure Claude Code
+### Configure
+
+<details>
+<summary><strong>Claude Code</strong></summary>
 
 ```sh
 claude mcp add xcstrings-mcp -- xcstrings-mcp
 ```
+</details>
+
+<details>
+<summary><strong>Cursor</strong></summary>
+
+Add to `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "xcstrings-mcp": {
+      "command": "xcstrings-mcp",
+      "args": []
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Windsurf</strong></summary>
+
+Add to `~/.codeium/windsurf/mcp_config.json`:
+```json
+{
+  "mcpServers": {
+    "xcstrings-mcp": {
+      "command": "xcstrings-mcp",
+      "args": []
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>VS Code + Copilot</strong></summary>
+
+Add to `.vscode/mcp.json`:
+```json
+{
+  "servers": {
+    "xcstrings-mcp": {
+      "type": "stdio",
+      "command": "xcstrings-mcp",
+      "args": []
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Zed</strong></summary>
+
+Add to Zed settings (`settings.json`):
+```json
+{
+  "context_servers": {
+    "xcstrings-mcp": {
+      "command": {
+        "path": "xcstrings-mcp",
+        "args": []
+      }
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>OpenAI Codex</strong></summary>
+
+Add to your project's `codex.json` or configure via Codex CLI:
+```json
+{
+  "mcpServers": {
+    "xcstrings-mcp": {
+      "command": "xcstrings-mcp",
+      "args": []
+    }
+  }
+}
+```
+</details>
+
+<details>
+<summary><strong>Any MCP client (generic)</strong></summary>
+
+xcstrings-mcp communicates via stdio using JSON-RPC. Point your MCP client to the binary:
+```
+command: xcstrings-mcp
+transport: stdio
+```
+</details>
 
 ## Usage
 
@@ -64,6 +161,10 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `export_xliff` | Export to XLIFF 1.2 for external translation tools |
 | `import_xliff` | Import translations from XLIFF 1.2 file |
 | `search_keys` | Search keys by substring (matches key names and source text) |
+| `create_xcstrings` | Create a new empty .xcstrings file |
+| `add_keys` | Add new localization keys with source text |
+| `discover_files` | Recursively find .xcstrings files in a directory |
+| `update_comments` | Update developer comments on localization keys |
 
 ### Prompts
 
@@ -75,6 +176,17 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `localization_audit` | Full audit: coverage, validation, stale keys, glossary |
 | `fix_validation_errors` | Guided workflow to fix all validation issues |
 | `add_language` | Add a new locale and translate all strings |
+| `extract_strings` | Extract hardcoded strings from Swift code into .xcstrings |
+
+### Getting Started from Scratch
+
+To create a new localization file and begin translating:
+
+```
+create_xcstrings → add_keys → add_locale → get_untranslated → submit_translations
+```
+
+Or use the `extract_strings` prompt to automatically extract hardcoded strings from your Swift source code.
 
 ### CLI Options
 
@@ -102,10 +214,10 @@ Scaling is linear — no degradation cliffs. Typical iOS projects (2-5K keys) pa
 ## Architecture
 
 ```
-┌─────────────┐    stdio/JSON-RPC    ┌─────────────────┐    File I/O    ┌──────────────────────┐
-│ Claude Code  │◄───────────────────►│  xcstrings-mcp   │◄────────────►│ Localizable.xcstrings │
-│ (translates) │                     │ (Rust MCP server)│              │ (JSON on disk)        │
-└─────────────┘                     └─────────────────┘              └──────────────────────┘
+┌─────────────┐    stdio/JSON-RPC   ┌──────────────────┐    File I/O    ┌───────────────────────┐
+│ Claude Code │◄───────────────────►│  xcstrings-mcp   │◄──────────────►│ Localizable.xcstrings │
+│ (translates)│                     │ (Rust MCP server)│                │ (JSON on disk)        │
+└─────────────┘                     └──────────────────┘                └───────────────────────┘
 ```
 
 Layered architecture: `server` -> `tools` -> `service` -> `model`, with `io` injected via the `FileStore` trait.

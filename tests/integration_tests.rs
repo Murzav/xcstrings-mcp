@@ -5,8 +5,8 @@ use std::path::PathBuf;
 use helpers::MemoryStore;
 use indexmap::IndexMap;
 use xcstrings_mcp::_test_support::service::{
-    context, coverage, diff, extractor, file_validator, formatter, glossary, locale, merger,
-    parser, plural_extractor, validator, xliff,
+    context, coverage, creator, diff, extractor, file_validator, formatter, glossary, locale,
+    merger, parser, plural_extractor, validator, xliff,
 };
 use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
@@ -1281,4 +1281,161 @@ fn xcode26_version_11_merge_preserves_version() {
         .as_ref()
         .unwrap();
     assert_eq!(de.value, "Meine App");
+}
+
+// ── Phase 7 integration tests ──
+
+#[test]
+fn create_then_add_keys_then_parse() {
+    let mut file = creator::create_empty_file("en").unwrap();
+    assert_eq!(file.source_language, "en");
+    assert!(file.strings.is_empty());
+
+    let keys = vec![
+        creator::AddKeyRequest {
+            key: "greeting".to_string(),
+            source_text: "Hello".to_string(),
+            comment: Some("A greeting message".to_string()),
+        },
+        creator::AddKeyRequest {
+            key: "farewell".to_string(),
+            source_text: "Goodbye".to_string(),
+            comment: None,
+        },
+    ];
+
+    let result = creator::add_keys(&mut file, &keys);
+    assert_eq!(result.added, 2);
+    assert!(result.skipped.is_empty());
+
+    // Format and re-parse
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.strings.len(), 2);
+    assert_eq!(reparsed.source_language, "en");
+
+    // Verify keys exist with correct values
+    let greeting = &reparsed.strings["greeting"];
+    let en = greeting
+        .localizations
+        .as_ref()
+        .unwrap()
+        .get("en")
+        .unwrap()
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert_eq!(en.value, "Hello");
+    assert_eq!(en.state, TranslationState::Translated);
+    assert_eq!(greeting.comment.as_deref(), Some("A greeting message"));
+}
+
+#[test]
+fn full_lifecycle_create_add_translate_coverage() {
+    // Create
+    let mut file = creator::create_empty_file("en").unwrap();
+
+    // Add keys
+    let keys = vec![
+        creator::AddKeyRequest {
+            key: "title".to_string(),
+            source_text: "My App".to_string(),
+            comment: None,
+        },
+        creator::AddKeyRequest {
+            key: "subtitle".to_string(),
+            source_text: "Welcome".to_string(),
+            comment: None,
+        },
+    ];
+    creator::add_keys(&mut file, &keys);
+
+    // Add locale
+    locale::add_locale(&mut file, "uk").unwrap();
+
+    // Get untranslated
+    let (batch, total) = extractor::get_untranslated(&file, "uk", 100, 0).unwrap();
+    assert_eq!(total, 2);
+    assert_eq!(batch.len(), 2);
+
+    // Submit translations
+    let translations = vec![
+        CompletedTranslation {
+            key: "title".to_string(),
+            locale: "uk".to_string(),
+            value: "Мій Застосунок".to_string(),
+            plural_forms: None,
+            substitution_name: None,
+        },
+        CompletedTranslation {
+            key: "subtitle".to_string(),
+            locale: "uk".to_string(),
+            value: "Ласкаво просимо".to_string(),
+            plural_forms: None,
+            substitution_name: None,
+        },
+    ];
+
+    let rejected = validator::validate_translations(&file, &translations);
+    assert!(rejected.is_empty());
+
+    let merge_result = merger::merge_translations(&mut file, &translations);
+    assert_eq!(merge_result.accepted, 2);
+
+    // Check coverage = 100%
+    let report = coverage::get_coverage(&file);
+    let uk_coverage = report.locales.iter().find(|l| l.locale == "uk").unwrap();
+    assert!(
+        (uk_coverage.percentage - 100.0).abs() < f64::EPSILON,
+        "uk should be 100% translated"
+    );
+
+    // Roundtrip
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.strings.len(), 2);
+}
+
+#[test]
+fn multi_locale_get_untranslated() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+    locale::add_locale(&mut file, "de").unwrap();
+
+    // Both de and uk need translations for "welcome_message"
+    // "de" also needs "greeting" (not translated)
+    // "uk" has "greeting" already translated
+    let (batch, total) = extractor::get_untranslated_multi(&file, &["uk", "de"], 100, 0).unwrap();
+
+    // "greeting" is untranslated in de, "welcome_message" is untranslated in both
+    assert_eq!(total, 2);
+    let keys: Vec<&str> = batch.iter().map(|u| u.key.as_str()).collect();
+    assert!(keys.contains(&"greeting"));
+    assert!(keys.contains(&"welcome_message"));
+}
+
+#[test]
+fn update_comments_then_verify() {
+    let mut file = creator::create_empty_file("en").unwrap();
+    let keys = vec![creator::AddKeyRequest {
+        key: "btn".to_string(),
+        source_text: "OK".to_string(),
+        comment: None,
+    }];
+    creator::add_keys(&mut file, &keys);
+
+    let updates = vec![("btn".to_string(), "Confirmation button".to_string())];
+    let count = creator::update_comments(&mut file, &updates);
+    assert_eq!(count, 1);
+    assert_eq!(
+        file.strings["btn"].comment.as_deref(),
+        Some("Confirmation button")
+    );
+
+    // Roundtrip preserves comment
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(
+        reparsed.strings["btn"].comment.as_deref(),
+        Some("Confirmation button")
+    );
 }

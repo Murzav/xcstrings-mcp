@@ -17,6 +17,7 @@ pub mod _test_support {
     pub mod service {
         pub use crate::service::context;
         pub use crate::service::coverage;
+        pub use crate::service::creator;
         pub use crate::service::diff;
         pub use crate::service::extractor;
         pub use crate::service::file_validator;

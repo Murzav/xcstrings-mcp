@@ -1,4 +1,5 @@
 pub(crate) mod coverage;
+pub(crate) mod create;
 pub(crate) mod diff;
 pub(crate) mod extract;
 pub(crate) mod files;

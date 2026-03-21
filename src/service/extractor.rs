@@ -127,6 +127,80 @@ fn build_translation_unit(
     }
 }
 
+/// Extract untranslated strings across multiple locales.
+/// A key is "untranslated" if it's untranslated in ANY of the provided locales.
+/// Falls back to `get_untranslated` when a single locale is provided.
+pub fn get_untranslated_multi(
+    file: &XcStringsFile,
+    locales: &[&str],
+    batch_size: usize,
+    offset: usize,
+) -> Result<(Vec<TranslationUnit>, usize), XcStringsError> {
+    if locales.is_empty() {
+        return Err(XcStringsError::LocaleNotFound("no locales provided".into()));
+    }
+    if locales.len() == 1 {
+        return get_untranslated(file, locales[0], batch_size, offset);
+    }
+    if batch_size == 0 || batch_size > 100 {
+        return Err(XcStringsError::InvalidBatchSize(format!(
+            "batch_size must be 1..=100, got {batch_size}"
+        )));
+    }
+
+    let mut untranslated = Vec::new();
+
+    for (key, entry) in &file.strings {
+        if !entry.should_translate {
+            continue;
+        }
+
+        // Skip substitution-only keys
+        if let Some(localizations) = &entry.localizations
+            && let Some(source_loc) = localizations.get(&file.source_language)
+            && source_loc.substitutions.is_some()
+            && source_loc.string_unit.is_none()
+        {
+            continue;
+        }
+
+        let is_untranslated_any = locales.iter().any(|locale| match &entry.localizations {
+            None => true,
+            Some(locs) => match locs.get(*locale) {
+                None => true,
+                Some(loc) => {
+                    if let Some(su) = &loc.string_unit {
+                        su.state != TranslationState::Translated
+                    } else {
+                        loc.variations.is_none()
+                    }
+                }
+            },
+        });
+
+        if !is_untranslated_any {
+            continue;
+        }
+
+        // Use the first locale as target for the TranslationUnit
+        untranslated.push(build_translation_unit(
+            key,
+            entry,
+            &file.source_language,
+            locales[0],
+        ));
+    }
+
+    let total = untranslated.len();
+    let batch: Vec<TranslationUnit> = untranslated
+        .into_iter()
+        .skip(offset)
+        .take(batch_size)
+        .collect();
+
+    Ok((batch, total))
+}
+
 /// Extract strings with `extractionState == Stale`.
 /// The `locale` parameter sets `target_locale` on returned units (stale is a key-level
 /// property, not locale-specific — all locales return the same stale keys).

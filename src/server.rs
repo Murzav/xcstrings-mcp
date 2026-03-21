@@ -22,12 +22,16 @@ use crate::io::FileStore;
 use crate::tools::{
     FileCache,
     coverage::{GetCoverageParams, ValidateFileParams, handle_get_coverage, handle_validate_file},
+    create::{
+        AddKeysParams, CreateXcStringsParams, UpdateCommentsParams, handle_add_keys,
+        handle_create_xcstrings, handle_update_comments,
+    },
     diff::{GetDiffParams, handle_get_diff},
     extract::{
         GetStaleParams, GetUntranslatedParams, SearchKeysParams, handle_get_stale,
         handle_get_untranslated, handle_search_keys,
     },
-    files::{ListFilesParams, handle_list_files},
+    files::{DiscoverFilesParams, ListFilesParams, handle_discover_files, handle_list_files},
     glossary::{
         GetGlossaryParams, UpdateGlossaryParams, handle_get_glossary, handle_update_glossary,
     },
@@ -470,6 +474,108 @@ impl XcStringsMcpServer {
             }
         }
     }
+
+    /// Create a new empty .xcstrings file.
+    #[tool(
+        name = "create_xcstrings",
+        description = "Create a new empty .xcstrings file with the given source language. Fails if the file already exists."
+    )]
+    async fn create_xcstrings(
+        &self,
+        Parameters(params): Parameters<CreateXcStringsParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_create_xcstrings(
+            self.store.as_ref(),
+            &self.cache,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "create_xcstrings failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Add new localization keys with source text.
+    #[tool(
+        name = "add_keys",
+        description = "Add new localization keys with source text to the .xcstrings file. Skips keys that already exist. Writes atomically."
+    )]
+    async fn add_keys(
+        &self,
+        Parameters(params): Parameters<AddKeysParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_add_keys(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "add_keys failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Discover .xcstrings files in a directory tree.
+    #[tool(
+        name = "discover_files",
+        description = "Recursively search a directory for .xcstrings files. Returns sorted list of paths found."
+    )]
+    async fn discover_files(
+        &self,
+        Parameters(params): Parameters<DiscoverFilesParams>,
+    ) -> Result<String, String> {
+        match handle_discover_files(params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "discover_files failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Update developer comments on localization keys.
+    #[tool(
+        name = "update_comments",
+        description = "Update developer comments on existing localization keys. Silently skips non-existent keys. Writes atomically."
+    )]
+    async fn update_comments(
+        &self,
+        Parameters(params): Parameters<UpdateCommentsParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_update_comments(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "update_comments failed");
+                Err(e.to_string())
+            }
+        }
+    }
 }
 
 #[tool_handler]
@@ -485,14 +591,18 @@ impl ServerHandler for XcStringsMcpServer {
             .with_protocol_version(ProtocolVersion::V_2025_06_18)
             .with_instructions(
                 "MCP server for iOS/macOS .xcstrings (String Catalog) localization files. \
-                     Use parse_xcstrings to load a file, get_untranslated to find strings needing \
-                     translation, get_plurals for plural/device variant keys, get_context for nearby \
+                     Use create_xcstrings to create a new file, parse_xcstrings to load a file, \
+                     discover_files to find .xcstrings files in a directory tree, \
+                     add_keys to add new localization keys with source text, \
+                     get_untranslated to find strings needing translation (supports multiple locales), \
+                     get_plurals for plural/device variant keys, get_context for nearby \
                      related keys, submit_translations to write translations back, get_coverage for \
                      per-locale statistics, get_stale to find removed strings, validate_translations \
                      to check correctness, list_locales to see all locales, add_locale to add a \
                      new locale, remove_locale to remove a locale, list_files to see all cached files, \
                      get_diff to compare cached vs on-disk versions, get_glossary to retrieve \
                      glossary terms, update_glossary to add or update glossary entries, \
+                     update_comments to modify developer comments on keys, \
                      export_xliff to export translations to XLIFF 1.2, import_xliff to \
                      import translations from XLIFF files, and search_keys to find keys by \
                      substring pattern matching key names and source text.",

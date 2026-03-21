@@ -1,5 +1,7 @@
+use std::path::{Path, PathBuf};
+
 use schemars::JsonSchema;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
@@ -15,6 +17,60 @@ pub(crate) async fn handle_list_files(
     let guard = cache.lock().await;
     let entries = guard.list();
     Ok(serde_json::to_value(entries)?)
+}
+
+// ── discover_files ──
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct DiscoverFilesParams {
+    /// Directory path to search recursively for .xcstrings files
+    pub directory: String,
+}
+
+#[derive(Debug, Serialize)]
+struct DiscoverFilesResult {
+    files: Vec<String>,
+    count: usize,
+}
+
+/// Recursively walk a directory to find all .xcstrings files.
+fn walk_xcstrings(dir: &Path) -> Vec<PathBuf> {
+    let mut results = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                results.extend(walk_xcstrings(&path));
+            } else if path.extension().and_then(|e| e.to_str()) == Some("xcstrings") {
+                results.push(path);
+            }
+        }
+    }
+    results.sort();
+    results
+}
+
+/// Discover all .xcstrings files in a directory tree.
+pub(crate) async fn handle_discover_files(
+    params: DiscoverFilesParams,
+) -> Result<serde_json::Value, XcStringsError> {
+    let dir = PathBuf::from(&params.directory);
+    if !dir.is_dir() {
+        return Err(XcStringsError::InvalidPath {
+            path: dir,
+            reason: "not a directory".to_string(),
+        });
+    }
+
+    let paths = walk_xcstrings(&dir);
+    let files: Vec<String> = paths
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+    let count = files.len();
+
+    let result = DiscoverFilesResult { files, count };
+    Ok(serde_json::to_value(result)?)
 }
 
 #[cfg(test)]
@@ -78,5 +134,39 @@ mod tests {
             paths, sorted_paths,
             "list_files output must be sorted by path"
         );
+    }
+
+    #[tokio::test]
+    async fn test_discover_files_on_fixtures() {
+        let fixture_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        let params = DiscoverFilesParams {
+            directory: fixture_dir.to_string(),
+        };
+        let result = handle_discover_files(params).await.unwrap();
+
+        let count = result["count"].as_u64().unwrap();
+        assert!(count > 0, "should find at least one .xcstrings file");
+
+        let files = result["files"].as_array().unwrap();
+        assert!(
+            files
+                .iter()
+                .any(|f| f.as_str().unwrap().ends_with(".xcstrings"))
+        );
+
+        // Verify sorted
+        let paths: Vec<&str> = files.iter().map(|f| f.as_str().unwrap()).collect();
+        let mut sorted = paths.clone();
+        sorted.sort();
+        assert_eq!(paths, sorted, "discover_files output must be sorted");
+    }
+
+    #[tokio::test]
+    async fn test_discover_files_invalid_dir() {
+        let params = DiscoverFilesParams {
+            directory: "/nonexistent/path".to_string(),
+        };
+        let result = handle_discover_files(params).await;
+        assert!(result.is_err());
     }
 }

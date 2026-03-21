@@ -1,5 +1,6 @@
 pub mod context;
 pub mod coverage;
+pub mod creator;
 pub mod diff;
 pub mod extractor;
 pub mod file_validator;

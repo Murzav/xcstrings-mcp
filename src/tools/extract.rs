@@ -18,8 +18,11 @@ pub(crate) struct GetUntranslatedParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// Target locale code (e.g., "uk", "de")
+    /// Target locale code (e.g., "uk", "de"). Used if `locales` is not set.
     pub locale: String,
+    /// Multiple target locales. A key is untranslated if missing in ANY of these locales. Overrides `locale` if set.
+    #[serde(default)]
+    pub locales: Option<Vec<String>>,
     /// Number of strings per batch (1-100, default 30)
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
@@ -37,7 +40,7 @@ pub(crate) struct GetUntranslatedResult {
     pub has_more: bool,
 }
 
-/// Extract untranslated strings for a locale with batching.
+/// Extract untranslated strings for one or more locales with batching.
 pub(crate) async fn handle_get_untranslated(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
@@ -45,8 +48,14 @@ pub(crate) async fn handle_get_untranslated(
 ) -> Result<serde_json::Value, XcStringsError> {
     let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
+    // Determine which locales to check
+    let locales: Vec<String> = params
+        .locales
+        .unwrap_or_else(|| vec![params.locale.clone()]);
+    let locale_refs: Vec<&str> = locales.iter().map(|s| s.as_str()).collect();
+
     let (units, total) =
-        extractor::get_untranslated(&file, &params.locale, params.batch_size, params.offset)?;
+        extractor::get_untranslated_multi(&file, &locale_refs, params.batch_size, params.offset)?;
 
     let has_more = params.offset + units.len() < total;
 
@@ -179,6 +188,7 @@ mod tests {
         let params = GetUntranslatedParams {
             file_path: Some("/test/file.xcstrings".to_string()),
             locale: "de".to_string(),
+            locales: None,
             batch_size: 30,
             offset: 0,
         };
@@ -205,6 +215,7 @@ mod tests {
         let params = GetUntranslatedParams {
             file_path: None,
             locale: "uk".to_string(),
+            locales: None,
             batch_size: 30,
             offset: 0,
         };
@@ -222,6 +233,7 @@ mod tests {
         let params = GetUntranslatedParams {
             file_path: None,
             locale: "de".to_string(),
+            locales: None,
             batch_size: 30,
             offset: 0,
         };
