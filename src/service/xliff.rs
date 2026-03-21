@@ -207,12 +207,10 @@ pub fn import_xliff(
             },
             // Empty elements (self-closing) -- extract attributes but don't
             // set in_source/in_target since there is no text content or end tag.
-            Ok(Event::Empty(ref e)) => {
-                if e.name().as_ref() == b"file" {
-                    for attr in e.attributes().flatten() {
-                        if attr.key.as_ref() == b"target-language" {
-                            target_locale = String::from_utf8_lossy(&attr.value).to_string();
-                        }
+            Ok(Event::Empty(ref e)) if e.name().as_ref() == b"file" => {
+                for attr in e.attributes().flatten() {
+                    if attr.key.as_ref() == b"target-language" {
+                        target_locale = String::from_utf8_lossy(&attr.value).to_string();
                     }
                 }
             }
@@ -234,16 +232,14 @@ pub fn import_xliff(
                 b"target" => {
                     in_target = false;
                 }
-                b"trans-unit" => {
-                    if !current_id.is_empty() && !current_target.is_empty() {
-                        translations.push(CompletedTranslation {
-                            key: current_id.clone(),
-                            locale: target_locale.clone(),
-                            value: current_target.clone(),
-                            plural_forms: None,
-                            substitution_name: None,
-                        });
-                    }
+                b"trans-unit" if !current_id.is_empty() && !current_target.is_empty() => {
+                    translations.push(CompletedTranslation {
+                        key: current_id.clone(),
+                        locale: target_locale.clone(),
+                        value: current_target.clone(),
+                        plural_forms: None,
+                        substitution_name: None,
+                    });
                 }
                 _ => {}
             },
