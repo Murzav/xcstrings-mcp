@@ -1,6 +1,7 @@
 # xcstrings-mcp
 
 [![CI](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/Murzav/xcstrings-mcp/graph/badge.svg)](https://codecov.io/gh/Murzav/xcstrings-mcp)
 [![Crates.io](https://img.shields.io/crates/v/xcstrings-mcp)](https://crates.io/crates/xcstrings-mcp)
 [![License](https://img.shields.io/crates/l/xcstrings-mcp)](LICENSE-MIT)
 
