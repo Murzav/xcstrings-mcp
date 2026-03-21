@@ -10,6 +10,8 @@ pub mod locale;
 pub mod merger;
 pub mod parser;
 pub mod plural_extractor;
+pub mod strings_parser;
+pub mod stringsdict_parser;
 pub mod validator;
 pub mod xliff;
 

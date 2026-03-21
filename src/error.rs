@@ -41,6 +41,12 @@ pub enum XcStringsError {
     #[error("glossary error: {0}")]
     GlossaryError(String),
 
+    #[error(".strings parse error at line {line}: {message}")]
+    StringsParse { line: usize, message: String },
+
+    #[error(".stringsdict parse error: {0}")]
+    StringsdictParse(String),
+
     #[error("XLIFF parse error: {0}")]
     XliffParse(String),
 
@@ -87,5 +93,32 @@ mod tests {
         };
         assert!(err.to_string().contains("100"));
         assert!(err.to_string().contains("50"));
+    }
+
+    #[test]
+    fn strings_parse_display_includes_line_and_message() {
+        let err = XcStringsError::StringsParse {
+            line: 42,
+            message: "unexpected token".into(),
+        };
+        let display = err.to_string();
+        assert!(
+            display.contains("42"),
+            "should contain line number: {display}"
+        );
+        assert!(
+            display.contains("unexpected token"),
+            "should contain message: {display}"
+        );
+    }
+
+    #[test]
+    fn stringsdict_parse_display_includes_message() {
+        let err = XcStringsError::StringsdictParse("missing required key".into());
+        let display = err.to_string();
+        assert!(
+            display.contains("missing required key"),
+            "should contain message: {display}"
+        );
     }
 }

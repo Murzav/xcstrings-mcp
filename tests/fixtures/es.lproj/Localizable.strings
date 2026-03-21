@@ -1,0 +1,38 @@
+/*
+  Localizable.strings (Spanish)
+  Horoscope_app
+
+  Created for Mystic iOS Astrology App
+*/
+
+// MARK: - Common
+"common.ok" = "Aceptar";
+"common.cancel" = "Cancelar";
+"common.save" = "Guardar";
+"common.delete" = "Eliminar";
+"common.done" = "Listo";
+"common.loading" = "Cargando...";
+"common.error" = "Error";
+
+// MARK: - Moon Phases
+"moon.newMoon" = "Luna Nueva";
+"moon.fullMoon" = "Luna Llena";
+"moon.illumination" = "%@ iluminada";
+"moon.nextFullMoon" = "Próxima Luna Llena";
+
+// MARK: - Chat
+"chat.title" = "Astrólogo IA";
+"chat.placeholder" = "Pregúntame sobre las estrellas...";
+"chat.send" = "Enviar";
+"chat.messagesRemaining" = "%d mensajes restantes";
+"chat.limitReached" = "Límite diario alcanzado";
+"chat.unlimitedPro" = "Actualiza a Pro para mensajes ilimitados";
+
+// MARK: - Errors
+"error.generic" = "Algo salió mal. Por favor, inténtalo de nuevo.";
+"error.network" = "Sin conexión a internet";
+"error.loadingFailed" = "Error al cargar datos";
+
+// MARK: - Test Keys
+testUnquotedKey = "Valor de clave sin comillas";
+"test.escapes" = "Línea 1\nLínea 2\t\"citado\"\\barra invertida";

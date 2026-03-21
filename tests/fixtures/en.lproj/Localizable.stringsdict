@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>items_count</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@items@</string>
+		<key>items</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld item</string>
+			<key>other</key>
+			<string>%lld items</string>
+		</dict>
+	</dict>
+	<key>photos_in_albums</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%1$#@photos@ in %2$#@albums@</string>
+		<key>photos</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld photo</string>
+			<key>other</key>
+			<string>%lld photos</string>
+		</dict>
+		<key>albums</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>one</key>
+			<string>%lld album</string>
+			<key>other</key>
+			<string>%lld albums</string>
+		</dict>
+	</dict>
+	<key>messages_remaining</key>
+	<dict>
+		<key>NSStringLocalizedFormatKey</key>
+		<string>%#@count@</string>
+		<key>count</key>
+		<dict>
+			<key>NSStringFormatSpecTypeKey</key>
+			<string>NSStringPluralRuleType</string>
+			<key>NSStringFormatValueTypeKey</key>
+			<string>lld</string>
+			<key>zero</key>
+			<string>No messages remaining</string>
+			<key>one</key>
+			<string>%lld message remaining</string>
+			<key>other</key>
+			<string>%lld messages remaining</string>
+		</dict>
+	</dict>
+</dict>
+</plist>

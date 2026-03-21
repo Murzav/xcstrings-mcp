@@ -23,34 +23,67 @@ pub(crate) async fn handle_list_files(
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct DiscoverFilesParams {
-    /// Directory path to search recursively for .xcstrings files
+    /// Directory path to search recursively for localization files
     pub directory: String,
 }
 
 #[derive(Debug, Serialize)]
-struct DiscoverFilesResult {
-    files: Vec<String>,
-    count: usize,
+struct DiscoveredFile {
+    path: String,
+    file_type: &'static str,
 }
 
-/// Recursively walk a directory to find all .xcstrings files.
-fn walk_xcstrings(dir: &Path) -> Vec<PathBuf> {
-    let mut results = Vec::new();
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                results.extend(walk_xcstrings(&path));
-            } else if path.extension().and_then(|e| e.to_str()) == Some("xcstrings") {
-                results.push(path);
+#[derive(Debug, Serialize)]
+struct DiscoverFilesResult {
+    files: Vec<DiscoveredFile>,
+    count: usize,
+    /// Legacy .strings/.stringsdict files found inside .lproj directories
+    legacy_files: Vec<DiscoveredFile>,
+    legacy_count: usize,
+}
+
+/// Recursively walk a directory to find localization files.
+fn walk_localization_files(
+    dir: &Path,
+    xcstrings: &mut Vec<PathBuf>,
+    legacy: &mut Vec<(PathBuf, &'static str)>,
+) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if name.ends_with(".lproj") {
+                // Scan inside .lproj for .strings/.stringsdict
+                if let Ok(lproj_entries) = std::fs::read_dir(&path) {
+                    for lproj_entry in lproj_entries.flatten() {
+                        let lp = lproj_entry.path();
+                        if !lp.is_file() {
+                            continue;
+                        }
+                        match lp.extension().and_then(|e| e.to_str()) {
+                            Some("strings") => legacy.push((lp, "strings")),
+                            Some("stringsdict") => legacy.push((lp, "stringsdict")),
+                            _ => {}
+                        }
+                    }
+                }
+            } else {
+                walk_localization_files(&path, xcstrings, legacy);
             }
+        } else if path.extension().and_then(|e| e.to_str()) == Some("xcstrings") {
+            xcstrings.push(path);
         }
     }
-    results.sort();
-    results
 }
 
-/// Discover all .xcstrings files in a directory tree.
+/// Discover all localization files in a directory tree.
+/// Returns both modern .xcstrings and legacy .strings/.stringsdict files.
 pub(crate) async fn handle_discover_files(
     params: DiscoverFilesParams,
 ) -> Result<serde_json::Value, XcStringsError> {
@@ -62,14 +95,37 @@ pub(crate) async fn handle_discover_files(
         });
     }
 
-    let paths = walk_xcstrings(&dir);
-    let files: Vec<String> = paths
+    let mut xcstrings_paths = Vec::new();
+    let mut legacy_paths = Vec::new();
+    walk_localization_files(&dir, &mut xcstrings_paths, &mut legacy_paths);
+
+    xcstrings_paths.sort();
+    legacy_paths.sort_by(|a, b| a.0.cmp(&b.0));
+
+    let files: Vec<DiscoveredFile> = xcstrings_paths
         .iter()
-        .map(|p| p.to_string_lossy().to_string())
+        .map(|p| DiscoveredFile {
+            path: p.to_string_lossy().to_string(),
+            file_type: "xcstrings",
+        })
         .collect();
     let count = files.len();
 
-    let result = DiscoverFilesResult { files, count };
+    let legacy_files: Vec<DiscoveredFile> = legacy_paths
+        .iter()
+        .map(|(p, ft)| DiscoveredFile {
+            path: p.to_string_lossy().to_string(),
+            file_type: ft,
+        })
+        .collect();
+    let legacy_count = legacy_files.len();
+
+    let result = DiscoverFilesResult {
+        files,
+        count,
+        legacy_files,
+        legacy_count,
+    };
     Ok(serde_json::to_value(result)?)
 }
 
@@ -151,14 +207,41 @@ mod tests {
         assert!(
             files
                 .iter()
-                .any(|f| f.as_str().unwrap().ends_with(".xcstrings"))
+                .any(|f| f["path"].as_str().unwrap().ends_with(".xcstrings"))
         );
 
         // Verify sorted
-        let paths: Vec<&str> = files.iter().map(|f| f.as_str().unwrap()).collect();
+        let paths: Vec<&str> = files.iter().map(|f| f["path"].as_str().unwrap()).collect();
         let mut sorted = paths.clone();
         sorted.sort();
         assert_eq!(paths, sorted, "discover_files output must be sorted");
+    }
+
+    #[tokio::test]
+    async fn test_discover_files_finds_legacy() {
+        let fixture_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        let params = DiscoverFilesParams {
+            directory: fixture_dir.to_string(),
+        };
+        let result = handle_discover_files(params).await.unwrap();
+
+        let legacy_count = result["legacy_count"].as_u64().unwrap();
+        assert!(
+            legacy_count > 0,
+            "should find legacy .strings/.stringsdict files"
+        );
+
+        let legacy_files = result["legacy_files"].as_array().unwrap();
+        assert!(
+            legacy_files
+                .iter()
+                .any(|f| f["file_type"].as_str() == Some("strings"))
+        );
+        assert!(
+            legacy_files
+                .iter()
+                .any(|f| f["file_type"].as_str() == Some("stringsdict"))
+        );
     }
 
     #[tokio::test]

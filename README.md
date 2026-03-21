@@ -5,7 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/v/xcstrings-mcp)](https://crates.io/crates/xcstrings-mcp)
 [![License](https://img.shields.io/crates/l/xcstrings-mcp)](LICENSE-MIT)
 
-MCP server for iOS/macOS `.xcstrings` localization file management.
+MCP server for iOS/macOS `.xcstrings` localization file management and legacy `.strings`/`.stringsdict` migration.
 
 ## The Problem
 
@@ -161,10 +161,11 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `update_glossary` | Add or update glossary terms |
 | `export_xliff` | Export to XLIFF 1.2 for external translation tools |
 | `import_xliff` | Import translations from XLIFF 1.2 file |
+| `import_strings` | Migrate legacy `.strings`/`.stringsdict` files to `.xcstrings` |
 | `search_keys` | Search keys by substring (matches key names and source text) |
 | `create_xcstrings` | Create a new empty .xcstrings file |
 | `add_keys` | Add new localization keys with source text |
-| `discover_files` | Recursively find .xcstrings files in a directory |
+| `discover_files` | Find .xcstrings and legacy .strings/.stringsdict files |
 | `update_comments` | Update developer comments on localization keys |
 
 ### Prompts
@@ -178,6 +179,27 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `fix_validation_errors` | Guided workflow to fix all validation issues |
 | `add_language` | Add a new locale and translate all strings |
 | `extract_strings` | Extract hardcoded strings from Swift code into .xcstrings |
+
+### Migrating from Legacy .strings
+
+To migrate an existing project using `.strings`/`.stringsdict` files:
+
+```
+discover_files → import_strings → get_untranslated → submit_translations
+```
+
+Preview first with `dry_run`, then write:
+```
+import_strings(directory: "./Resources", source_language: "en", output_path: "./Localizable.xcstrings", dry_run: true)
+import_strings(directory: "./Resources", source_language: "en", output_path: "./Localizable.xcstrings")
+```
+
+For projects with `.stringsdict` plural rules, also check plural keys after import:
+```
+import_strings → get_plurals → get_untranslated → submit_translations
+```
+
+Supports UTF-8 and UTF-16 encodings, `.stringsdict` plural rules (single and multi-variable with positional specifiers), developer comments, unquoted keys, and merge into existing `.xcstrings` files.
 
 ### Getting Started from Scratch
 
@@ -201,7 +223,7 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 
 ## Performance
 
-Binary size: **3.6 MB** (stripped + LTO). Zero CPU at idle.
+Binary size: **~4 MB** (stripped + LTO). Zero CPU at idle.
 
 | File | Parse | Get untranslated | Validate | RAM |
 |------|-------|-----------------|----------|-----|

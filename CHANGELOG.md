@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-03-21
+
+### Added
+- **`import_strings` tool** -- migrate legacy `.strings` and `.stringsdict` files to `.xcstrings` format
+- `.strings` parser with full escape sequence support (`\Unnnn` surrogate pairs, `\"`, `\\`, `\n`, `\t`, `\r`)
+- `.stringsdict` XML plist parser with CLDR plural rule support (single and multi-variable)
+- UTF-16LE/BE encoding auto-detection via BOM with UTF-16LE heuristic fallback
+- Recursive `.lproj` directory scanning (`directory` param)
+- Unquoted key support for legacy old-style ASCII plist files
+- **`discover_files` now detects legacy files** -- returns `.strings`/`.stringsdict` in `legacy_files` alongside `.xcstrings`
+- `read_bytes` method on `FileStore` trait for raw byte access
+- Merge mode: import into existing `.xcstrings` without overwriting
+- `dry_run` mode for previewing migration results
+- Positional format specifier handling (`%1$lld` → `%arg`) in stringsdict substitutions
+- CDATA content support in `.stringsdict` XML plist parsing
+- `Base.lproj` filtering in directory discovery (not a real locale)
+- Symlink depth protection (max 20 levels) in `.lproj` directory scanner
+- Warnings for skipped `.stringsdict` entries with unsupported rule types (device/width variants)
+
 ## [1.0.0] - 2026-03-21
 
 ### Added

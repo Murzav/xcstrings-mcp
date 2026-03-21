@@ -9,8 +9,8 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "xcstrings-mcp",
     about = "MCP server for iOS/macOS .xcstrings (String Catalog) localization.\n\n\
-             22 tools + 7 prompts for the full localization lifecycle:\n\
-             create → extract → translate → validate → export.\n\n\
+             23 tools + 7 prompts for the full localization lifecycle:\n\
+             migrate → create → extract → translate → validate → export.\n\n\
              Communicates via stdio using the Model Context Protocol (MCP).\n\
              Works with any MCP client: Claude Code, Cursor, Windsurf, VS Code, Zed, OpenAI Codex.",
     version,

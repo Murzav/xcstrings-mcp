@@ -7,6 +7,7 @@ pub(crate) mod glossary;
 pub(crate) mod manage;
 pub(crate) mod parse;
 pub(crate) mod plural;
+pub(crate) mod strings;
 pub(crate) mod translate;
 pub(crate) mod xliff;
 
@@ -164,13 +165,22 @@ pub(crate) mod test_helpers {
 
     pub(crate) struct MemoryStore {
         files: Mutex<HashMap<PathBuf, (String, SystemTime)>>,
+        binary_files: Mutex<HashMap<PathBuf, (Vec<u8>, SystemTime)>>,
     }
 
     impl MemoryStore {
         pub fn new() -> Self {
             Self {
                 files: Mutex::new(HashMap::new()),
+                binary_files: Mutex::new(HashMap::new()),
             }
+        }
+
+        pub fn add_binary_file(&self, path: impl Into<PathBuf>, bytes: Vec<u8>) {
+            self.binary_files
+                .lock()
+                .unwrap()
+                .insert(path.into(), (bytes, SystemTime::now()));
         }
 
         pub fn add_file(&self, path: impl Into<PathBuf>, content: &str) {
@@ -206,6 +216,14 @@ pub(crate) mod test_helpers {
                 })
         }
 
+        fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, XcStringsError> {
+            // Check binary_files first, then fall back to string conversion
+            if let Some((bytes, _)) = self.binary_files.lock().unwrap().get(path) {
+                return Ok(bytes.clone());
+            }
+            self.read(path).map(|s| s.into_bytes())
+        }
+
         fn write(&self, path: &Path, content: &str) -> Result<(), XcStringsError> {
             self.files
                 .lock()
@@ -215,18 +233,20 @@ pub(crate) mod test_helpers {
         }
 
         fn modified_time(&self, path: &Path) -> Result<SystemTime, XcStringsError> {
-            self.files
-                .lock()
-                .unwrap()
-                .get(path)
-                .map(|(_, t)| *t)
-                .ok_or_else(|| XcStringsError::FileNotFound {
-                    path: path.to_path_buf(),
-                })
+            if let Some((_, t)) = self.files.lock().unwrap().get(path) {
+                return Ok(*t);
+            }
+            if let Some((_, t)) = self.binary_files.lock().unwrap().get(path) {
+                return Ok(*t);
+            }
+            Err(XcStringsError::FileNotFound {
+                path: path.to_path_buf(),
+            })
         }
 
         fn exists(&self, path: &Path) -> bool {
             self.files.lock().unwrap().contains_key(path)
+                || self.binary_files.lock().unwrap().contains_key(path)
         }
 
         fn create_parent_dirs(&self, _path: &Path) -> Result<(), XcStringsError> {
@@ -363,5 +383,31 @@ mod tests {
         let active: Vec<_> = list.iter().filter(|i| i.is_active).collect();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].path, PathBuf::from("/m.xcstrings"));
+    }
+
+    #[test]
+    fn test_memory_store_binary_files() {
+        use crate::io::FileStore;
+        use std::path::Path;
+
+        let store = MemoryStore::new();
+        let binary_content: Vec<u8> = vec![0xFF, 0xFE, 0x00, 0x01, 0x80];
+        store.add_binary_file("/test/binary.dat", binary_content.clone());
+
+        // read_bytes returns the binary content
+        let read_back = store.read_bytes(Path::new("/test/binary.dat")).unwrap();
+        assert_eq!(read_back, binary_content);
+
+        // exists returns true for binary files
+        assert!(store.exists(Path::new("/test/binary.dat")));
+
+        // modified_time works for binary files
+        assert!(store.modified_time(Path::new("/test/binary.dat")).is_ok());
+
+        // binary_files take precedence over string files for read_bytes
+        store.add_file("/test/both.dat", "string content");
+        store.add_binary_file("/test/both.dat", vec![0xDE, 0xAD]);
+        let bytes = store.read_bytes(Path::new("/test/both.dat")).unwrap();
+        assert_eq!(bytes, vec![0xDE, 0xAD]);
     }
 }

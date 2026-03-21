@@ -110,6 +110,25 @@ impl FileStore for FsFileStore {
         Ok(Self::strip_bom(&content).to_string())
     }
 
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, XcStringsError> {
+        let canonical = self.validate_path(path)?;
+
+        if !canonical.exists() {
+            return Err(XcStringsError::FileNotFound { path: canonical });
+        }
+
+        let metadata = fs::metadata(&canonical)?;
+        let size = metadata.len();
+        if size > self.max_file_size {
+            return Err(XcStringsError::FileTooLarge {
+                size_mb: size / (1024 * 1024),
+                max_mb: self.max_file_size / (1024 * 1024),
+            });
+        }
+
+        Ok(fs::read(&canonical)?)
+    }
+
     fn write(&self, path: &Path, content: &str) -> Result<(), XcStringsError> {
         let canonical = self.validate_path(path)?;
         let dir = canonical
@@ -356,6 +375,47 @@ mod tests {
         store.write(&file_path, "updated").unwrap();
         let content = store.read(&file_path).unwrap();
         assert_eq!(content, "updated");
+    }
+
+    #[test]
+    fn test_read_bytes_roundtrip() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("binary.dat");
+        let content = b"\x00\x01\x02\xFF\xFE\xFD";
+        std::fs::write(&file_path, content).unwrap();
+
+        let store = FsFileStore::new();
+        let read_back = store.read_bytes(&file_path).unwrap();
+        assert_eq!(read_back, content);
+    }
+
+    #[test]
+    fn test_read_bytes_file_not_found() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("nope.bin");
+        let store = FsFileStore::new();
+
+        let err = store.read_bytes(&file_path).unwrap_err();
+        assert!(
+            matches!(err, XcStringsError::FileNotFound { .. }),
+            "expected FileNotFound, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_read_bytes_file_too_large() {
+        let dir = TempDir::new().unwrap();
+        let file_path = dir.path().join("big.bin");
+        std::fs::write(&file_path, b"ab").unwrap();
+
+        let store = FsFileStore {
+            max_file_size: 1, // 1 byte max
+        };
+        let err = store.read_bytes(&file_path).unwrap_err();
+        assert!(
+            matches!(err, XcStringsError::FileTooLarge { .. }),
+            "expected FileTooLarge, got: {err}"
+        );
     }
 
     #[test]

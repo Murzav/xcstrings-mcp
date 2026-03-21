@@ -41,6 +41,7 @@ use crate::tools::{
     },
     parse::{ParseParams, handle_parse},
     plural::{GetContextParams, GetPluralsParams, handle_get_context, handle_get_plurals},
+    strings::{ImportStringsParams, handle_import_strings},
     translate::{SubmitTranslationsParams, handle_submit_translations},
     xliff::{ExportXliffParams, ImportXliffParams, handle_export_xliff, handle_import_xliff},
 };
@@ -475,6 +476,34 @@ impl XcStringsMcpServer {
         }
     }
 
+    /// Import legacy .strings and .stringsdict files into .xcstrings format.
+    #[tool(
+        name = "import_strings",
+        description = "Import legacy .strings and .stringsdict files into .xcstrings format. Provide file paths directly or a directory to scan for .lproj folders. Handles UTF-8 and UTF-16 encodings, plural rules, and comments. Creates new .xcstrings or merges into existing. Use dry_run=true to preview."
+    )]
+    async fn import_strings(
+        &self,
+        Parameters(params): Parameters<ImportStringsParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_import_strings(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "import_strings failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
     /// Create a new empty .xcstrings file.
     #[tool(
         name = "create_xcstrings",
@@ -530,10 +559,10 @@ impl XcStringsMcpServer {
         }
     }
 
-    /// Discover .xcstrings files in a directory tree.
+    /// Discover localization files in a directory tree.
     #[tool(
         name = "discover_files",
-        description = "Recursively search a directory for .xcstrings files. Returns sorted list of paths found."
+        description = "Recursively search a directory for localization files. Returns .xcstrings files and legacy .strings/.stringsdict files found in .lproj directories. Use legacy_files to identify projects that can be migrated with import_strings."
     )]
     async fn discover_files(
         &self,
@@ -604,8 +633,9 @@ impl ServerHandler for XcStringsMcpServer {
                      glossary terms, update_glossary to add or update glossary entries, \
                      update_comments to modify developer comments on keys, \
                      export_xliff to export translations to XLIFF 1.2, import_xliff to \
-                     import translations from XLIFF files, and search_keys to find keys by \
-                     substring pattern matching key names and source text.",
+                     import translations from XLIFF files, import_strings to migrate legacy \
+                     .strings and .stringsdict files into .xcstrings format, and search_keys \
+                     to find keys by substring pattern matching key names and source text.",
             )
     }
 }

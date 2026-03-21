@@ -27,6 +27,8 @@ pub mod _test_support {
         pub use crate::service::merger;
         pub use crate::service::parser;
         pub use crate::service::plural_extractor;
+        pub use crate::service::strings_parser;
+        pub use crate::service::stringsdict_parser;
         pub use crate::service::validator;
         pub use crate::service::xliff;
     }

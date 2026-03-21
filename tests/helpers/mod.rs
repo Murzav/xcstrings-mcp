@@ -39,6 +39,16 @@ impl FileStore for MemoryStore {
         }
     }
 
+    fn read_bytes(&self, path: &Path) -> Result<Vec<u8>, XcStringsError> {
+        let files = self.files.lock().unwrap();
+        match files.get(path) {
+            Some((content, _)) => Ok(content.as_bytes().to_vec()),
+            None => Err(XcStringsError::FileNotFound {
+                path: path.to_path_buf(),
+            }),
+        }
+    }
+
     fn write(&self, path: &Path, content: &str) -> Result<(), XcStringsError> {
         let mut files = self.files.lock().unwrap();
         files.insert(path.to_path_buf(), (content.to_string(), SystemTime::now()));

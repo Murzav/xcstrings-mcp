@@ -6,7 +6,7 @@ use helpers::MemoryStore;
 use indexmap::IndexMap;
 use xcstrings_mcp::_test_support::service::{
     context, coverage, creator, diff, extractor, file_validator, formatter, glossary, locale,
-    merger, parser, plural_extractor, validator, xliff,
+    merger, parser, plural_extractor, strings_parser, stringsdict_parser, validator, xliff,
 };
 use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
@@ -1438,4 +1438,155 @@ fn update_comments_then_verify() {
         reparsed.strings["btn"].comment.as_deref(),
         Some("Confirmation button")
     );
+}
+
+// ── import_strings ──
+
+const EN_STRINGS: &str = include_str!("fixtures/en.lproj/Localizable.strings");
+const ES_STRINGS: &str = include_str!("fixtures/es.lproj/Localizable.strings");
+const EN_STRINGSDICT: &str = include_str!("fixtures/en.lproj/Localizable.stringsdict");
+
+#[test]
+fn test_import_strings_creates_xcstrings() {
+    let en_entries = strings_parser::parse_strings(EN_STRINGS).unwrap();
+    let es_entries = strings_parser::parse_strings(ES_STRINGS).unwrap();
+
+    // Both fixtures should parse the same number of key-value entries
+    assert!(en_entries.len() >= 20, "expected at least 20 entries");
+    assert_eq!(en_entries.len(), es_entries.len());
+
+    // Verify comments are preserved (block comment before first key)
+    let ok_entry = en_entries.iter().find(|e| e.key == "common.ok").unwrap();
+    assert_eq!(ok_entry.value, "OK");
+    // MARK comments are not preserved as entry comments
+    assert!(ok_entry.comment.is_none());
+
+    // Verify Spanish translations
+    let es_ok = es_entries.iter().find(|e| e.key == "common.ok").unwrap();
+    assert_eq!(es_ok.value, "Aceptar");
+
+    // Build XcStringsFile from entries
+    let mut file = creator::create_empty_file("en").unwrap();
+    let add_requests: Vec<_> = en_entries
+        .iter()
+        .map(|e| creator::AddKeyRequest {
+            key: e.key.clone(),
+            source_text: e.value.clone(),
+            comment: e.comment.clone(),
+        })
+        .collect();
+    creator::add_keys(&mut file, &add_requests);
+
+    assert_eq!(file.strings.len(), en_entries.len());
+    // Source locale translations should be present and translated
+    let greeting = &file.strings["chat.title"];
+    let en_loc = greeting.localizations.as_ref().unwrap().get("en").unwrap();
+    let unit = en_loc.string_unit.as_ref().unwrap();
+    assert_eq!(unit.state, TranslationState::Translated);
+    assert_eq!(unit.value, "AI Astrologer");
+}
+
+#[test]
+fn test_import_strings_with_stringsdict() {
+    let parsed = stringsdict_parser::parse_stringsdict(EN_STRINGSDICT).unwrap();
+    let entries = &parsed.entries;
+
+    assert_eq!(entries.len(), 3);
+
+    // items_count: single variable "items" with lld specifier
+    let items = entries.iter().find(|e| e.key == "items_count").unwrap();
+    assert_eq!(items.format_key, "%#@items@");
+    assert_eq!(items.variables.len(), 1);
+    let items_var = &items.variables["items"];
+    assert_eq!(items_var.format_specifier, "lld");
+    assert!(items_var.forms.contains_key("one"));
+    assert!(items_var.forms.contains_key("other"));
+    assert_eq!(items_var.forms["one"], "%lld item");
+    assert_eq!(items_var.forms["other"], "%lld items");
+
+    // photos_in_albums: two variables
+    let photos = entries
+        .iter()
+        .find(|e| e.key == "photos_in_albums")
+        .unwrap();
+    assert_eq!(photos.format_key, "%1$#@photos@ in %2$#@albums@");
+    assert_eq!(photos.variables.len(), 2);
+    assert!(photos.variables.contains_key("photos"));
+    assert!(photos.variables.contains_key("albums"));
+
+    // messages_remaining: has zero form
+    let msgs = entries
+        .iter()
+        .find(|e| e.key == "messages_remaining")
+        .unwrap();
+    let count_var = &msgs.variables["count"];
+    assert!(count_var.forms.contains_key("zero"));
+    assert_eq!(count_var.forms["zero"], "No messages remaining");
+}
+
+#[test]
+fn test_import_strings_roundtrip_formatting() {
+    let en_entries = strings_parser::parse_strings(EN_STRINGS).unwrap();
+
+    // Build XcStringsFile
+    let mut file = creator::create_empty_file("en").unwrap();
+    let add_requests: Vec<_> = en_entries
+        .iter()
+        .take(4)
+        .map(|e| creator::AddKeyRequest {
+            key: e.key.clone(),
+            source_text: e.value.clone(),
+            comment: e.comment.clone(),
+        })
+        .collect();
+    creator::add_keys(&mut file, &add_requests);
+
+    // Format
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+
+    // Xcode uses " : " spacing
+    assert!(
+        formatted.contains(" : "),
+        "output must use Xcode ' : ' spacing"
+    );
+
+    // Roundtrip: re-parse and verify
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.strings.len(), file.strings.len());
+    assert_eq!(reparsed.source_language, "en");
+}
+
+#[test]
+fn test_import_strings_snapshot() {
+    let en_entries = strings_parser::parse_strings(EN_STRINGS).unwrap();
+
+    let mut file = creator::create_empty_file("en").unwrap();
+    let add_requests: Vec<_> = en_entries
+        .iter()
+        .take(3)
+        .map(|e| creator::AddKeyRequest {
+            key: e.key.clone(),
+            source_text: e.value.clone(),
+            comment: e.comment.clone(),
+        })
+        .collect();
+    creator::add_keys(&mut file, &add_requests);
+
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    insta::assert_snapshot!("import_strings_output", formatted);
+}
+
+#[test]
+fn test_import_strings_utf16() {
+    let raw = include_bytes!("fixtures/utf16le.strings");
+    let decoded = strings_parser::decode_strings_content(raw).unwrap();
+    let entries = strings_parser::parse_strings(&decoded).unwrap();
+
+    assert_eq!(entries.len(), 2);
+
+    let key1 = entries.iter().find(|e| e.key == "utf16.key1").unwrap();
+    assert_eq!(key1.value, "Hello UTF-16");
+
+    let key2 = entries.iter().find(|e| e.key == "utf16.key2").unwrap();
+    assert_eq!(key2.value, "Value with accent: caf\u{e9}");
 }
