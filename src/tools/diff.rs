@@ -67,7 +67,7 @@ mod tests {
         let params = crate::tools::parse::ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        crate::tools::parse::handle_parse(&store, &cache, params)
+        crate::tools::parse::handle_parse(&store, &cache, params, None)
             .await
             .unwrap();
 
@@ -90,7 +90,7 @@ mod tests {
         let params = crate::tools::parse::ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        crate::tools::parse::handle_parse(&store, &cache, params)
+        crate::tools::parse::handle_parse(&store, &cache, params, None)
             .await
             .unwrap();
 

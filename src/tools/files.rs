@@ -41,12 +41,12 @@ mod tests {
         let params_a = ParseParams {
             file_path: "/test/a.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, params_a).await.unwrap();
+        handle_parse(&store, &cache, params_a, None).await.unwrap();
 
         let params_b = ParseParams {
             file_path: "/test/b.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, params_b).await.unwrap();
+        handle_parse(&store, &cache, params_b, None).await.unwrap();
 
         let result = handle_list_files(&cache).await.unwrap();
         let arr = result.as_array().unwrap();

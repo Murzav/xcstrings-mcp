@@ -26,23 +26,11 @@ pub enum XcStringsError {
     #[error("no active file — call parse_xcstrings first")]
     NoActiveFile,
 
-    #[error("validation failed: {0}")]
-    ValidationFailed(String),
-
-    #[error("format specifier mismatch: {0}")]
-    FormatSpecifierMismatch(String),
-
-    #[error("missing plural form: {0}")]
-    MissingPluralForm(String),
-
     #[error("invalid batch size: {0}")]
     InvalidBatchSize(String),
 
     #[error("file too large: {size_mb}MB (max {max_mb}MB)")]
     FileTooLarge { size_mb: u64, max_mb: u64 },
-
-    #[error("key marked as shouldTranslate=false: {0}")]
-    ShouldNotTranslate(String),
 
     #[error("file is locked by another process (likely Xcode): {path}")]
     FileLocked { path: PathBuf },
@@ -64,9 +52,6 @@ pub enum XcStringsError {
 
     #[error(transparent)]
     Serde(#[from] serde_json::Error),
-
-    #[error("unexpected error: {0}")]
-    Unexpected(String),
 }
 
 impl From<XcStringsError> for rmcp::model::ErrorData {

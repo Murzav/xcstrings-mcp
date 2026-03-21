@@ -23,7 +23,10 @@ use crate::tools::{
     FileCache,
     coverage::{GetCoverageParams, ValidateFileParams, handle_get_coverage, handle_validate_file},
     diff::{GetDiffParams, handle_get_diff},
-    extract::{GetStaleParams, GetUntranslatedParams, handle_get_stale, handle_get_untranslated},
+    extract::{
+        GetStaleParams, GetUntranslatedParams, SearchKeysParams, handle_get_stale,
+        handle_get_untranslated, handle_search_keys,
+    },
     files::{ListFilesParams, handle_list_files},
     glossary::{
         GetGlossaryParams, UpdateGlossaryParams, handle_get_glossary, handle_update_glossary,
@@ -74,8 +77,16 @@ impl XcStringsMcpServer {
     async fn parse_xcstrings(
         &self,
         Parameters(params): Parameters<ParseParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_parse(self.store.as_ref(), &self.cache, params).await {
+        match handle_parse(
+            self.store.as_ref(),
+            &self.cache,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -113,9 +124,16 @@ impl XcStringsMcpServer {
     async fn submit_translations(
         &self,
         Parameters(params): Parameters<SubmitTranslationsParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_submit_translations(self.store.as_ref(), &self.cache, &self.write_lock, params)
-            .await
+        match handle_submit_translations(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -159,6 +177,25 @@ impl XcStringsMcpServer {
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
                 error!(error = %e, "get_stale failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Search keys by substring pattern (case-insensitive).
+    #[tool(
+        name = "search_keys",
+        description = "Search keys by substring pattern (case-insensitive). Matches both key names and source text. Returns translation units with pagination. Empty pattern returns all translatable keys."
+    )]
+    async fn search_keys(
+        &self,
+        Parameters(params): Parameters<SearchKeysParams>,
+    ) -> Result<String, String> {
+        match handle_search_keys(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "search_keys failed");
                 Err(e.to_string())
             }
         }
@@ -210,8 +247,17 @@ impl XcStringsMcpServer {
     async fn add_locale(
         &self,
         Parameters(params): Parameters<AddLocaleParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_add_locale(self.store.as_ref(), &self.cache, &self.write_lock, params).await {
+        match handle_add_locale(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -229,8 +275,16 @@ impl XcStringsMcpServer {
     async fn remove_locale(
         &self,
         Parameters(params): Parameters<RemoveLocaleParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_remove_locale(self.store.as_ref(), &self.cache, &self.write_lock, params).await
+        match handle_remove_locale(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -370,8 +424,16 @@ impl XcStringsMcpServer {
     async fn export_xliff(
         &self,
         Parameters(params): Parameters<ExportXliffParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_export_xliff(self.store.as_ref(), &self.cache, params).await {
+        match handle_export_xliff(
+            self.store.as_ref(),
+            &self.cache,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -389,8 +451,16 @@ impl XcStringsMcpServer {
     async fn import_xliff(
         &self,
         Parameters(params): Parameters<ImportXliffParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_import_xliff(self.store.as_ref(), &self.cache, &self.write_lock, params).await
+        match handle_import_xliff(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -423,8 +493,9 @@ impl ServerHandler for XcStringsMcpServer {
                      new locale, remove_locale to remove a locale, list_files to see all cached files, \
                      get_diff to compare cached vs on-disk versions, get_glossary to retrieve \
                      glossary terms, update_glossary to add or update glossary entries, \
-                     export_xliff to export translations to XLIFF 1.2, and import_xliff to \
-                     import translations from XLIFF files.",
+                     export_xliff to export translations to XLIFF 1.2, import_xliff to \
+                     import translations from XLIFF files, and search_keys to find keys by \
+                     substring pattern matching key names and source text.",
             )
     }
 }

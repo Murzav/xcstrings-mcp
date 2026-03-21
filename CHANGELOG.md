@@ -4,19 +4,62 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
-## [0.3.0] - 2026-03-20
+## [0.5.0] - 2025-03-21
+
+### Added
+- **MCP Logging** -- real-time structured log notifications to clients via MCP protocol
+- **`search_keys` tool** -- search keys by substring (case-insensitive), matches key names and source text
+- **Xcode 26 compatibility** -- verified format version 1.1 roundtrip with test fixture
+- **`localization_audit` prompt** -- complete audit: coverage, validation, stale keys, glossary
+- **`fix_validation_errors` prompt** -- guided workflow to fix issues by severity
+- **`add_language` prompt** -- add a new locale and translate all strings step-by-step
+
+### Changed
+- Extracted shared `build_translation_unit` helper to eliminate code duplication in extractor
+
+### Removed
+- 5 unused error variants (`ValidationFailed`, `FormatSpecifierMismatch`, `MissingPluralForm`, `ShouldNotTranslate`, `Unexpected`)
+
+## [0.4.0] - 2025-03-21
+
+### Added
+- **Multi-file cache** -- parse and switch between multiple .xcstrings files
+- **`list_files` tool** -- list all cached files with active status
+- **`remove_locale` tool** -- remove a locale from all entries
+- **`get_diff` tool** -- compare cached vs on-disk file changes
+- **`get_glossary` / `update_glossary` tools** -- persistent translation glossary
+- **`export_xliff` / `import_xliff` tools** -- XLIFF 1.2 export/import with validation
+- **`translate_batch` prompt** -- batch translation instructions
+- **`review_translations` prompt** -- quality review workflow
+- **`full_translate` prompt** -- complete translation workflow
+- `continue_on_error` parameter on `submit_translations`
+- `accepted_keys` field in `SubmitResult`
+- Separate glossary write lock
+- Output path validation for XLIFF export (.xliff/.xlf required)
+- Extension validation on `get_diff` file_path
+- XLIFF import re-validates after write lock
+- Sorted `list_files` output
+- Integration tests and property-based tests for all new features
+
+## [0.3.2] - 2025-03-20
+
+### Added
+- Homebrew tap support (`brew install Murzav/tap/xcstrings-mcp`)
+- `--version` CLI flag
+- Performance benchmarks in README
+
+## [0.3.0] - 2025-03-20
 
 ### Added
 - `get_plurals` tool -- extract keys needing plural/device/substitution translation
 - `get_context` tool -- find related keys by shared prefix
 - Substitution roundtrip -- merge plural forms into substitution JSON structure
 - CLDR plural rules for 40+ locales
-- `PluralCategory::as_str()` for reliable enum conversion
 
 ### Fixed
 - Validator no longer rejects substitution plural forms for specifier mismatch
 
-## [0.2.0] - 2026-03-19
+## [0.2.0] - 2025-03-19
 
 ### Added
 - `get_coverage` -- per-locale coverage statistics
@@ -25,7 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - `list_locales` -- locale listing with stats
 - `add_locale` -- add new locale with empty translations
 
-## [0.1.0] - 2026-03-18
+## [0.1.0] - 2025-03-18
 
 ### Added
 - Initial release

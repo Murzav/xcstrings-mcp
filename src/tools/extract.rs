@@ -109,6 +109,61 @@ pub(crate) async fn handle_get_stale(
     Ok(serde_json::to_value(result)?)
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct SearchKeysParams {
+    /// Path to .xcstrings file (optional if already parsed)
+    #[serde(default)]
+    pub file_path: Option<String>,
+    /// Substring to search for (case-insensitive, matches key name and source text). Empty string returns all translatable keys.
+    pub pattern: String,
+    /// Target locale for translation context
+    pub locale: String,
+    /// Maximum number of results per batch (1-100, default 30)
+    #[serde(default = "default_batch_size")]
+    pub batch_size: usize,
+    /// Offset for pagination (default 0)
+    #[serde(default)]
+    pub offset: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SearchKeysResult {
+    pub units: Vec<TranslationUnit>,
+    pub total: usize,
+    pub offset: usize,
+    pub batch_size: usize,
+    pub has_more: bool,
+}
+
+/// Search keys by substring pattern with batching.
+pub(crate) async fn handle_search_keys(
+    store: &dyn FileStore,
+    cache: &Mutex<FileCache>,
+    params: SearchKeysParams,
+) -> Result<serde_json::Value, XcStringsError> {
+    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+
+    let (units, total) = extractor::search_keys(
+        &file,
+        &params.pattern,
+        &params.locale,
+        params.batch_size,
+        params.offset,
+    )?;
+
+    let has_more = params.offset + units.len() < total;
+
+    let result = SearchKeysResult {
+        units,
+        total,
+        offset: params.offset,
+        batch_size: params.batch_size,
+        has_more,
+    };
+
+    Ok(serde_json::to_value(result)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,7 +198,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = GetUntranslatedParams {
             file_path: None,
@@ -209,5 +266,28 @@ mod tests {
 
         assert_eq!(result["total"], 0);
         assert!(result["units"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_search_keys_handler() {
+        let store = MemoryStore::new();
+        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
+        let cache = Mutex::new(FileCache::new());
+
+        let params = SearchKeysParams {
+            file_path: Some("/test/file.xcstrings".to_string()),
+            pattern: "greeting".to_string(),
+            locale: "de".to_string(),
+            batch_size: 30,
+            offset: 0,
+        };
+        let result = handle_search_keys(&store, &cache, params).await.unwrap();
+
+        // simple.xcstrings has a "greeting" key
+        assert!(result["total"].as_u64().unwrap() >= 1);
+        assert_eq!(result["has_more"], false);
+
+        let units = result["units"].as_array().unwrap();
+        assert!(units.iter().any(|u| u["key"] == "greeting"));
     }
 }

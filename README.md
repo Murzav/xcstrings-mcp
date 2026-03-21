@@ -63,6 +63,7 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `update_glossary` | Add or update glossary terms |
 | `export_xliff` | Export to XLIFF 1.2 for external translation tools |
 | `import_xliff` | Import translations from XLIFF 1.2 file |
+| `search_keys` | Search keys by substring (matches key names and source text) |
 
 ### Prompts
 
@@ -71,6 +72,9 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `translate_batch` | Step-by-step instructions for batch translation |
 | `review_translations` | Instructions for quality review of translations |
 | `full_translate` | Complete workflow for translating an entire file |
+| `localization_audit` | Full audit: coverage, validation, stale keys, glossary |
+| `fix_validation_errors` | Guided workflow to fix all validation issues |
+| `add_language` | Add a new locale and translate all strings |
 
 ### CLI Options
 

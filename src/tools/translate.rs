@@ -1,3 +1,6 @@
+use rmcp::RoleServer;
+use rmcp::model::LoggingLevel;
+use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -6,9 +9,9 @@ use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::model::translation::{CompletedTranslation, RejectedTranslation, SubmitResult};
 use crate::service::{formatter, merger, parser, validator};
-use crate::tools::FileCache;
 use crate::tools::parse::CachedFile;
 use crate::tools::resolve_file;
+use crate::tools::{FileCache, mcp_log};
 
 fn default_true() -> bool {
     true
@@ -36,8 +39,16 @@ pub(crate) async fn handle_submit_translations(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: SubmitTranslationsParams,
+    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+
+    mcp_log(
+        peer,
+        LoggingLevel::Info,
+        &format!("Validating {} translations...", params.translations.len()),
+    )
+    .await;
 
     // Validate all translations against the file
     let rejected = validator::validate_translations(&file, &params.translations);
@@ -169,6 +180,17 @@ pub(crate) async fn handle_submit_translations(
 
     let merge_result = merger::merge_translations(&mut fresh_file, &owned);
 
+    mcp_log(
+        peer,
+        LoggingLevel::Info,
+        &format!(
+            "{} accepted, {} rejected",
+            merge_result.accepted,
+            rejected.len() + fresh_rejected.len() + merge_result.rejected.len()
+        ),
+    )
+    .await;
+
     // Format and write
     let formatted = formatter::format_xcstrings(&fresh_file)?;
     store.write(&path, &formatted)?;
@@ -218,7 +240,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -233,7 +257,7 @@ mod tests {
             continue_on_error: true,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         assert_eq!(result["dry_run"], true);
@@ -255,7 +279,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -270,7 +296,7 @@ mod tests {
             continue_on_error: true,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         assert_eq!(result["accepted"], 1);
@@ -292,7 +318,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -307,7 +335,7 @@ mod tests {
             continue_on_error: true,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         assert_eq!(result["accepted"], 0);
@@ -326,7 +354,7 @@ mod tests {
             dry_run: false,
             continue_on_error: true,
         };
-        let result = handle_submit_translations(&store, &cache, &write_lock, params).await;
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None).await;
         assert!(result.is_err());
     }
 
@@ -340,7 +368,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -365,7 +395,7 @@ mod tests {
             continue_on_error: false,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         assert_eq!(result["accepted"], 0);
@@ -389,7 +419,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -413,7 +445,7 @@ mod tests {
             continue_on_error: true,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         // "farewell" accepted, "greeting" rejected (missing %@)
@@ -448,7 +480,9 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = SubmitTranslationsParams {
             file_path: None,
@@ -463,7 +497,7 @@ mod tests {
             continue_on_error: true,
         };
 
-        let result = handle_submit_translations(&store, &cache, &write_lock, params)
+        let result = handle_submit_translations(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
         let accepted_keys = result["accepted_keys"].as_array().unwrap();

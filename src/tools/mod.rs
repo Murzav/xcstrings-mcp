@@ -12,6 +12,9 @@ pub(crate) mod xliff;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use rmcp::RoleServer;
+use rmcp::model::{LoggingLevel, LoggingMessageNotificationParam};
+use rmcp::service::Peer;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
@@ -20,6 +23,16 @@ use crate::io::FileStore;
 use crate::model::xcstrings::XcStringsFile;
 use crate::service::parser;
 use parse::CachedFile;
+
+/// Send a structured MCP log notification to the client.
+/// Fire-and-forget: errors are silently ignored.
+/// Pass `None` in tests where no peer is available.
+pub(crate) async fn mcp_log(peer: Option<&Peer<RoleServer>>, level: LoggingLevel, msg: &str) {
+    let Some(peer) = peer else { return };
+    let param = LoggingMessageNotificationParam::new(level, serde_json::json!(msg))
+        .with_logger("xcstrings");
+    let _ = peer.notify_logging_message(param).await;
+}
 
 /// Info about a cached file, returned by `list()`.
 #[derive(Debug, Clone, Serialize)]

@@ -22,6 +22,7 @@ const WITH_SUBSTITUTIONS: &str = include_str!("fixtures/with_substitutions.xcstr
 const WITH_DEVICE_VARIANTS: &str = include_str!("fixtures/with_device_variants.xcstrings");
 const WITH_INTERPOLATION: &str = include_str!("fixtures/with_interpolation.xcstrings");
 const WITH_MULTILINE: &str = include_str!("fixtures/with_multiline.xcstrings");
+const XCODE26: &str = include_str!("fixtures/xcode26.xcstrings");
 
 // ── Integration test 1: parse → get_untranslated ──
 
@@ -1238,4 +1239,46 @@ mod proptest_tests {
                 "key count should match unique input keys");
         }
     }
+}
+
+// ── Xcode 26 compatibility ──
+
+#[test]
+fn xcode26_version_11_parses() {
+    let file = parser::parse(XCODE26).unwrap();
+    assert_eq!(file.version, "1.1");
+    assert_eq!(file.strings.len(), 2);
+}
+
+#[test]
+fn xcode26_version_11_roundtrip_preserves_version() {
+    let file = parser::parse(XCODE26).unwrap();
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.version, "1.1");
+}
+
+#[test]
+fn xcode26_version_11_merge_preserves_version() {
+    let mut file = parser::parse(XCODE26).unwrap();
+    let translations = vec![CompletedTranslation {
+        key: "app_title".to_string(),
+        locale: "de".to_string(),
+        value: "Meine App".to_string(),
+        plural_forms: None,
+        substitution_name: None,
+    }];
+    merger::merge_translations(&mut file, &translations);
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert_eq!(reparsed.version, "1.1");
+    // Translation was actually written
+    let de = reparsed.strings["app_title"]
+        .localizations
+        .as_ref()
+        .unwrap()["de"]
+        .string_unit
+        .as_ref()
+        .unwrap();
+    assert_eq!(de.value, "Meine App");
 }

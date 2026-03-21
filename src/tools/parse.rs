@@ -1,6 +1,9 @@
 use std::path::PathBuf;
 use std::time::SystemTime;
 
+use rmcp::RoleServer;
+use rmcp::model::LoggingLevel;
+use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tokio::sync::Mutex;
@@ -9,7 +12,7 @@ use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::model::xcstrings::XcStringsFile;
 use crate::service::{formatter, parser};
-use crate::tools::FileCache;
+use crate::tools::{FileCache, mcp_log};
 
 /// Cached parsed file, shared across tool invocations.
 pub(crate) struct CachedFile {
@@ -30,6 +33,7 @@ pub(crate) async fn handle_parse(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
     params: ParseParams,
+    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let path = PathBuf::from(&params.file_path);
 
@@ -56,6 +60,18 @@ pub(crate) async fn handle_parse(
         },
     );
 
+    mcp_log(
+        peer,
+        LoggingLevel::Info,
+        &format!(
+            "Parsed {} ({} keys, {} locales)",
+            params.file_path,
+            summary.total_keys,
+            summary.locales.len()
+        ),
+    )
+    .await;
+
     Ok(serde_json::to_value(summary)?)
 }
 
@@ -73,7 +89,7 @@ mod tests {
         let params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        let result = handle_parse(&store, &cache, params).await.unwrap();
+        let result = handle_parse(&store, &cache, params, None).await.unwrap();
 
         assert_eq!(result["source_language"], "en");
         assert_eq!(result["total_keys"], 2);
@@ -92,7 +108,7 @@ mod tests {
         let params = ParseParams {
             file_path: "/test/file.json".to_string(),
         };
-        let result = handle_parse(&store, &cache, params).await;
+        let result = handle_parse(&store, &cache, params, None).await;
         assert!(result.is_err());
     }
 
@@ -104,7 +120,7 @@ mod tests {
         let params = ParseParams {
             file_path: "/nonexistent.xcstrings".to_string(),
         };
-        let result = handle_parse(&store, &cache, params).await;
+        let result = handle_parse(&store, &cache, params, None).await;
         assert!(result.is_err());
     }
 }

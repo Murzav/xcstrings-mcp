@@ -1,3 +1,6 @@
+use rmcp::RoleServer;
+use rmcp::model::LoggingLevel;
+use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -5,9 +8,9 @@ use tokio::sync::Mutex;
 use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::service::{formatter, locale, parser};
-use crate::tools::FileCache;
 use crate::tools::parse::CachedFile;
 use crate::tools::resolve_file;
+use crate::tools::{FileCache, mcp_log};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct ListLocalesParams {
@@ -46,6 +49,7 @@ pub(crate) async fn handle_add_locale(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: AddLocaleParams,
+    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -74,6 +78,16 @@ pub(crate) async fn handle_add_locale(
         },
     );
 
+    mcp_log(
+        peer,
+        LoggingLevel::Info,
+        &format!(
+            "Added locale '{}': {} keys initialized",
+            params.locale, added
+        ),
+    )
+    .await;
+
     let result = AddLocaleResult {
         added,
         locale: params.locale,
@@ -101,6 +115,7 @@ pub(crate) async fn handle_remove_locale(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: RemoveLocaleParams,
+    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
     let source_language = file.source_language.clone();
@@ -129,6 +144,16 @@ pub(crate) async fn handle_remove_locale(
             modified: mtime,
         },
     );
+
+    mcp_log(
+        peer,
+        LoggingLevel::Info,
+        &format!(
+            "Removed locale '{}': {} entries affected",
+            params.locale, removed
+        ),
+    )
+    .await;
 
     let result = RemoveLocaleResult {
         removed,
@@ -172,13 +197,15 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = AddLocaleParams {
             file_path: None,
             locale: "fr".to_string(),
         };
-        let result = handle_add_locale(&store, &cache, &write_lock, params)
+        let result = handle_add_locale(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
 
@@ -202,13 +229,15 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = AddLocaleParams {
             file_path: None,
             locale: "uk".to_string(),
         };
-        let result = handle_add_locale(&store, &cache, &write_lock, params).await;
+        let result = handle_add_locale(&store, &cache, &write_lock, params, None).await;
         assert!(result.is_err());
     }
 
@@ -222,13 +251,15 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = RemoveLocaleParams {
             file_path: None,
             locale: "uk".to_string(),
         };
-        let result = handle_remove_locale(&store, &cache, &write_lock, params)
+        let result = handle_remove_locale(&store, &cache, &write_lock, params, None)
             .await
             .unwrap();
 
@@ -262,13 +293,15 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
+        handle_parse(&store, &cache, parse_params, None)
+            .await
+            .unwrap();
 
         let params = RemoveLocaleParams {
             file_path: None,
             locale: "en".to_string(),
         };
-        let result = handle_remove_locale(&store, &cache, &write_lock, params).await;
+        let result = handle_remove_locale(&store, &cache, &write_lock, params, None).await;
         assert!(result.is_err());
     }
 }
