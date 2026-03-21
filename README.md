@@ -55,6 +55,15 @@ parse_xcstrings → get_untranslated → submit_translations
 | `get_plurals` | Extract keys needing plural translation |
 | `get_context` | Find related keys by shared prefix |
 
+## Performance
+
+Benchmarked on a 968KB `.xcstrings` file (638 keys, 10 locales):
+
+- **Cold parse** (disk read + JSON deserialize): **~0.2ms**
+- **All tool operations** (cached): **< 0.05ms** avg
+- **Memory**: ~7.6 MB RSS with file loaded, 0% CPU at idle
+- **Binary**: 3.6 MB (stripped + LTO)
+
 ## Architecture
 
 ```
