@@ -54,14 +54,27 @@ jobs:
       - uses: taiki-e/install-action@nextest
 
       - name: Generate coverage
-        run: cargo llvm-cov nextest --lcov --output-path lcov.info
+        run: cargo llvm-cov nextest --json --output-path coverage.json
 
-      - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+      - name: Extract coverage percentage
+        id: cov
+        run: |
+          PCT=$(python3 -c "import json; d=json.load(open('coverage.json')); print(f\"{d['data'][0]['totals']['lines']['percent']:.1f}\")")
+          echo "percent=$PCT" >> "$GITHUB_OUTPUT"
+          echo "Coverage: $PCT%"
+
+      - name: Update coverage badge
+        if: github.ref == 'refs/heads/main'
+        uses: schneegans/dynamic-badges-action@v1.7.0
         with:
-          files: lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
-          fail_ci_if_error: false
+          auth: ${{ secrets.GIST_TOKEN }}
+          gistID: ${{ vars.COVERAGE_GIST_ID }}
+          filename: coverage.json
+          label: coverage
+          message: "${{ steps.cov.outputs.percent }}%"
+          valColorRange: ${{ steps.cov.outputs.percent }}
+          maxColorRange: 100
+          minColorRange: 0
 
   deny:
     name: Cargo deny
