@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-03-22
+
+### Added
+- **`delete_keys` tool** -- delete localization keys and all their translations, completes the `get_stale` → `delete_keys` cleanup workflow
+- **`rename_key` tool** -- rename a localization key preserving all existing translations across all locales
+- **`get_key` tool** -- get all translations for a specific key across all locales in a single call
+- **`delete_translations` tool** -- remove translations for specific keys in a locale, resetting them to untranslated state
+- **`cleanup_stale` prompt** -- guided workflow to find and remove stale/unused localization keys
+- Claude Code skill (`skills/xcstrings-mcp/SKILL.md`) with workflows and best practices for all 26 tools
+- GitHub community profile: Code of Conduct, issue templates, PR template, Discussions enabled
+
+### Changed
+- Write operations (`delete_keys`, `delete_translations`) skip disk write when no changes are made
+- Repository topics expanded to 19 for better discoverability
+- README enhanced with Features section, additional badges, and skill installation instructions
+
 ## [1.1.0] - 2026-03-21
 
 ### Added

@@ -6,6 +6,7 @@ pub mod extractor;
 pub mod file_validator;
 pub mod formatter;
 pub mod glossary;
+pub mod keys;
 pub mod locale;
 pub mod merger;
 pub mod parser;

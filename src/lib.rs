@@ -23,6 +23,7 @@ pub mod _test_support {
         pub use crate::service::file_validator;
         pub use crate::service::formatter;
         pub use crate::service::glossary;
+        pub use crate::service::keys;
         pub use crate::service::locale;
         pub use crate::service::merger;
         pub use crate::service::parser;

@@ -56,6 +56,12 @@ pub enum XcStringsError {
     #[error("file already exists: {path}")]
     FileAlreadyExists { path: PathBuf },
 
+    #[error("key not found: {0}")]
+    KeyNotFound(String),
+
+    #[error("key already exists: {0}")]
+    KeyAlreadyExists(String),
+
     #[error(transparent)]
     Io(#[from] std::io::Error),
 
@@ -110,6 +116,18 @@ mod tests {
             display.contains("unexpected token"),
             "should contain message: {display}"
         );
+    }
+
+    #[test]
+    fn key_not_found_display() {
+        let err = XcStringsError::KeyNotFound("test_key".into());
+        assert!(err.to_string().contains("test_key"));
+    }
+
+    #[test]
+    fn key_already_exists_display() {
+        let err = XcStringsError::KeyAlreadyExists("test_key".into());
+        assert!(err.to_string().contains("test_key"));
     }
 
     #[test]

@@ -18,7 +18,7 @@ xcstrings-mcp solves this by providing structured MCP tools that let AI assistan
 
 ## Features
 
-- **22 tools + 7 prompts** covering the full localization lifecycle
+- **26 tools + 8 prompts** covering the full localization lifecycle
 - **Batch translation** with context window management — process 50-100 keys at a time
 - **Format specifier & CLDR plural validation** — catch `%d`/`%@` mismatches and missing plural forms before they ship
 - **Atomic writes** preserving Xcode's exact JSON formatting (`" : "` spacing, key order, BOM handling)
@@ -183,6 +183,10 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `add_keys` | Add new localization keys with source text |
 | `discover_files` | Find .xcstrings and legacy .strings/.stringsdict files |
 | `update_comments` | Update developer comments on localization keys |
+| `delete_keys` | Delete localization keys and all their translations |
+| `delete_translations` | Remove translations for specific keys in a locale, resetting to untranslated |
+| `get_key` | Get all translations for a specific key across all locales |
+| `rename_key` | Rename a localization key, preserving all translations |
 
 ### Prompts
 
@@ -195,6 +199,7 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `fix_validation_errors` | Guided workflow to fix all validation issues |
 | `add_language` | Add a new locale and translate all strings |
 | `extract_strings` | Extract hardcoded strings from Swift code into .xcstrings |
+| `cleanup_stale` | Find and remove stale/unused localization keys |
 
 ### Migrating from Legacy .strings
 
@@ -239,7 +244,7 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 
 ## Claude Code Skill
 
-xcstrings-mcp ships with a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) that teaches Claude Code the optimal workflows, best practices, and error handling for all 22 tools. The skill auto-triggers on any localization-related request.
+xcstrings-mcp ships with a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) that teaches Claude Code the optimal workflows, best practices, and error handling for all 26 tools. The skill auto-triggers on any localization-related request.
 
 **What it does:**
 - Prevents Claude from reading `.xcstrings` files directly (wastes context, risks corruption)

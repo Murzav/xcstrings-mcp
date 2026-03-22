@@ -56,6 +56,12 @@ pub(crate) struct FullTranslateParams {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct CleanupStaleParams {
+    /// Path to the .xcstrings file (optional if already parsed)
+    file_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct ExtractStringsParams {
     /// Source language code (e.g. "en")
     source_language: String,
@@ -338,6 +344,40 @@ impl XcStringsMcpServer {
         )))
     }
 
+    /// Find and remove stale/unused localization keys
+    #[prompt(
+        name = "cleanup_stale",
+        description = "Find and remove stale/unused localization keys"
+    )]
+    fn cleanup_stale(
+        &self,
+        Parameters(params): Parameters<CleanupStaleParams>,
+    ) -> Result<GetPromptResult, rmcp::ErrorData> {
+        let file_instruction = params
+            .file_path
+            .as_ref()
+            .map(|fp| format!("\n  Call parse_xcstrings with file_path=\"{fp}\""))
+            .unwrap_or_else(|| {
+                "\n  Ensure a file is already parsed (call parse_xcstrings if needed)".to_string()
+            });
+
+        let content = format!(
+            "Find and remove stale/unused localization keys.\n\
+            \n\
+            1. Parse the file{file_instruction}\n\
+            2. Call get_stale(batch_size=100) to find keys removed from source code\n\
+            3. Review each stale key with get_key and get_context to confirm it is unused\n\
+            4. Call delete_keys with confirmed stale keys\n\
+            5. Call get_coverage and get_stale to verify cleanup",
+        );
+
+        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
+            PromptMessageRole::User,
+            content,
+        )])
+        .with_description("Find and remove stale/unused localization keys"))
+    }
+
     /// Add a new language and begin translating
     #[prompt(
         name = "add_language",
@@ -534,6 +574,34 @@ mod tests {
         };
         assert!(text.contains("ko"));
         assert!(text.contains("/App/L.xcstrings"));
+    }
+
+    #[test]
+    fn cleanup_stale_returns_content() {
+        let server = make_server();
+        let result = server
+            .cleanup_stale(Parameters(CleanupStaleParams {
+                file_path: Some("/App/L.xcstrings".into()),
+            }))
+            .unwrap();
+        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+            panic!("expected text")
+        };
+        assert!(text.contains("get_stale"));
+        assert!(text.contains("delete_keys"));
+        assert!(text.contains("/App/L.xcstrings"));
+    }
+
+    #[test]
+    fn cleanup_stale_without_file_path() {
+        let server = make_server();
+        let result = server
+            .cleanup_stale(Parameters(CleanupStaleParams { file_path: None }))
+            .unwrap();
+        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+            panic!("expected text")
+        };
+        assert!(text.contains("Ensure a file is already parsed"));
     }
 
     #[test]

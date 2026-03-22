@@ -28,12 +28,16 @@ use crate::tools::{
     },
     diff::{GetDiffParams, handle_get_diff},
     extract::{
-        GetStaleParams, GetUntranslatedParams, SearchKeysParams, handle_get_stale,
-        handle_get_untranslated, handle_search_keys,
+        GetKeyParams, GetStaleParams, GetUntranslatedParams, SearchKeysParams, handle_get_key,
+        handle_get_stale, handle_get_untranslated, handle_search_keys,
     },
     files::{DiscoverFilesParams, ListFilesParams, handle_discover_files, handle_list_files},
     glossary::{
         GetGlossaryParams, UpdateGlossaryParams, handle_get_glossary, handle_update_glossary,
+    },
+    keys::{
+        DeleteKeysParams, DeleteTranslationsParams, RenameKeyParams, handle_delete_keys,
+        handle_delete_translations, handle_rename_key,
     },
     manage::{
         AddLocaleParams, ListLocalesParams, RemoveLocaleParams, handle_add_locale,
@@ -605,6 +609,109 @@ impl XcStringsMcpServer {
             }
         }
     }
+
+    /// Delete localization keys and all their translations.
+    #[tool(
+        name = "delete_keys",
+        description = "Delete localization keys and all their translations. Use after get_stale to remove unused keys."
+    )]
+    async fn delete_keys(
+        &self,
+        Parameters(params): Parameters<DeleteKeysParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_delete_keys(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "delete_keys failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Rename a localization key, preserving all translations.
+    #[tool(
+        name = "rename_key",
+        description = "Rename a localization key, preserving all existing translations across all locales."
+    )]
+    async fn rename_key(
+        &self,
+        Parameters(params): Parameters<RenameKeyParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_rename_key(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "rename_key failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Get all translations for a specific key across all locales.
+    #[tool(
+        name = "get_key",
+        description = "Get all translations for a specific key across all locales. Returns source text, comment, and translation state per locale."
+    )]
+    async fn get_key(
+        &self,
+        Parameters(params): Parameters<GetKeyParams>,
+    ) -> Result<String, String> {
+        match handle_get_key(self.store.as_ref(), &self.cache, params).await {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "get_key failed");
+                Err(e.to_string())
+            }
+        }
+    }
+
+    /// Remove translations for specific keys in a locale.
+    #[tool(
+        name = "delete_translations",
+        description = "Remove translations for specific keys in a locale, resetting them to untranslated state. Cannot delete source language translations."
+    )]
+    async fn delete_translations(
+        &self,
+        Parameters(params): Parameters<DeleteTranslationsParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        match handle_delete_translations(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            params,
+            Some(&context.peer),
+        )
+        .await
+        {
+            Ok(value) => serde_json::to_string_pretty(&value)
+                .map_err(|e| format!("serialization error: {e}")),
+            Err(e) => {
+                error!(error = %e, "delete_translations failed");
+                Err(e.to_string())
+            }
+        }
+    }
 }
 
 #[tool_handler]
@@ -634,8 +741,12 @@ impl ServerHandler for XcStringsMcpServer {
                      update_comments to modify developer comments on keys, \
                      export_xliff to export translations to XLIFF 1.2, import_xliff to \
                      import translations from XLIFF files, import_strings to migrate legacy \
-                     .strings and .stringsdict files into .xcstrings format, and search_keys \
-                     to find keys by substring pattern matching key names and source text.",
+                     .strings and .stringsdict files into .xcstrings format, search_keys \
+                     to find keys by substring pattern matching key names and source text, \
+                     delete_keys to remove localization keys and all their translations, \
+                     rename_key to rename a key preserving all translations, \
+                     get_key to get all translations for a specific key across all locales, \
+                     and delete_translations to remove translations for specific keys in a locale.",
             )
     }
 }

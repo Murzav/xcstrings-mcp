@@ -4,6 +4,7 @@ pub(crate) mod diff;
 pub(crate) mod extract;
 pub(crate) mod files;
 pub(crate) mod glossary;
+pub(crate) mod keys;
 pub(crate) mod manage;
 pub(crate) mod parse;
 pub(crate) mod plural;

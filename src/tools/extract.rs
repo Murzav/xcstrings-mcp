@@ -5,6 +5,7 @@ use tokio::sync::Mutex;
 use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::model::translation::TranslationUnit;
+use crate::model::xcstrings::TranslationState;
 use crate::service::extractor;
 use crate::tools::FileCache;
 use crate::tools::resolve_file;
@@ -173,6 +174,85 @@ pub(crate) async fn handle_search_keys(
     Ok(serde_json::to_value(result)?)
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+pub(crate) struct GetKeyParams {
+    /// Path to .xcstrings file (optional if already parsed)
+    #[serde(default)]
+    pub file_path: Option<String>,
+    /// The localization key to look up
+    pub key: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct GetKeyResult {
+    key: String,
+    source_language: String,
+    source_text: String,
+    comment: Option<String>,
+    should_translate: bool,
+    translations: Vec<KeyTranslation>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct KeyTranslation {
+    locale: String,
+    value: Option<String>,
+    state: Option<TranslationState>,
+    has_plurals: bool,
+    has_device_variants: bool,
+}
+
+/// Get all translations for a specific key across all locales.
+pub(crate) async fn handle_get_key(
+    store: &dyn FileStore,
+    cache: &Mutex<FileCache>,
+    params: GetKeyParams,
+) -> Result<serde_json::Value, XcStringsError> {
+    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+
+    let entry = file
+        .strings
+        .get(&params.key)
+        .ok_or_else(|| XcStringsError::KeyNotFound(params.key.clone()))?;
+
+    let source_text = entry
+        .localizations
+        .as_ref()
+        .and_then(|locs| locs.get(&file.source_language))
+        .and_then(|loc| loc.string_unit.as_ref())
+        .map(|su| su.value.clone())
+        .unwrap_or_else(|| params.key.clone());
+
+    let mut translations = Vec::new();
+    if let Some(locs) = &entry.localizations {
+        for (locale, loc) in locs {
+            let value = loc.string_unit.as_ref().map(|su| su.value.clone());
+            let state = loc.string_unit.as_ref().map(|su| su.state.clone());
+            let has_plurals = loc.variations.as_ref().is_some_and(|v| v.plural.is_some());
+            let has_device_variants = loc.variations.as_ref().is_some_and(|v| v.device.is_some());
+
+            translations.push(KeyTranslation {
+                locale: locale.clone(),
+                value,
+                state,
+                has_plurals,
+                has_device_variants,
+            });
+        }
+    }
+
+    let result = GetKeyResult {
+        key: params.key,
+        source_language: file.source_language.clone(),
+        source_text,
+        comment: entry.comment.clone(),
+        should_translate: entry.should_translate,
+        translations,
+    };
+
+    Ok(serde_json::to_value(result)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,5 +381,37 @@ mod tests {
 
         let units = result["units"].as_array().unwrap();
         assert!(units.iter().any(|u| u["key"] == "greeting"));
+    }
+
+    #[tokio::test]
+    async fn test_get_key_success() {
+        let store = MemoryStore::new();
+        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
+        let cache = Mutex::new(FileCache::new());
+
+        let params = GetKeyParams {
+            file_path: Some("/test/file.xcstrings".to_string()),
+            key: "greeting".to_string(),
+        };
+        let result = handle_get_key(&store, &cache, params).await.unwrap();
+
+        assert_eq!(result["key"], "greeting");
+        assert_eq!(result["source_language"], "en");
+        assert!(result["should_translate"].as_bool().unwrap());
+        assert!(!result["translations"].as_array().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_key_not_found() {
+        let store = MemoryStore::new();
+        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
+        let cache = Mutex::new(FileCache::new());
+
+        let params = GetKeyParams {
+            file_path: Some("/test/file.xcstrings".to_string()),
+            key: "nonexistent".to_string(),
+        };
+        let result = handle_get_key(&store, &cache, params).await;
+        assert!(result.is_err());
     }
 }

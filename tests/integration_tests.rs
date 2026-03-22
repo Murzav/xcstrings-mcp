@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use helpers::MemoryStore;
 use indexmap::IndexMap;
 use xcstrings_mcp::_test_support::service::{
-    context, coverage, creator, diff, extractor, file_validator, formatter, glossary, locale,
+    context, coverage, creator, diff, extractor, file_validator, formatter, glossary, keys, locale,
     merger, parser, plural_extractor, strings_parser, stringsdict_parser, validator, xliff,
 };
 use xcstrings_mcp::model::translation::CompletedTranslation;
@@ -1589,4 +1589,67 @@ fn test_import_strings_utf16() {
 
     let key2 = entries.iter().find(|e| e.key == "utf16.key2").unwrap();
     assert_eq!(key2.value, "Value with accent: caf\u{e9}");
+}
+
+// ── Integration tests: delete_keys, rename_key, get_key ──
+
+#[test]
+fn test_delete_keys_then_verify() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+    let original_keys: Vec<String> = file.strings.keys().cloned().collect();
+    assert!(original_keys.contains(&"greeting".to_string()));
+
+    let result = keys::delete_keys(&mut file, &["greeting".to_string()]);
+    assert_eq!(result.deleted, vec!["greeting"]);
+    assert!(!file.strings.contains_key("greeting"));
+
+    // Format roundtrip
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+    assert!(!reparsed.strings.contains_key("greeting"));
+    assert!(reparsed.strings.contains_key("welcome_message"));
+}
+
+#[test]
+fn test_rename_key_roundtrip() {
+    let mut file = parser::parse(SIMPLE_FIXTURE).unwrap();
+
+    // Get translations for the old key
+    let old_entry = file.strings.get("greeting").unwrap().clone();
+
+    let result = keys::rename_key(&mut file, "greeting", "hello_world").unwrap();
+    assert_eq!(result.old_key, "greeting");
+    assert_eq!(result.new_key, "hello_world");
+
+    // Format → reparse → verify
+    let formatted = formatter::format_xcstrings(&file).unwrap();
+    let reparsed = parser::parse(&formatted).unwrap();
+
+    assert!(!reparsed.strings.contains_key("greeting"));
+    let new_entry = reparsed.strings.get("hello_world").unwrap();
+
+    // Translations should be preserved
+    assert_eq!(
+        old_entry.localizations.as_ref().map(|l| l.len()),
+        new_entry.localizations.as_ref().map(|l| l.len())
+    );
+}
+
+#[test]
+fn test_get_key_all_locales() {
+    let file = parser::parse(SIMPLE_FIXTURE).unwrap();
+
+    let entry = file.strings.get("greeting").unwrap();
+    assert!(entry.localizations.is_some());
+
+    let locs = entry.localizations.as_ref().unwrap();
+    // Verify we can access all locales for this key
+    for (locale, loc) in locs {
+        assert!(!locale.is_empty(), "locale should not be empty");
+        // Each localization should have a string_unit or variations
+        assert!(
+            loc.string_unit.is_some() || loc.variations.is_some(),
+            "locale {locale} should have string_unit or variations"
+        );
+    }
 }

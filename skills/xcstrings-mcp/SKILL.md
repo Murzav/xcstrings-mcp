@@ -41,6 +41,12 @@ description: >
 - `NSLocalizedString`, `String(localized:)`, `LocalizedStringKey` mentioned in context of adding/editing/finding
 - "fix incorrect translation / update existing translation"
 
+### Key Management
+- "delete key / remove key / clean up stale keys / remove unused keys"
+- "rename key / rename localization key / refactor key name"
+- "inspect key / show translations for key / get key translations"
+- "reset translation / remove translation / clear translation / delete translation for locale"
+
 ### Migration
 - "migrate from .strings / convert .strings to .xcstrings"
 - "old localization format / .stringsdict"
@@ -265,6 +271,51 @@ get_glossary(source_locale: "en", target_locale: "uk")  // check existing terms
 
 **Always consult glossary before translating to ensure brand/product term consistency.**
 
+### Clean up stale/unused keys
+
+Use built-in prompt: `cleanup_stale`
+Or manually:
+```
+discover_files(directory: ".")
+→ parse_xcstrings(path)
+→ get_stale(locale: "en", batch_size: 100)
+→ review stale keys
+→ delete_keys(keys: ["unused_key_1", "unused_key_2"])
+→ get_coverage()                                      // verify no impact
+```
+
+### Rename a key (after Swift refactoring)
+
+```
+discover_files(directory: ".")
+→ parse_xcstrings(path)
+→ search_keys(query: "old_key_name")                  // find the key
+→ rename_key(old_key: "old_key_name", new_key: "new_key_name")
+```
+
+**All translations are preserved during rename.**
+
+### Inspect a specific key
+
+```
+discover_files(directory: ".")
+→ parse_xcstrings(path)
+→ get_key(key: "button.save")                         // all locales at once
+```
+
+Returns source text, comment, and translation state for every locale.
+
+### Fix broken translations
+
+```
+discover_files(directory: ".")
+→ parse_xcstrings(path)
+→ validate_translations()
+→ delete_translations(keys: ["broken_key"], locale: "uk")  // reset to untranslated
+→ get_untranslated(locale: "uk")                            // re-translate
+→ submit_translations(...)
+```
+
 ---
 
 ## Error Handling
@@ -315,4 +366,8 @@ get_glossary(source_locale: "en", target_locale: "uk")  // check existing terms
 | `get_glossary` | Check consistent terminology |
 | `update_glossary` | Add/update glossary terms |
 | `get_diff` | Compare cache vs on-disk state |
+| `delete_keys` | Delete keys found by `get_stale` or manually |
+| `delete_translations` | Reset specific translations to untranslated |
+| `get_key` | Inspect one key across all locales |
+| `rename_key` | Rename key preserving all translations |
 | `list_files` | List all currently cached files |
