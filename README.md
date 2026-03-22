@@ -1,15 +1,31 @@
-# xcstrings-mcp
+# 🌐 xcstrings-mcp
+
+**MCP server for iOS/macOS .xcstrings (String Catalog) localization — parse, translate, validate, and export with any AI coding assistant**
 
 [![CI](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Murzav/b7cd209fd268df81711e04622ff051e8/raw/coverage.json)
 [![Crates.io](https://img.shields.io/crates/v/xcstrings-mcp)](https://crates.io/crates/xcstrings-mcp)
+[![Downloads](https://img.shields.io/crates/d/xcstrings-mcp)](https://crates.io/crates/xcstrings-mcp)
+[![MSRV](https://img.shields.io/badge/MSRV-1.88-blue)](https://blog.rust-lang.org/)
 [![License](https://img.shields.io/crates/l/xcstrings-mcp)](LICENSE-MIT)
+[![MCP](https://img.shields.io/badge/MCP-compatible-green)](https://modelcontextprotocol.io)
 
-MCP server for iOS/macOS `.xcstrings` localization file management and legacy `.strings`/`.stringsdict` migration.
-
-## The Problem
+## Why xcstrings-mcp?
 
 Xcode String Catalogs (`.xcstrings`) are large JSON files that waste LLM context windows when loaded whole. Manual editing risks corrupting Xcode's specific formatting, there's no validation for format specifiers or plural rules, and plural-aware translation requires understanding CLDR categories across 40+ locales.
+
+xcstrings-mcp solves this by providing structured MCP tools that let AI assistants work with `.xcstrings` files efficiently — reading only what's needed, validating every write, and preserving Xcode's exact JSON formatting.
+
+## Features
+
+- **22 tools + 7 prompts** covering the full localization lifecycle
+- **Batch translation** with context window management — process 50-100 keys at a time
+- **Format specifier & CLDR plural validation** — catch `%d`/`%@` mismatches and missing plural forms before they ship
+- **Atomic writes** preserving Xcode's exact JSON formatting (`" : "` spacing, key order, BOM handling)
+- **Legacy migration** — import `.strings` and `.stringsdict` files (UTF-8/UTF-16, plural rules, positional specifiers)
+- **XLIFF 1.2 export/import** — integrate with external translation tools and agencies
+- **Glossary** for consistent terminology across locales
+- **Works with** Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, OpenAI Codex, and any MCP client
 
 ## Quick Start
 
@@ -221,6 +237,40 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 |------|---------|-------------|
 | `--glossary-path` | `glossary.json` | Path to glossary file for consistent terminology |
 
+## Claude Code Skill
+
+xcstrings-mcp ships with a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) that teaches Claude Code the optimal workflows, best practices, and error handling for all 22 tools. The skill auto-triggers on any localization-related request.
+
+**What it does:**
+- Prevents Claude from reading `.xcstrings` files directly (wastes context, risks corruption)
+- Guides optimal tool sequences for every workflow (translate, migrate, audit, export)
+- Handles CLDR plural categories per locale (uk needs one/few/many, ja needs only other)
+- Manages glossary for consistent terminology across translations
+- Parallelizes multi-locale translation with one subagent per language
+
+**Install the skill:**
+
+```sh
+# One-liner
+mkdir -p ~/.claude/skills/xcstrings-mcp && curl -sL \
+  https://raw.githubusercontent.com/Murzav/xcstrings-mcp/main/skills/xcstrings-mcp/SKILL.md \
+  -o ~/.claude/skills/xcstrings-mcp/SKILL.md
+```
+
+Or clone the repo and copy:
+```sh
+cp -r skills/xcstrings-mcp ~/.claude/skills/
+```
+
+The skill covers these workflows out of the box:
+- **Full translation** — parallel subagents per locale with batch processing
+- **Add/remove language** — locale management with coverage verification
+- **Coverage audit** — coverage, validation, stale keys, glossary check
+- **Legacy migration** — `.strings`/`.stringsdict` to `.xcstrings` with dry-run preview
+- **XLIFF roundtrip** — export for translators, import back with validation
+- **Plural handling** — CLDR-aware plural form management
+- **Glossary management** — consistent terminology across locales
+
 ## Performance
 
 Binary size: **~4 MB** (stripped + LTO). Zero CPU at idle.
@@ -250,6 +300,12 @@ Layered architecture: `server` -> `tools` -> `service` -> `model`, with `io` inj
 - **service** -- pure logic (parser, extractor, merger, validator, formatter); no I/O
 - **model** -- serde types for `.xcstrings` format, CLDR plural rules, format specifiers
 - **io** -- `FileStore` trait + real filesystem implementation with atomic writes
+
+## Related
+
+- [Model Context Protocol](https://modelcontextprotocol.io) — open protocol for AI tool integration
+- [Xcode String Catalogs](https://developer.apple.com/documentation/xcode/localizing-and-varying-text-with-a-string-catalog) — Apple's localization format
+- [CLDR Plural Rules](https://cldr.unicode.org/index/cldr-spec/plural-rules) — Unicode plural categories used for validation
 
 ## License
 
