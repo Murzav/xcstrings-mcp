@@ -18,7 +18,7 @@ xcstrings-mcp solves this by providing structured MCP tools that let AI assistan
 
 ## Features
 
-- **26 tools + 8 prompts** covering the full localization lifecycle
+- **26 MCP tools + 8 prompts + 11 CLI commands** covering the full localization lifecycle
 - **Batch translation** with context window management — process 50-100 keys at a time
 - **Format specifier & CLDR plural validation** — catch `%d`/`%@` mismatches and missing plural forms before they ship
 - **Atomic writes** preserving Xcode's exact JSON formatting (`" : "` spacing, key order, BOM handling)
@@ -231,6 +231,36 @@ create_xcstrings → add_keys → add_locale → get_untranslated → submit_tra
 ```
 
 Or use the `extract_strings` prompt to automatically extract hardcoded strings from your Swift source code.
+
+## CLI Commands
+
+In addition to the MCP server, `xcstrings-mcp` provides direct CLI commands for terminal use, CI/CD pipelines, and scripting.
+
+Commands auto-discover `.xcstrings` files in the current directory tree -- no path required:
+
+```bash
+cd MyProject/
+xcstrings-mcp coverage              # auto-finds Localizable.xcstrings
+xcstrings-mcp validate --locale uk  # validate specific locale
+xcstrings-mcp add-locale fr         # add French locale
+xcstrings-mcp export --locale de -o out.xliff  # export to XLIFF
+```
+
+| Command | Description |
+|---------|-------------|
+| `info` | File summary: source language, keys, locales |
+| `coverage` | Translation coverage per locale |
+| `validate` | Check format specifiers, plurals, empty values |
+| `search <pattern>` | Find keys by substring |
+| `stale` | List stale/removed keys |
+| `add-locale <locale>` | Add a new locale |
+| `remove-locale <locale>` | Remove a locale |
+| `export` | Export to XLIFF 1.2 |
+| `import` | Import from XLIFF with validation |
+| `migrate` | Migrate legacy .strings/.stringsdict |
+| `completions <shell>` | Generate shell completions |
+
+All commands support `--json` for machine-readable output. Mutation commands support `--dry-run`.
 
 ### CLI Options
 

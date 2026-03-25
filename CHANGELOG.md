@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-03-25
+
+### Added
+- **11 CLI commands** for direct terminal access to localization operations:
+  - `info` -- show file summary (source language, keys, locales)
+  - `coverage` -- translation coverage per locale with percentage table
+  - `validate` -- check format specifiers, plural forms, empty translations
+  - `search` -- find keys by pattern (case-insensitive)
+  - `stale` -- list stale/removed keys
+  - `add-locale` -- add a new locale to all translatable keys
+  - `remove-locale` -- remove a locale and all its translations
+  - `export` -- export translations to XLIFF 1.2 format
+  - `import` -- import translations from XLIFF files with validation
+  - `migrate` -- migrate legacy .strings/.stringsdict to .xcstrings
+  - `completions` -- generate shell completions (bash/zsh/fish/powershell/elvish)
+- **Auto-discovery**: CLI commands automatically find .xcstrings files in the current directory tree -- no path required
+- **`--json` flag**: machine-readable JSON output for CI/CD integration on all commands
+- **`--dry-run` flag**: preview changes without writing on all mutation commands (add-locale, remove-locale, import, migrate)
+- Shell completions for bash, zsh, fish, powershell, elvish via `clap_complete`
+
+### Changed
+- `service` module now public for CLI reuse (removed `_test_support` re-export hack)
+- Extracted `service::discovery` module from `tools::files` for file discovery logic reuse
+- Extracted `service::migrate` module from `tools::strings` for legacy migration logic reuse
+- Binary now returns `ExitCode` instead of `Result` for proper exit code handling
+
 ## [1.2.0] - 2026-03-22
 
 ### Added

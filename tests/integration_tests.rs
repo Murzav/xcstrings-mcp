@@ -4,13 +4,13 @@ use std::path::PathBuf;
 
 use helpers::MemoryStore;
 use indexmap::IndexMap;
-use xcstrings_mcp::_test_support::service::{
-    context, coverage, creator, diff, extractor, file_validator, formatter, glossary, keys, locale,
-    merger, parser, plural_extractor, strings_parser, stringsdict_parser, validator, xliff,
-};
 use xcstrings_mcp::model::translation::CompletedTranslation;
 use xcstrings_mcp::model::xcstrings::{
     Localization, StringEntry, StringUnit, TranslationState, XcStringsFile,
+};
+use xcstrings_mcp::service::{
+    context, coverage, creator, diff, extractor, file_validator, formatter, glossary, keys, locale,
+    merger, parser, plural_extractor, strings_parser, stringsdict_parser, validator, xliff,
 };
 
 const SIMPLE_FIXTURE: &str = include_str!("fixtures/simple.xcstrings");

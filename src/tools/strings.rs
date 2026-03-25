@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use rmcp::RoleServer;
@@ -10,15 +9,13 @@ use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
 use crate::io::FileStore;
-use crate::model::xcstrings::{
-    ExtractionState, Localization, OrderedMap, PluralVariation, StringEntry, StringUnit,
-    TranslationState, Variations, XcStringsFile,
-};
+use crate::model::xcstrings::OrderedMap;
+use crate::service::migrate::{self, LocaleImportStats, ParsedLocaleData};
 use crate::service::strings_parser::{
     DiscoveredStringsFile, StringsFileType, decode_strings_content, discover_strings_files,
     extract_locale_from_path, parse_strings,
 };
-use crate::service::stringsdict_parser::{StringsdictEntry, parse_stringsdict};
+use crate::service::stringsdict_parser::parse_stringsdict;
 
 use crate::service::{formatter, parser};
 use crate::tools::parse::CachedFile;
@@ -52,113 +49,6 @@ struct ImportStringsResult {
     plural_keys: usize,
     warnings: Vec<String>,
     dry_run: bool,
-}
-
-#[derive(Debug, Serialize)]
-struct LocaleImportStats {
-    locale: String,
-    keys_count: usize,
-}
-
-/// A parsed file ready for conversion, grouped by locale.
-struct ParsedLocaleData {
-    strings: Vec<crate::service::strings_parser::StringsEntry>,
-    stringsdict: Vec<StringsdictEntry>,
-}
-
-/// Check if a stringsdict format key is a simple single-variable plural
-/// (exactly `%#@VARNAME@` with no surrounding text).
-fn is_simple_plural(format_key: &str) -> bool {
-    let trimmed = format_key.trim();
-    if !trimmed.starts_with("%#@") || !trimmed.ends_with('@') {
-        return false;
-    }
-    let inner = &trimmed[3..trimmed.len() - 1];
-    !inner.is_empty() && !inner.contains('@') && !inner.contains('%')
-}
-
-/// Replace format specifiers like %lld, %d, %@, %f with %arg in plural values.
-/// Handles both non-positional (`%lld`) and positional (`%1$lld`) forms.
-fn replace_specifier_with_arg(value: &str, format_specifier: &str) -> String {
-    let mut result = value.to_string();
-    // Replace positional form first: %1$lld, %2$lld, etc.
-    for n in 1..=9 {
-        let positional = format!("%{n}${format_specifier}");
-        result = result.replace(&positional, "%arg");
-    }
-    // Then replace non-positional form: %lld
-    let plain = format!("%{format_specifier}");
-    result.replace(&plain, "%arg")
-}
-
-/// Build substitutions map for complex plurals.
-fn build_substitutions(entry: &StringsdictEntry) -> BTreeMap<String, serde_json::Value> {
-    let mut subs = BTreeMap::new();
-    for (idx, (var_name, var)) in entry.variables.iter().enumerate() {
-        let mut plural_forms = serde_json::Map::new();
-        for (form, value) in &var.forms {
-            let replaced = replace_specifier_with_arg(value, &var.format_specifier);
-            plural_forms.insert(
-                form.clone(),
-                serde_json::json!({
-                    "stringUnit": {
-                        "state": "translated",
-                        "value": replaced
-                    }
-                }),
-            );
-        }
-        subs.insert(
-            var_name.clone(),
-            serde_json::json!({
-                "argNum": idx + 1,
-                "formatSpecifier": var.format_specifier,
-                "variations": {
-                    "plural": plural_forms
-                }
-            }),
-        );
-    }
-    subs
-}
-
-/// Build a Localization from a stringsdict entry for the source locale.
-fn build_stringsdict_localization(entry: &StringsdictEntry) -> Localization {
-    if is_simple_plural(&entry.format_key)
-        && entry.variables.len() == 1
-        && let Some(var) = entry.variables.values().next()
-    {
-        let mut plural = BTreeMap::new();
-        for (form, value) in &var.forms {
-            plural.insert(
-                form.clone(),
-                PluralVariation {
-                    string_unit: StringUnit {
-                        state: TranslationState::Translated,
-                        value: value.clone(),
-                    },
-                },
-            );
-        }
-        Localization {
-            string_unit: None,
-            variations: Some(Variations {
-                plural: Some(plural),
-                device: None,
-            }),
-            substitutions: None,
-        }
-    } else {
-        // Complex plural: stringUnit + substitutions
-        Localization {
-            string_unit: Some(StringUnit {
-                state: TranslationState::Translated,
-                value: entry.format_key.clone(),
-            }),
-            variations: None,
-            substitutions: Some(build_substitutions(entry)),
-        }
-    }
 }
 
 pub(crate) async fn handle_import_strings(
@@ -272,234 +162,28 @@ pub(crate) async fn handle_import_strings(
         }
     }
 
-    // 4. Validate source_language exists
-    if !locale_data.contains_key(&params.source_language) {
-        return Err(XcStringsError::InvalidFormat(format!(
-            "source language '{}' not found in imported files (available: {})",
-            params.source_language,
-            locale_data.keys().cloned().collect::<Vec<_>>().join(", ")
-        )));
-    }
-
-    // 5. Build XcStringsFile from source locale first
-    let mut strings: OrderedMap<String, StringEntry> = OrderedMap::new();
-    let source_data = &locale_data[&params.source_language];
-
-    // Process source .strings entries
-    for entry in &source_data.strings {
-        let mut localizations = OrderedMap::new();
-        let state = if entry.value.is_empty() {
-            TranslationState::New
-        } else {
-            TranslationState::Translated
-        };
-        localizations.insert(
-            params.source_language.clone(),
-            Localization {
-                string_unit: Some(StringUnit {
-                    state,
-                    value: entry.value.clone(),
-                }),
-                variations: None,
-                substitutions: None,
-            },
-        );
-
-        if let Some(existing) = strings.get(&entry.key)
-            && existing.localizations.is_some()
-        {
-            warnings.push(format!("duplicate key '{}': last value wins", entry.key));
-        }
-
-        strings.insert(
-            entry.key.clone(),
-            StringEntry {
-                extraction_state: Some(ExtractionState::Migrated),
-                should_translate: true,
-                comment: entry.comment.clone(),
-                localizations: Some(localizations),
-            },
-        );
-    }
-
-    // Process source .stringsdict entries (override .strings for same key)
-    let mut plural_keys: usize = 0;
-    for entry in &source_data.stringsdict {
-        let mut localizations = OrderedMap::new();
-        localizations.insert(
-            params.source_language.clone(),
-            build_stringsdict_localization(entry),
-        );
-
-        if strings.contains_key(&entry.key) {
-            warnings.push(format!(
-                "key '{}': .stringsdict overrides .strings",
-                entry.key
-            ));
-        }
-
-        strings.insert(
-            entry.key.clone(),
-            StringEntry {
-                extraction_state: Some(ExtractionState::Migrated),
-                should_translate: true,
-                comment: None,
-                localizations: Some(localizations),
-            },
-        );
-        plural_keys += 1;
-    }
-
-    // 6. Add non-source locale translations
-    let mut locales_imported = Vec::new();
-    for (locale, data) in &locale_data {
-        if locale == &params.source_language {
-            locales_imported.push(LocaleImportStats {
-                locale: locale.clone(),
-                keys_count: data.strings.len() + data.stringsdict.len(),
-            });
-            continue;
-        }
-
-        let mut keys_count = 0;
-
-        // .strings translations
-        for entry in &data.strings {
-            if !strings.contains_key(&entry.key) {
-                // Key in non-source but missing from source → add with warning
-                warnings.push(format!(
-                    "key '{}' found in locale '{}' but not in source — adding",
-                    entry.key, locale
-                ));
-                let mut localizations = OrderedMap::new();
-                localizations.insert(
-                    params.source_language.clone(),
-                    Localization {
-                        string_unit: Some(StringUnit {
-                            state: TranslationState::New,
-                            value: String::new(),
-                        }),
-                        variations: None,
-                        substitutions: None,
-                    },
-                );
-                strings.insert(
-                    entry.key.clone(),
-                    StringEntry {
-                        extraction_state: Some(ExtractionState::Migrated),
-                        should_translate: true,
-                        comment: None,
-                        localizations: Some(localizations),
-                    },
-                );
-            }
-
-            let string_entry = strings.get_mut(&entry.key).ok_or_else(|| {
-                XcStringsError::InvalidFormat("internal: missing key after insert".into())
-            })?;
-            let localizations = string_entry
-                .localizations
-                .get_or_insert_with(OrderedMap::new);
-
-            let state = if entry.value.is_empty() {
-                TranslationState::New
-            } else {
-                TranslationState::Translated
-            };
-            localizations.insert(
-                locale.clone(),
-                Localization {
-                    string_unit: Some(StringUnit {
-                        state,
-                        value: entry.value.clone(),
-                    }),
-                    variations: None,
-                    substitutions: None,
-                },
-            );
-            keys_count += 1;
-        }
-
-        // .stringsdict translations
-        for entry in &data.stringsdict {
-            if !strings.contains_key(&entry.key) {
-                warnings.push(format!(
-                    "key '{}' found in locale '{}' but not in source — adding",
-                    entry.key, locale
-                ));
-                let mut localizations = OrderedMap::new();
-                localizations.insert(
-                    params.source_language.clone(),
-                    Localization {
-                        string_unit: Some(StringUnit {
-                            state: TranslationState::New,
-                            value: String::new(),
-                        }),
-                        variations: None,
-                        substitutions: None,
-                    },
-                );
-                strings.insert(
-                    entry.key.clone(),
-                    StringEntry {
-                        extraction_state: Some(ExtractionState::Migrated),
-                        should_translate: true,
-                        comment: None,
-                        localizations: Some(localizations),
-                    },
-                );
-            }
-
-            let string_entry = strings.get_mut(&entry.key).ok_or_else(|| {
-                XcStringsError::InvalidFormat("internal: missing key after insert".into())
-            })?;
-            let localizations = string_entry
-                .localizations
-                .get_or_insert_with(OrderedMap::new);
-            localizations.insert(locale.clone(), build_stringsdict_localization(entry));
-            keys_count += 1;
-        }
-
-        locales_imported.push(LocaleImportStats {
-            locale: locale.clone(),
-            keys_count,
-        });
-    }
-
-    let new_file = XcStringsFile {
-        source_language: params.source_language.clone(),
-        strings,
-        version: "1.0".to_owned(),
-    };
-
-    // 7. Merge mode: if output exists, read existing, add only new keys
-    let xcstrings_file = if store.exists(&output_path) {
+    // 4. Handle existing file merge mode setup
+    let existing = if store.exists(&output_path) {
         let existing_raw = store.read(&output_path)?;
-        let mut existing_file = parser::parse(&existing_raw)?;
-        let mut skipped_count = 0;
-
-        for (key, entry) in &new_file.strings {
-            if existing_file.strings.contains_key(key) {
-                skipped_count += 1;
-            } else {
-                existing_file.strings.insert(key.clone(), entry.clone());
-            }
-        }
-
-        if skipped_count > 0 {
-            warnings.push(format!(
-                "{skipped_count} keys already exist in output, skipped"
-            ));
-        }
-
-        existing_file
+        Some(parser::parse(&existing_raw)?)
     } else {
-        new_file
+        None
     };
 
-    let total_keys = xcstrings_file.strings.len();
+    // 5. Build xcstrings from legacy data
+    let result =
+        migrate::build_xcstrings_from_legacy(&params.source_language, &locale_data, existing)?;
 
-    // 8. Dry run
+    // Combine warnings from file parsing with warnings from conversion
+    let mut all_warnings = warnings;
+    all_warnings.extend(result.warnings);
+
+    let total_keys = result.total_keys;
+    let plural_keys = result.plural_keys;
+    let locales_imported = result.locales_imported;
+    let xcstrings_file = result.file;
+
+    // 6. Dry run
     if params.dry_run {
         let result = ImportStringsResult {
             output_path: params.output_path,
@@ -507,13 +191,13 @@ pub(crate) async fn handle_import_strings(
             total_keys,
             locales_imported,
             plural_keys,
-            warnings,
+            warnings: all_warnings,
             dry_run: true,
         };
         return Ok(serde_json::to_value(result)?);
     }
 
-    // 9. Write
+    // 7. Write
     let _write_guard = write_lock.lock().await;
     let formatted = formatter::format_xcstrings(&xcstrings_file)?;
     store.write(&output_path, &formatted)?;
@@ -543,7 +227,7 @@ pub(crate) async fn handle_import_strings(
         total_keys,
         locales_imported,
         plural_keys,
-        warnings,
+        warnings: all_warnings,
         dry_run: false,
     };
     Ok(serde_json::to_value(result)?)
@@ -555,87 +239,6 @@ mod tests {
 
     use super::*;
     use crate::tools::test_helpers::MemoryStore;
-
-    #[test]
-    fn test_is_simple_plural_basic() {
-        assert!(is_simple_plural("%#@items@"));
-    }
-
-    #[test]
-    fn test_is_simple_plural_complex() {
-        assert!(!is_simple_plural("%1$#@photos@ in %2$#@albums@"));
-    }
-
-    #[test]
-    fn test_is_simple_plural_edge_cases() {
-        assert!(!is_simple_plural(""));
-        assert!(!is_simple_plural("%#@@"));
-        assert!(!is_simple_plural("%#@a@b"));
-        assert!(!is_simple_plural("%#@items"));
-        assert!(!is_simple_plural("items@"));
-    }
-
-    #[test]
-    fn test_replace_specifier_basic() {
-        assert_eq!(
-            replace_specifier_with_arg("%lld items", "lld"),
-            "%arg items"
-        );
-    }
-
-    #[test]
-    fn test_replace_specifier_at_sign() {
-        assert_eq!(replace_specifier_with_arg("%@ things", "@"), "%arg things");
-    }
-
-    #[test]
-    fn test_replace_specifier_positional() {
-        assert_eq!(
-            replace_specifier_with_arg("%1$lld photos in %2$lld albums", "lld"),
-            "%arg photos in %arg albums"
-        );
-    }
-
-    #[test]
-    fn test_build_substitutions_single_var() {
-        use crate::service::stringsdict_parser::{PluralVariable, StringsdictEntry};
-        use indexmap::IndexMap;
-
-        let mut forms = BTreeMap::new();
-        forms.insert("one".to_string(), "%lld item".to_string());
-        forms.insert("other".to_string(), "%lld items".to_string());
-
-        let mut variables = IndexMap::new();
-        variables.insert(
-            "items".to_string(),
-            PluralVariable {
-                format_specifier: "lld".to_string(),
-                forms,
-            },
-        );
-
-        let entry = StringsdictEntry {
-            key: "items_count".to_string(),
-            format_key: "%#@items@".to_string(),
-            variables,
-        };
-
-        let subs = build_substitutions(&entry);
-        assert_eq!(subs.len(), 1);
-
-        let items_sub = &subs["items"];
-        assert_eq!(items_sub["argNum"], 1);
-        assert_eq!(items_sub["formatSpecifier"], "lld");
-        assert!(items_sub["variations"]["plural"]["one"].is_object());
-        assert_eq!(
-            items_sub["variations"]["plural"]["one"]["stringUnit"]["value"],
-            "%arg item"
-        );
-        assert_eq!(
-            items_sub["variations"]["plural"]["other"]["stringUnit"]["value"],
-            "%arg items"
-        );
-    }
 
     fn en_strings() -> &'static str {
         include_str!("../../tests/fixtures/en.lproj/Localizable.strings")
@@ -977,29 +580,5 @@ mod tests {
         let b_en = &parsed["strings"]["b"]["localizations"]["en"]["stringUnit"];
         assert_eq!(b_en["state"], "new");
         assert_eq!(b_en["value"], "");
-    }
-
-    #[test]
-    fn replace_specifier_with_arg_plain() {
-        assert_eq!(
-            replace_specifier_with_arg("%lld items", "lld"),
-            "%arg items"
-        );
-    }
-
-    #[test]
-    fn replace_specifier_with_arg_positional() {
-        assert_eq!(
-            replace_specifier_with_arg("%1$lld photo in %2$lld albums", "lld"),
-            "%arg photo in %arg albums"
-        );
-    }
-
-    #[test]
-    fn replace_specifier_with_arg_mixed() {
-        assert_eq!(
-            replace_specifier_with_arg("%1$d and %d items", "d"),
-            "%arg and %arg items"
-        );
     }
 }

@@ -1,4 +1,7 @@
+mod cli;
+
 use std::path::PathBuf;
+use std::process::ExitCode;
 use std::sync::Arc;
 
 use clap::Parser;
@@ -8,32 +11,42 @@ use tracing_subscriber::EnvFilter;
 #[derive(clap::Parser)]
 #[command(
     name = "xcstrings-mcp",
-    about = "MCP server for iOS/macOS .xcstrings (String Catalog) localization.\n\n\
-             23 tools + 7 prompts for the full localization lifecycle:\n\
+    about = "MCP server & CLI for iOS/macOS .xcstrings (String Catalog) localization.\n\n\
+             26 MCP tools + 11 CLI commands for the full localization lifecycle:\n\
              migrate → create → extract → translate → validate → export.\n\n\
-             Communicates via stdio using the Model Context Protocol (MCP).\n\
-             Works with any MCP client: Claude Code, Cursor, Windsurf, VS Code, Zed, OpenAI Codex.",
+             Without a subcommand, starts the MCP server (stdio transport).\n\
+             Use subcommands for direct CLI access to localization operations.",
     version,
-    after_help = "SETUP:\n  \
+    after_help = "MCP SETUP:\n  \
                   Claude Code:  claude mcp add xcstrings-mcp -- xcstrings-mcp\n  \
                   Cursor:       add to .cursor/mcp.json\n  \
                   Windsurf:     add to ~/.codeium/windsurf/mcp_config.json\n  \
                   VS Code:      add to .vscode/mcp.json\n  \
                   Zed:          add to settings.json under context_servers\n\n\
-                  EXAMPLES:\n  \
-                  xcstrings-mcp                              Start with default settings\n  \
-                  xcstrings-mcp --glossary-path ./terms.json  Use custom glossary file\n\n\
+                  CLI EXAMPLES:\n  \
+                  xcstrings-mcp coverage              Show translation coverage\n  \
+                  xcstrings-mcp validate              Validate translations\n  \
+                  xcstrings-mcp add-locale fr         Add a new locale\n  \
+                  xcstrings-mcp export --locale de -o out.xliff   Export to XLIFF\n  \
+                  xcstrings-mcp completions zsh       Generate shell completions\n\n\
                   ENVIRONMENT:\n  \
-                  RUST_LOG=debug xcstrings-mcp               Enable debug logging to stderr"
+                  RUST_LOG=debug xcstrings-mcp        Enable debug logging to stderr"
 )]
 struct Cli {
     /// Path to glossary JSON file for consistent terminology across translations
     #[arg(long, default_value = "glossary.json")]
     glossary_path: PathBuf,
+
+    /// Output JSON instead of human-readable text (CLI commands only)
+    #[arg(long, global = true)]
+    json: bool,
+
+    #[command(subcommand)]
+    command: Option<cli::Command>,
 }
 
 #[tokio::main(flavor = "current_thread")]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> ExitCode {
     let cli = Cli::parse();
 
     tracing_subscriber::fmt()
@@ -41,12 +54,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_writer(std::io::stderr)
         .init();
 
-    let store = Arc::new(xcstrings_mcp::io::fs::FsFileStore::new());
-    let server = xcstrings_mcp::XcStringsMcpServer::new(store, cli.glossary_path);
-
-    let transport = rmcp::transport::io::stdio();
-    let service = server.serve(transport).await?;
-    service.waiting().await?;
-
-    Ok(())
+    match cli.command {
+        None => {
+            let store = Arc::new(xcstrings_mcp::io::fs::FsFileStore::new());
+            let server = xcstrings_mcp::XcStringsMcpServer::new(store, cli.glossary_path);
+            let transport = rmcp::transport::io::stdio();
+            match server.serve(transport).await {
+                Ok(service) => {
+                    if let Err(e) = service.waiting().await {
+                        eprintln!("error: {e}");
+                        return ExitCode::FAILURE;
+                    }
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("error: {e}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
+        Some(cmd) => cli::run(cmd, cli.json),
+    }
 }

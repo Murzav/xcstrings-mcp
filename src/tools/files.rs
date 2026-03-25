@@ -1,10 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
+use crate::service::discovery;
 use crate::tools::FileCache;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -42,46 +43,6 @@ struct DiscoverFilesResult {
     legacy_count: usize,
 }
 
-/// Recursively walk a directory to find localization files.
-fn walk_localization_files(
-    dir: &Path,
-    xcstrings: &mut Vec<PathBuf>,
-    legacy: &mut Vec<(PathBuf, &'static str)>,
-) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            let name = path
-                .file_name()
-                .map(|n| n.to_string_lossy().to_string())
-                .unwrap_or_default();
-            if name.ends_with(".lproj") {
-                // Scan inside .lproj for .strings/.stringsdict
-                if let Ok(lproj_entries) = std::fs::read_dir(&path) {
-                    for lproj_entry in lproj_entries.flatten() {
-                        let lp = lproj_entry.path();
-                        if !lp.is_file() {
-                            continue;
-                        }
-                        match lp.extension().and_then(|e| e.to_str()) {
-                            Some("strings") => legacy.push((lp, "strings")),
-                            Some("stringsdict") => legacy.push((lp, "stringsdict")),
-                            _ => {}
-                        }
-                    }
-                }
-            } else {
-                walk_localization_files(&path, xcstrings, legacy);
-            }
-        } else if path.extension().and_then(|e| e.to_str()) == Some("xcstrings") {
-            xcstrings.push(path);
-        }
-    }
-}
-
 /// Discover all localization files in a directory tree.
 /// Returns both modern .xcstrings and legacy .strings/.stringsdict files.
 pub(crate) async fn handle_discover_files(
@@ -97,7 +58,7 @@ pub(crate) async fn handle_discover_files(
 
     let mut xcstrings_paths = Vec::new();
     let mut legacy_paths = Vec::new();
-    walk_localization_files(&dir, &mut xcstrings_paths, &mut legacy_paths);
+    discovery::walk_localization_files(&dir, &mut xcstrings_paths, &mut legacy_paths);
 
     xcstrings_paths.sort();
     legacy_paths.sort_by(|a, b| a.0.cmp(&b.0));
