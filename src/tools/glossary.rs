@@ -76,7 +76,7 @@ pub(crate) struct UpdateGlossaryParams {
     pub source_locale: String,
     /// Target locale (e.g. "uk")
     pub target_locale: String,
-    /// Map of source term to translation (upserts)
+    /// Source term → preferred translation pairs, e.g. {"Settings": "Налаштування"}. Existing terms are overwritten, new terms are added.
     pub entries: BTreeMap<String, String>,
 }
 

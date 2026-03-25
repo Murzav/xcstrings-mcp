@@ -94,9 +94,9 @@ pub(crate) struct AddKeysParams {
 pub(crate) struct AddKeyEntry {
     /// Localization key name
     pub key: String,
-    /// Source language text
+    /// Source language text (the English string or equivalent in your source language)
     pub source_text: String,
-    /// Optional developer comment
+    /// Optional developer comment visible to translators as context
     #[serde(default)]
     pub comment: Option<String>,
 }
@@ -183,7 +183,7 @@ pub(crate) struct UpdateCommentsParams {
 pub(crate) struct CommentEntry {
     /// Localization key name
     pub key: String,
-    /// New comment text
+    /// New developer comment. Visible to translators as context for the string.
     pub comment: String,
 }
 

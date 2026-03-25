@@ -24,10 +24,10 @@ pub(crate) struct GetPluralsParams {
     pub file_path: Option<String>,
     /// Target locale code (e.g., "uk", "de")
     pub locale: String,
-    /// Number of plural keys per batch (1-100, default 20)
+    /// Number of plural keys per batch (1-100, default 20). Plural keys are complex — use smaller batches than simple strings.
     #[serde(default = "default_plural_batch_size")]
     pub batch_size: usize,
-    /// Offset for pagination (default 0)
+    /// Offset for pagination (default 0). Set to previous offset + batch_size to get the next page.
     #[serde(default)]
     pub offset: usize,
 }
@@ -74,7 +74,7 @@ pub(crate) struct GetContextParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// The key to find context for
+    /// The key to find context for. Returns nearby keys sharing a common dot-separated prefix (e.g., "settings.title" finds other "settings.*" keys).
     pub key: String,
     /// Target locale code (e.g., "uk", "de")
     pub locale: String,

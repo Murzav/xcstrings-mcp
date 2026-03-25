@@ -23,7 +23,7 @@ pub(crate) struct CachedFile {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct ParseParams {
-    /// Absolute path to the .xcstrings file
+    /// Absolute path to the .xcstrings file. Becomes the active file for subsequent tool calls that omit file_path.
     pub file_path: String,
 }
 

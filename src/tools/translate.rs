@@ -22,7 +22,7 @@ pub(crate) struct SubmitTranslationsParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// Translations to submit
+    /// Translations to submit. Each entry needs key, locale, and either value (simple strings) or plural_forms (plural keys). Format specifiers must match source exactly.
     pub translations: Vec<CompletedTranslation>,
     /// If true, validate without writing to disk
     #[serde(default)]

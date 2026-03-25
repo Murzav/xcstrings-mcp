@@ -97,7 +97,8 @@ impl XcStringsMcpServer {
             - Keep translations concise \u{2014} mobile UI has limited space\n\
             - Maintain consistent terminology \u{2014} use get_glossary to check existing terms\n\
             - Don't translate brand names or technical identifiers\n\
-            - Preserve the tone and formality level of the source text",
+            - Preserve the tone and formality level of the source text\n\
+            - Review rejected translations in response and fix format specifier issues before retranslating",
             locale = params.locale,
             count = count,
         );
@@ -168,6 +169,7 @@ impl XcStringsMcpServer {
             Step 2: Check current state\n\
             \x20 Call get_coverage to see existing translation progress for {locale}\n\
             \x20 Call list_locales to verify {locale} exists (add_locale if needed)\n\
+            \x20 Call get_glossary for existing terminology guidance\n\
             \n\
             Step 3: Translate simple strings\n\
             \x20 Call get_untranslated with locale=\"{locale}\"\n\

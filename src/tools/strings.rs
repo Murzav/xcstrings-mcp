@@ -27,7 +27,7 @@ pub(crate) struct ImportStringsParams {
     /// Mutually exclusive with `directory`.
     #[serde(default)]
     pub file_paths: Option<Vec<String>>,
-    /// Directory to scan recursively for .lproj folders.
+    /// Directory to scan recursively for .lproj folders (e.g., "/path/to/MyApp").
     /// Mutually exclusive with `file_paths`.
     #[serde(default)]
     pub directory: Option<String>,

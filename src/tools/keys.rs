@@ -17,7 +17,7 @@ pub(crate) struct DeleteKeysParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// Keys to delete
+    /// Keys to permanently remove along with all their translations across every locale.
     pub keys: Vec<String>,
 }
 
@@ -148,7 +148,7 @@ pub(crate) struct DeleteTranslationsParams {
     pub file_path: Option<String>,
     /// Keys to delete translations for
     pub keys: Vec<String>,
-    /// Locale to delete translations from
+    /// Locale to reset translations for. Cannot be the source language.
     pub locale: String,
 }
 

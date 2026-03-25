@@ -27,7 +27,7 @@ pub(crate) struct ExportXliffParams {
     pub locale: String,
     /// Path where the XLIFF file will be written
     pub output_path: String,
-    /// If true (default), only export untranslated strings
+    /// If true (default), only export untranslated strings. Set false to export all including already-translated.
     #[serde(default = "default_true")]
     pub untranslated_only: bool,
 }

@@ -81,7 +81,7 @@ impl XcStringsMcpServer {
     /// including locales, key counts, and translation states.
     #[tool(
         name = "parse_xcstrings",
-        description = "Parse an .xcstrings file and return a summary (locales, key counts, states). Must be called before other tools if no file_path is passed."
+        description = "Parse an .xcstrings file and cache it. Returns summary: locales, key counts, extraction states. The parsed file becomes the active file — other tools use it automatically when file_path is omitted."
     )]
     async fn parse_xcstrings(
         &self,
@@ -108,7 +108,7 @@ impl XcStringsMcpServer {
     /// Get untranslated strings for a target locale with batching support.
     #[tool(
         name = "get_untranslated",
-        description = "Get untranslated strings for a target locale. Returns batched results with pagination. Call parse_xcstrings first or pass file_path."
+        description = "Get untranslated strings for one or more target locales. Returns batched results — repeat with offset += batch_size while has_more is true. For plural keys (has_plurals=true), follow up with get_plurals."
     )]
     async fn get_untranslated(
         &self,
@@ -128,7 +128,7 @@ impl XcStringsMcpServer {
     /// merges into the file, and writes back atomically.
     #[tool(
         name = "submit_translations",
-        description = "Submit translations for review and writing. Validates specifiers/plurals, merges, and writes atomically. Use dry_run=true to validate without writing."
+        description = "Submit translations for validation and atomic writing. Validates that format specifiers match source text. Use dry_run=true first to preview. Check rejected[] in response for failures with reasons. Set continue_on_error=false to reject entire batch on any failure."
     )]
     async fn submit_translations(
         &self,
@@ -175,7 +175,7 @@ impl XcStringsMcpServer {
     /// Get stale strings (extractionState=stale) for a target locale.
     #[tool(
         name = "get_stale",
-        description = "Get strings marked as stale (removed from source code). Returns batched results with pagination."
+        description = "Get strings marked as stale (removed from source code but still in the file). Returns batched results with pagination. Use delete_keys to remove confirmed stale keys."
     )]
     async fn get_stale(
         &self,
@@ -213,7 +213,7 @@ impl XcStringsMcpServer {
     /// Validate translations in the file for correctness.
     #[tool(
         name = "validate_translations",
-        description = "Validate all translations for format specifier mismatches, missing plural forms, empty values, and other issues. Optionally filter by locale."
+        description = "Validate translations for errors: format specifier mismatches (CRITICAL — runtime crash), missing plural forms (HIGH — wrong text shown), empty values (MEDIUM). Optionally filter by locale. Returns errors and warnings grouped by severity."
     )]
     async fn validate_translations_file(
         &self,
@@ -307,7 +307,7 @@ impl XcStringsMcpServer {
     /// Get keys requiring plural/device translation for a locale.
     #[tool(
         name = "get_plurals",
-        description = "Get keys needing plural or device-variant translation. Returns plural forms needed, existing translations, and required CLDR forms. Use for translating plurals/substitutions/device variants."
+        description = "Get keys needing plural or device-variant translation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. Submit via submit_translations with plural_forms field."
     )]
     async fn get_plurals(
         &self,
@@ -345,7 +345,7 @@ impl XcStringsMcpServer {
     /// List all cached .xcstrings files.
     #[tool(
         name = "list_files",
-        description = "List all cached .xcstrings files with source language, key count, and active status."
+        description = "List all previously parsed .xcstrings files in memory. Shows source language, key count, and which file is active (used when file_path is omitted from other tool calls)."
     )]
     async fn list_files(
         &self,
@@ -669,7 +669,7 @@ impl XcStringsMcpServer {
     /// Get all translations for a specific key across all locales.
     #[tool(
         name = "get_key",
-        description = "Get all translations for a specific key across all locales. Returns source text, comment, and translation state per locale."
+        description = "Get all translations for a specific key across every locale. Returns source text, developer comment, translation state, and plural/device variant info. Use to inspect a single key in detail."
     )]
     async fn get_key(
         &self,
@@ -724,29 +724,35 @@ impl ServerHandler for XcStringsMcpServer {
                 .enable_prompts()
                 .build(),
         )
-            .with_protocol_version(ProtocolVersion::V_2025_06_18)
-            .with_instructions(
-                "MCP server for iOS/macOS .xcstrings (String Catalog) localization files. \
-                     Use create_xcstrings to create a new file, parse_xcstrings to load a file, \
-                     discover_files to find .xcstrings files in a directory tree, \
-                     add_keys to add new localization keys with source text, \
-                     get_untranslated to find strings needing translation (supports multiple locales), \
-                     get_plurals for plural/device variant keys, get_context for nearby \
-                     related keys, submit_translations to write translations back, get_coverage for \
-                     per-locale statistics, get_stale to find removed strings, validate_translations \
-                     to check correctness, list_locales to see all locales, add_locale to add a \
-                     new locale, remove_locale to remove a locale, list_files to see all cached files, \
-                     get_diff to compare cached vs on-disk versions, get_glossary to retrieve \
-                     glossary terms, update_glossary to add or update glossary entries, \
-                     update_comments to modify developer comments on keys, \
-                     export_xliff to export translations to XLIFF 1.2, import_xliff to \
-                     import translations from XLIFF files, import_strings to migrate legacy \
-                     .strings and .stringsdict files into .xcstrings format, search_keys \
-                     to find keys by substring pattern matching key names and source text, \
-                     delete_keys to remove localization keys and all their translations, \
-                     rename_key to rename a key preserving all translations, \
-                     get_key to get all translations for a specific key across all locales, \
-                     and delete_translations to remove translations for specific keys in a locale.",
-            )
+        .with_protocol_version(ProtocolVersion::V_2025_06_18)
+        .with_instructions(
+            "MCP server for iOS/macOS .xcstrings String Catalog localization.\n\
+                 \n\
+                 SETUP: discover_files to find files, parse_xcstrings to load \
+                 (required before other tools unless file_path is passed). \
+                 create_xcstrings for new files.\n\
+                 \n\
+                 TRANSLATE: get_untranslated → translate → submit_translations \
+                 (use dry_run=true first). For plurals: get_plurals → submit with plural_forms. \
+                 Use get_context for nearby keys, get_glossary for term consistency.\n\
+                 \n\
+                 REVIEW: get_coverage for statistics, validate_translations for errors \
+                 (specifier mismatches, missing plurals), get_stale for removed keys, \
+                 get_diff for changes since last parse.\n\
+                 \n\
+                 MANAGE: list_locales, add_locale/remove_locale, \
+                 add_keys/delete_keys/rename_key/get_key, search_keys, \
+                 update_comments, delete_translations, list_files.\n\
+                 \n\
+                 MIGRATE: import_strings for legacy .strings/.stringsdict → .xcstrings. \
+                 export_xliff/import_xliff for external translator tools (simple strings only).\n\
+                 \n\
+                 GLOSSARY: get_glossary/update_glossary — persists across sessions for \
+                 term consistency.\n\
+                 \n\
+                 Pagination: batched tools return has_more/offset/total — repeat with \
+                 offset += batch_size while has_more is true. \
+                 Source locale translations cannot be submitted or deleted.",
+        )
     }
 }

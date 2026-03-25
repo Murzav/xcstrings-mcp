@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-03-25
+
+### Improved
+- **AI-facing documentation overhaul** across all 27 MCP tools for better AI client comprehension:
+  - Server instructions restructured from flat text into workflow categories (SETUP → TRANSLATE → REVIEW → MANAGE → MIGRATE → GLOSSARY) with pagination rules
+  - 8 tool descriptions enriched with cross-references (e.g., get_stale → delete_keys, get_plurals → submit_translations with plural_forms) and severity levels for validate_translations
+  - Doc comments added to all fields of 11 model types (CompletedTranslation, TranslationUnit, PluralUnit, SubmitResult, etc.) — these generate JSON Schema descriptions visible to AI clients
+  - Pagination hints added to all batched tool parameters ("set to previous offset + batch_size to get the next page")
+  - Parameter descriptions enriched with examples, constraints, and usage guidance across 9 tool files
+  - Prompts improved: rejection handling guidance in translate_batch, glossary check in full_translate
+
 ## [1.3.0] - 2026-03-25
 
 ### Added

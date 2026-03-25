@@ -27,7 +27,7 @@ pub(crate) struct GetUntranslatedParams {
     /// Number of strings per batch (1-100, default 30)
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
-    /// Offset for pagination (default 0)
+    /// Offset for pagination (default 0). Set to previous offset + batch_size to get the next page.
     #[serde(default)]
     pub offset: usize,
 }
@@ -76,12 +76,12 @@ pub(crate) struct GetStaleParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// Target locale code (e.g., "uk", "de")
+    /// Target locale code (e.g., "uk", "de"). Returns keys with extractionState=stale.
     pub locale: String,
     /// Number of strings per batch (1-100, default 30)
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
-    /// Offset for pagination (default 0)
+    /// Offset for pagination (default 0). Set to previous offset + batch_size to get the next page.
     #[serde(default)]
     pub offset: usize,
 }
@@ -131,7 +131,7 @@ pub(crate) struct SearchKeysParams {
     /// Maximum number of results per batch (1-100, default 30)
     #[serde(default = "default_batch_size")]
     pub batch_size: usize,
-    /// Offset for pagination (default 0)
+    /// Offset for pagination (default 0). Set to previous offset + batch_size to get the next page.
     #[serde(default)]
     pub offset: usize,
 }
