@@ -165,6 +165,7 @@ pub fn import_xliff(
     xliff_content: &str,
 ) -> Result<(String, Vec<CompletedTranslation>), XcStringsError> {
     use quick_xml::Reader;
+    use quick_xml::escape::resolve_xml_entity;
 
     let mut reader = Reader::from_str(xliff_content);
 
@@ -215,14 +216,32 @@ pub fn import_xliff(
                 }
             }
             Ok(Event::Text(ref e)) => {
-                // Use unescape() to handle XML entities (&amp; -> &, etc.)
                 let text = e
-                    .unescape()
+                    .decode()
                     .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
                 if in_source {
                     current_source.push_str(&text);
                 } else if in_target {
                     current_target.push_str(&text);
+                }
+            }
+            Ok(Event::GeneralRef(ref e)) => {
+                let name = e
+                    .decode()
+                    .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
+                let resolved = if let Some(s) = resolve_xml_entity(&name) {
+                    s.to_owned()
+                } else if let Ok(Some(ch)) = e.resolve_char_ref() {
+                    ch.to_string()
+                } else {
+                    return Err(XcStringsError::XliffParse(format!(
+                        "unknown XML entity: &{name};"
+                    )));
+                };
+                if in_source {
+                    current_source.push_str(&resolved);
+                } else if in_target {
+                    current_target.push_str(&resolved);
                 }
             }
             Ok(Event::End(ref e)) => match e.name().as_ref() {

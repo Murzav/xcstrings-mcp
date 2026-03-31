@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 
 use indexmap::IndexMap;
 use quick_xml::Reader;
+use quick_xml::escape::resolve_xml_entity;
 use quick_xml::events::Event;
 
 use crate::error::XcStringsError;
@@ -119,10 +120,24 @@ fn read_text_content(reader: &mut Reader<&[u8]>) -> Result<String, XcStringsErro
     loop {
         match reader.read_event() {
             Ok(Event::Text(ref e)) => {
-                let unescaped = e
-                    .unescape()
+                let decoded = e
+                    .decode()
                     .map_err(|err| XcStringsError::StringsdictParse(err.to_string()))?;
-                text.push_str(&unescaped);
+                text.push_str(&decoded);
+            }
+            Ok(Event::GeneralRef(ref e)) => {
+                let name = e
+                    .decode()
+                    .map_err(|err| XcStringsError::StringsdictParse(err.to_string()))?;
+                if let Some(resolved) = resolve_xml_entity(&name) {
+                    text.push_str(resolved);
+                } else if let Ok(Some(ch)) = e.resolve_char_ref() {
+                    text.push(ch);
+                } else {
+                    return Err(XcStringsError::StringsdictParse(format!(
+                        "unknown XML entity: &{name};"
+                    )));
+                }
             }
             Ok(Event::CData(ref e)) => {
                 text.push_str(&String::from_utf8_lossy(e.as_ref()));
