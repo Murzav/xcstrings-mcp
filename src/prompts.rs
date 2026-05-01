@@ -8,11 +8,6 @@ use serde::Deserialize;
 
 use crate::server::XcStringsMcpServer;
 
-pub(crate) fn build_prompt_router()
--> rmcp::handler::server::router::prompt::PromptRouter<XcStringsMcpServer> {
-    XcStringsMcpServer::prompt_router()
-}
-
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct TranslateBatchParams {
     /// The target locale code (e.g. "uk", "fr", "de")
@@ -69,7 +64,7 @@ pub(crate) struct ExtractStringsParams {
     file_path: String,
 }
 
-#[prompt_router]
+#[prompt_router(vis = "pub(crate)")]
 impl XcStringsMcpServer {
     /// Instructions for translating a batch of strings to a target locale
     #[prompt(

@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.3] - 2026-05-01
+
+### Changed
+- **rmcp** 1.3 → 1.6 — adopts the new `vis` parameter on `#[prompt_router]` (router function moved across modules) and drops the now-unused `tool_router`/`prompt_router` server fields since rmcp ≥ 1.4 macros call `Self::tool_router()` / `Self::prompt_router()` statically.
+- **tokio** 1.50 → 1.52.1 — picks up the `spawn_blocking` regression fix (1.52.0 → 1.52.1).
+- **indexmap** 2.13 → 2.14 (hashbrown 0.16 → 0.17).
+- **clap** 4.6.0 → 4.6.1, **clap_complete** 4.6.0 → 4.6.3.
+- **libc** 0.2.183 → 0.2.186.
+- **assert_cmd** 2.2.0 → 2.2.1 (dev).
+
 ## [1.3.1] - 2026-03-25
 
 ### Improved

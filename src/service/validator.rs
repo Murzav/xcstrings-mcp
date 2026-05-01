@@ -347,8 +347,7 @@ mod tests {
         let rejected = validate_translations(&file, &translations_ok);
         assert!(
             rejected.is_empty(),
-            "valid plural translation for plural-only source should not be rejected: {:?}",
-            rejected
+            "valid plural translation for plural-only source should not be rejected: {rejected:?}"
         );
 
         // Submit plural forms WITHOUT specifier — should be rejected
@@ -423,8 +422,7 @@ mod tests {
         let rejected = validate_translations(&file, &translations);
         assert!(
             rejected.is_empty(),
-            "substitution plural forms should not be rejected for specifier mismatch: {:?}",
-            rejected
+            "substitution plural forms should not be rejected for specifier mismatch: {rejected:?}"
         );
     }
 }

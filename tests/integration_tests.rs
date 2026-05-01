@@ -649,8 +649,7 @@ fn plural_validate_then_merge_full_flow() {
     let rejected = validator::validate_translations(&file, &translations);
     assert!(
         rejected.is_empty(),
-        "valid plural translation should pass validation: {:?}",
-        rejected
+        "valid plural translation should pass validation: {rejected:?}"
     );
 
     // Merge
