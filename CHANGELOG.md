@@ -7,12 +7,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [1.3.3] - 2026-05-01
 
 ### Changed
-- **rmcp** 1.3 → 1.6 — adopts the new `vis` parameter on `#[prompt_router]` (router function moved across modules) and drops the now-unused `tool_router`/`prompt_router` server fields since rmcp ≥ 1.4 macros call `Self::tool_router()` / `Self::prompt_router()` statically.
-- **tokio** 1.50 → 1.52.1 — picks up the `spawn_blocking` regression fix (1.52.0 → 1.52.1).
-- **indexmap** 2.13 → 2.14 (hashbrown 0.16 → 0.17).
-- **clap** 4.6.0 → 4.6.1, **clap_complete** 4.6.0 → 4.6.3.
+- **rmcp** 1.3 → 1.6 (manifest + lockfile). Required code changes:
+  - `#[prompt_router]` in rmcp-macros 1.4+ generates a private associated function by default — now passes `vis = "pub(crate)"` so the cross-module `#[prompt_handler]` in `server.rs` can reach `Self::prompt_router()`.
+  - The handler attributes now point at cached struct fields (`#[tool_handler(router = self.tool_router)]`, `#[prompt_handler(router = self.prompt_router)]`) so the routers are built once in `XcStringsMcpServer::new()` instead of being rebuilt on every JSON-RPC dispatch (rmcp 1.4+ macros default to `Self::tool_router()` / `Self::prompt_router()` function calls, which would allocate a fresh `HashMap` + per-route `Arc<closure>` on each `tools/call`, `tools/list`, `prompts/get`, `prompts/list`).
+
+### Updated (manifest)
 - **libc** 0.2.183 → 0.2.186.
-- **assert_cmd** 2.2.0 → 2.2.1 (dev).
+
+### Updated (lockfile only — manifest constraint unchanged)
+- tokio 1.50 → 1.52.1 (picks up the `spawn_blocking` regression fix from 1.52.0 → 1.52.1).
+- indexmap 2.13 → 2.14 (hashbrown 0.16 → 0.17).
+- clap 4.6.0 → 4.6.1, clap_complete 4.6.0 → 4.6.3.
+- assert_cmd 2.2.0 → 2.2.1 (dev).
+
+## [1.3.2] - 2026-03-31
+
+### Changed
+- Dependency refresh: rmcp 1.2 → 1.3, quick-xml 0.37 → 0.39, insta 1.42 → 1.47, proptest 1.7 → 1.11.
+- quick-xml 0.39 migration: replace removed `BytesText::unescape()` with `decode()`; handle new `Event::GeneralRef` variant for XML entity resolution using `quick_xml::escape::resolve_xml_entity()` and `BytesRef::resolve_char_ref()`.
 
 ## [1.3.1] - 2026-03-25
 
