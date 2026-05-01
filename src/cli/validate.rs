@@ -109,7 +109,7 @@ mod tests {
 
     #[test]
     fn clean_report_has_no_issues() {
-        let reports = vec![ValidationReport {
+        let reports = [ValidationReport {
             locale: "de".to_string(),
             errors: vec![],
             warnings: vec![],

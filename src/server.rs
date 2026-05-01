@@ -3,10 +3,7 @@ use std::sync::Arc;
 
 use rmcp::{
     RoleServer, ServerHandler,
-    handler::server::{
-        router::{prompt::PromptRouter, tool::ToolRouter},
-        wrapper::Parameters,
-    },
+    handler::server::wrapper::Parameters,
     model::{
         GetPromptRequestParams, GetPromptResult, ListPromptsResult, PaginatedRequestParams,
         ProtocolVersion, ServerCapabilities, ServerInfo,
@@ -57,8 +54,6 @@ pub struct XcStringsMcpServer {
     write_lock: Arc<Mutex<()>>,
     glossary_path: PathBuf,
     glossary_write_lock: Arc<Mutex<()>>,
-    tool_router: ToolRouter<Self>,
-    prompt_router: PromptRouter<Self>,
 }
 
 impl XcStringsMcpServer {
@@ -69,8 +64,6 @@ impl XcStringsMcpServer {
             write_lock: Arc::new(Mutex::new(())),
             glossary_path,
             glossary_write_lock: Arc::new(Mutex::new(())),
-            tool_router: Self::tool_router(),
-            prompt_router: crate::prompts::build_prompt_router(),
         }
     }
 }
