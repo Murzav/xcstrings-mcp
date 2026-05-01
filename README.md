@@ -1,6 +1,6 @@
 # 🌐 xcstrings-mcp
 
-**MCP server for iOS/macOS .xcstrings (String Catalog) localization — parse, translate, validate, and export with any AI coding assistant**
+MCP server for iOS/macOS .xcstrings (String Catalog) localization. Parse, translate, validate, and export from any AI coding assistant.
 
 [![CI](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/Murzav/xcstrings-mcp/actions/workflows/ci.yml)
 ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/Murzav/b7cd209fd268df81711e04622ff051e8/raw/coverage.json)
@@ -10,22 +10,22 @@
 [![License](https://img.shields.io/crates/l/xcstrings-mcp)](LICENSE-MIT)
 [![MCP](https://img.shields.io/badge/MCP-compatible-green)](https://modelcontextprotocol.io)
 
-## Why xcstrings-mcp?
+## Why this exists
 
-Xcode String Catalogs (`.xcstrings`) are large JSON files that waste LLM context windows when loaded whole. Manual editing risks corrupting Xcode's specific formatting, there's no validation for format specifiers or plural rules, and plural-aware translation requires understanding CLDR categories across 40+ locales.
+`.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order, BOM behaviour), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `one/few/many/other` — easy to miss, painful to debug.
 
-xcstrings-mcp solves this by providing structured MCP tools that let AI assistants work with `.xcstrings` files efficiently — reading only what's needed, validating every write, and preserving Xcode's exact JSON formatting.
+xcstrings-mcp is a small Rust process that sits between the assistant and the file. The assistant calls structured tools (read this batch, validate that translation, write the result atomically); the bytes on disk stay byte-identical to what Xcode would produce.
 
 ## Features
 
-- **26 MCP tools + 8 prompts + 11 CLI commands** covering the full localization lifecycle
-- **Batch translation** with context window management — process 50-100 keys at a time
-- **Format specifier & CLDR plural validation** — catch `%d`/`%@` mismatches and missing plural forms before they ship
-- **Atomic writes** preserving Xcode's exact JSON formatting (`" : "` spacing, key order, BOM handling)
-- **Legacy migration** — import `.strings` and `.stringsdict` files (UTF-8/UTF-16, plural rules, positional specifiers)
-- **XLIFF 1.2 export/import** — integrate with external translation tools and agencies
-- **Glossary** for consistent terminology across locales
-- **Works with** Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, OpenAI Codex, and any MCP client
+- 27 MCP tools, 8 prompts, and 11 CLI commands for the full translation lifecycle
+- Batch translation that fits the context window: pull 50–100 keys at a time
+- Format specifier and CLDR plural validation, so `%d`/`%@` mismatches and missing plural forms get caught before they ship
+- Atomic writes that preserve Xcode's exact JSON formatting (spacing, key order, BOM)
+- Legacy migration from `.strings` and `.stringsdict` (UTF-8/UTF-16, plural rules, positional specifiers)
+- XLIFF 1.2 import/export for handing files off to external translators
+- Glossary support so terminology stays consistent across locales
+- Tested with Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, and OpenAI Codex; should work with any MCP client
 
 ## Quick Start
 
@@ -144,17 +144,17 @@ transport: stdio
 
 ## Usage
 
-Typical workflow:
+The basic loop:
 
-1. **Parse** the `.xcstrings` file to cache it
-2. **Get untranslated** strings in batches that fit the context window
-3. **Submit translations** with automatic validation and atomic writes
+1. Parse the `.xcstrings` once to cache it.
+2. Pull untranslated strings in batches.
+3. Submit translations. The server validates and writes atomically.
 
 ```
 parse_xcstrings → get_untranslated → submit_translations
 ```
 
-Multi-file projects: parse each file — the server caches all of them and tracks the active one. Use `list_files` to see cached files.
+For projects with multiple `.xcstrings` files, parse each one. The server keeps them all in memory and tracks which is "active". `list_files` shows what's loaded.
 
 ## Tools
 
@@ -201,49 +201,49 @@ Multi-file projects: parse each file — the server caches all of them and track
 | `extract_strings` | Extract hardcoded strings from Swift code into .xcstrings |
 | `cleanup_stale` | Find and remove stale/unused localization keys |
 
-### Migrating from Legacy .strings
+### Migrating from legacy .strings
 
-To migrate an existing project using `.strings`/`.stringsdict` files:
+If you're moving from `.strings` / `.stringsdict`:
 
 ```
 discover_files → import_strings → get_untranslated → submit_translations
 ```
 
-Preview first with `dry_run`, then write:
+Always preview with `dry_run` before writing:
 ```
 import_strings(directory: "./Resources", source_language: "en", output_path: "./Localizable.xcstrings", dry_run: true)
 import_strings(directory: "./Resources", source_language: "en", output_path: "./Localizable.xcstrings")
 ```
 
-For projects with `.stringsdict` plural rules, also check plural keys after import:
+If your project uses `.stringsdict` plurals, pull plural keys explicitly after import:
 ```
 import_strings → get_plurals → get_untranslated → submit_translations
 ```
 
-Supports UTF-8 and UTF-16 encodings, `.stringsdict` plural rules (single and multi-variable with positional specifiers), developer comments, unquoted keys, and merge into existing `.xcstrings` files.
+Migration handles UTF-8 and UTF-16, single- and multi-variable plural rules with positional specifiers, developer comments, unquoted keys, and merging into an existing `.xcstrings`.
 
-### Getting Started from Scratch
+### Starting from scratch
 
-To create a new localization file and begin translating:
+For a brand-new file:
 
 ```
 create_xcstrings → add_keys → add_locale → get_untranslated → submit_translations
 ```
 
-Or use the `extract_strings` prompt to automatically extract hardcoded strings from your Swift source code.
+The `extract_strings` prompt walks the assistant through pulling hardcoded strings out of Swift source and into the catalog.
 
 ## CLI Commands
 
-In addition to the MCP server, `xcstrings-mcp` provides direct CLI commands for terminal use, CI/CD pipelines, and scripting.
+Same binary, just call it with a subcommand. Useful in CI, shell scripts, or for one-off poking around without an assistant.
 
-Commands auto-discover `.xcstrings` files in the current directory tree -- no path required:
+CLI commands auto-discover `.xcstrings` in the current directory tree, so most invocations don't need a path:
 
 ```bash
 cd MyProject/
-xcstrings-mcp coverage              # auto-finds Localizable.xcstrings
-xcstrings-mcp validate --locale uk  # validate specific locale
-xcstrings-mcp add-locale fr         # add French locale
-xcstrings-mcp export --locale de -o out.xliff  # export to XLIFF
+xcstrings-mcp coverage              # finds Localizable.xcstrings on its own
+xcstrings-mcp validate --locale uk
+xcstrings-mcp add-locale fr
+xcstrings-mcp export --locale de -o out.xliff
 ```
 
 | Command | Description |
@@ -260,7 +260,7 @@ xcstrings-mcp export --locale de -o out.xliff  # export to XLIFF
 | `migrate` | Migrate legacy .strings/.stringsdict |
 | `completions <shell>` | Generate shell completions |
 
-All commands support `--json` for machine-readable output. Mutation commands support `--dry-run`.
+`--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`.
 
 ### CLI Options
 
@@ -274,50 +274,43 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 
 ## Claude Code Skill
 
-xcstrings-mcp ships with a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) that teaches Claude Code the optimal workflows, best practices, and error handling for all 26 tools. The skill auto-triggers on any localization-related request.
+There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the project that teaches Claude how to drive all 27 tools well. It activates automatically on localization-related requests.
 
-**What it does:**
-- Prevents Claude from reading `.xcstrings` files directly (wastes context, risks corruption)
-- Guides optimal tool sequences for every workflow (translate, migrate, audit, export)
-- Handles CLDR plural categories per locale (uk needs one/few/many, ja needs only other)
-- Manages glossary for consistent terminology across translations
-- Parallelizes multi-locale translation with one subagent per language
+What it actually does for you:
 
-**Install the skill:**
+- Stops Claude from reading raw `.xcstrings` files (which would just dump tens of thousands of tokens into the context for no benefit)
+- Picks the right tool sequence per workflow (translate, migrate, audit, export)
+- Handles CLDR plural categories per locale (Ukrainian wants `one/few/many`, Japanese only wants `other`)
+- Keeps glossary terms consistent across translations
+- Spawns one subagent per language for parallel multi-locale work
+
+Install:
 
 ```sh
-# One-liner
 mkdir -p ~/.claude/skills/xcstrings-mcp && curl -sL \
   https://raw.githubusercontent.com/Murzav/xcstrings-mcp/main/skills/xcstrings-mcp/SKILL.md \
   -o ~/.claude/skills/xcstrings-mcp/SKILL.md
 ```
 
-Or clone the repo and copy:
+Or clone and copy:
 ```sh
 cp -r skills/xcstrings-mcp ~/.claude/skills/
 ```
 
-The skill covers these workflows out of the box:
-- **Full translation** — parallel subagents per locale with batch processing
-- **Add/remove language** — locale management with coverage verification
-- **Coverage audit** — coverage, validation, stale keys, glossary check
-- **Legacy migration** — `.strings`/`.stringsdict` to `.xcstrings` with dry-run preview
-- **XLIFF roundtrip** — export for translators, import back with validation
-- **Plural handling** — CLDR-aware plural form management
-- **Glossary management** — consistent terminology across locales
+The skill covers full translation, language management, coverage audits, legacy migration, XLIFF roundtrips, plural handling, and glossary work.
 
 ## Performance
 
-Binary size: **~4 MB** (stripped + LTO). Zero CPU at idle.
+Each platform release is a ~2.1–2.4 MB `.tar.gz` containing a ~4.5 MB binary (stripped, LTO). The server is event-driven on stdio, so it doesn't tick when no requests are in flight.
 
 | File | Parse | Get untranslated | Validate | RAM |
 |------|-------|-----------------|----------|-----|
-| 968KB (638 keys × 10 loc) | 0.2ms | 0.02ms | 0.04ms | 7.6 MB |
-| 4.1MB (2K keys × 10 loc) | 24ms | 5ms | 7ms | 40 MB |
-| 10.3MB (5K keys × 10 loc) | 60ms | 11ms | 23ms | 49 MB |
-| 56.7MB (10K keys × 30 loc) | 333ms | 62ms | 221ms | 287 MB |
+| 968 KB (638 keys × 10 locales) | 0.2 ms | 0.02 ms | 0.04 ms | 7.6 MB |
+| 4.1 MB (2K keys × 10 locales) | 24 ms | 5 ms | 7 ms | 40 MB |
+| 10.3 MB (5K keys × 10 locales) | 60 ms | 11 ms | 23 ms | 49 MB |
+| 56.7 MB (10K keys × 30 locales) | 333 ms | 62 ms | 221 ms | 287 MB |
 
-Scaling is linear — no degradation cliffs. Typical iOS projects (2-5K keys) parse in under 60ms.
+Scaling is linear in keys × locales. A typical iOS project (2–5K keys) parses in well under 60 ms.
 
 ## Architecture
 
@@ -328,13 +321,14 @@ Scaling is linear — no degradation cliffs. Typical iOS projects (2-5K keys) pa
 └─────────────┘                     └──────────────────┘                └───────────────────────┘
 ```
 
-Layered architecture: `server` -> `tools` -> `service` -> `model`, with `io` injected via the `FileStore` trait.
+Plain layered architecture: `server` → `tools` → `service` → `model`, with `io` injected through the `FileStore` trait.
 
-- **server** -- MCP tool routing and handler dispatch
-- **tools** -- individual tool implementations
-- **service** -- pure logic (parser, extractor, merger, validator, formatter); no I/O
-- **model** -- serde types for `.xcstrings` format, CLDR plural rules, format specifiers
-- **io** -- `FileStore` trait + real filesystem implementation with atomic writes
+- `server` — MCP routing and handler dispatch
+- `tools` — tool implementations, grouped by area (parse/extract/keys/translate/manage/...)
+- `service` — the actual logic (parser, extractor, merger, validator, formatter), no filesystem access
+- `model` — serde types for the `.xcstrings` format, CLDR plural rules, and format specifiers
+- `io` — `FileStore` trait and the real filesystem implementation with atomic writes
+- `cli` — the standalone subcommands; `prompts.rs` defines the MCP prompts; `error.rs` is the single project-wide error enum
 
 ## Related
 
