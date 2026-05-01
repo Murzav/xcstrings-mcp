@@ -8,17 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed
 - **rmcp** 1.3 → 1.6 (manifest + lockfile). Required code changes:
-  - `#[prompt_router]` in rmcp-macros 1.4+ generates a private associated function by default — now passes `vis = "pub(crate)"` so the cross-module `#[prompt_handler]` in `server.rs` can reach `Self::prompt_router()`.
+  - `#[prompt_router]` in rmcp-macros 1.4+ generates a private associated function by default — now passes `vis = "pub(crate)"` so `XcStringsMcpServer::new()` (in a different module) can call `Self::prompt_router()` once at startup.
   - The handler attributes now point at cached struct fields (`#[tool_handler(router = self.tool_router)]`, `#[prompt_handler(router = self.prompt_router)]`) so the routers are built once in `XcStringsMcpServer::new()` instead of being rebuilt on every JSON-RPC dispatch (rmcp 1.4+ macros default to `Self::tool_router()` / `Self::prompt_router()` function calls, which would allocate a fresh `HashMap` + per-route `Arc<closure>` on each `tools/call`, `tools/list`, `prompts/get`, `prompts/list`).
-
-### Updated (manifest)
-- **libc** 0.2.183 → 0.2.186.
-
-### Updated (lockfile only — manifest constraint unchanged)
-- tokio 1.50 → 1.52.1 (picks up the `spawn_blocking` regression fix from 1.52.0 → 1.52.1).
-- indexmap 2.13 → 2.14 (hashbrown 0.16 → 0.17).
-- clap 4.6.0 → 4.6.1, clap_complete 4.6.0 → 4.6.3.
-- assert_cmd 2.2.0 → 2.2.1 (dev).
+- **libc** 0.2.183 → 0.2.186 (manifest + lockfile).
+- Lockfile-only refreshes (manifest constraints unchanged): tokio 1.50 → 1.52.1 (`spawn_blocking` regression fix), indexmap 2.13 → 2.14 (hashbrown 0.16 → 0.17), clap 4.6.0 → 4.6.1, clap_complete 4.6.0 → 4.6.3, assert_cmd 2.2.0 → 2.2.1 (dev).
 
 ## [1.3.2] - 2026-03-31
 
