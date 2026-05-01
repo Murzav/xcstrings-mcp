@@ -12,7 +12,7 @@ MCP server for iOS/macOS .xcstrings (String Catalog) localization. Parse, transl
 
 ## Why this exists
 
-`.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order, BOM behaviour), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `one/few/many/other` — easy to miss, painful to debug.
+`.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `one/few/many/other` — easy to miss, painful to debug.
 
 xcstrings-mcp is a small Rust process that sits between the assistant and the file. The assistant calls structured tools (read this batch, validate that translation, write the result atomically); the bytes on disk stay byte-identical to what Xcode would produce.
 
@@ -21,7 +21,7 @@ xcstrings-mcp is a small Rust process that sits between the assistant and the fi
 - 27 MCP tools, 8 prompts, and 11 CLI commands for the full translation lifecycle
 - Batch translation that fits the context window: pull 50–100 keys at a time
 - Format specifier and CLDR plural validation, so `%d`/`%@` mismatches and missing plural forms get caught before they ship
-- Atomic writes that preserve Xcode's exact JSON formatting (spacing, key order, BOM)
+- Atomic writes that match Xcode's JSON formatting exactly (`" : "` colon spacing, preserved key order, BOM stripped on read and never re-emitted)
 - Legacy migration from `.strings` and `.stringsdict` (UTF-8/UTF-16, plural rules, positional specifiers)
 - XLIFF 1.2 import/export for handing files off to external translators
 - Glossary support so terminology stays consistent across locales
