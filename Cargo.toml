@@ -19,7 +19,7 @@ name = "xcstrings-mcp"
 path = "src/main.rs"
 
 [dependencies]
-rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "2.2", features = ["server", "transport-io", "macros"] }
 tokio = { version = "1", features = ["rt", "macros", "io-std"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
@@ -32,7 +32,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 regex = "1.12"
 clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4"
-quick-xml = { version = "0.40", features = ["serialize"] }
+quick-xml = { version = "0.41", features = ["serialize"] }
 libc = "0.2.186"
 
 [dev-dependencies]

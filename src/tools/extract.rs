@@ -288,9 +288,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = GetUntranslatedParams {
             file_path: None,

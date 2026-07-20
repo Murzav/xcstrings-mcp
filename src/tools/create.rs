@@ -1,8 +1,5 @@
 use std::path::PathBuf;
 
-use rmcp::RoleServer;
-use rmcp::model::LoggingLevel;
-use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -34,7 +31,6 @@ pub(crate) async fn handle_create_xcstrings(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
     params: CreateXcStringsParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let path = PathBuf::from(&params.file_path);
 
@@ -65,12 +61,7 @@ pub(crate) async fn handle_create_xcstrings(
         },
     );
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!("Created {}", params.file_path),
-    )
-    .await;
+    mcp_log(&format!("Created {}", params.file_path));
 
     let result = CreateXcStringsResult {
         path: params.file_path,
@@ -112,7 +103,6 @@ pub(crate) async fn handle_add_keys(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: AddKeysParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -150,16 +140,11 @@ pub(crate) async fn handle_add_keys(
         },
     );
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!(
-            "Added {} keys, skipped {}",
-            add_result.added,
-            add_result.skipped.len()
-        ),
-    )
-    .await;
+    mcp_log(&format!(
+        "Added {} keys, skipped {}",
+        add_result.added,
+        add_result.skipped.len()
+    ));
 
     let result = AddKeysResult {
         added: add_result.added,
@@ -197,7 +182,6 @@ pub(crate) async fn handle_update_comments(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: UpdateCommentsParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -228,12 +212,7 @@ pub(crate) async fn handle_update_comments(
         },
     );
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!("Updated {updated} comments"),
-    )
-    .await;
+    mcp_log(&format!("Updated {updated} comments"));
 
     let result = UpdateCommentsResult { updated };
     Ok(serde_json::to_value(result)?)
@@ -256,7 +235,7 @@ mod tests {
             file_path: "/test/New.xcstrings".to_string(),
             source_language: "en".to_string(),
         };
-        let result = handle_create_xcstrings(&store, &cache, params, None)
+        let result = handle_create_xcstrings(&store, &cache, params)
             .await
             .unwrap();
 
@@ -280,7 +259,7 @@ mod tests {
             file_path: "/test/file.xcstrings".to_string(),
             source_language: "en".to_string(),
         };
-        let result = handle_create_xcstrings(&store, &cache, params, None).await;
+        let result = handle_create_xcstrings(&store, &cache, params).await;
         assert!(result.is_err());
     }
 
@@ -293,7 +272,7 @@ mod tests {
             file_path: "/test/file.json".to_string(),
             source_language: "en".to_string(),
         };
-        let result = handle_create_xcstrings(&store, &cache, params, None).await;
+        let result = handle_create_xcstrings(&store, &cache, params).await;
         assert!(result.is_err());
     }
 
@@ -307,9 +286,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = AddKeysParams {
             file_path: None,
@@ -319,7 +296,7 @@ mod tests {
                 comment: Some("A comment".to_string()),
             }],
         };
-        let result = handle_add_keys(&store, &cache, &write_lock, params, None)
+        let result = handle_add_keys(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -342,9 +319,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = AddKeysParams {
             file_path: None,
@@ -354,7 +329,7 @@ mod tests {
                 comment: None,
             }],
         };
-        let result = handle_add_keys(&store, &cache, &write_lock, params, None)
+        let result = handle_add_keys(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -372,9 +347,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = UpdateCommentsParams {
             file_path: None,
@@ -383,7 +356,7 @@ mod tests {
                 comment: "Updated comment".to_string(),
             }],
         };
-        let result = handle_update_comments(&store, &cache, &write_lock, params, None)
+        let result = handle_update_comments(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 

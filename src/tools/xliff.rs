@@ -1,8 +1,5 @@
 use std::path::PathBuf;
 
-use rmcp::RoleServer;
-use rmcp::model::LoggingLevel;
-use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -48,7 +45,6 @@ pub(crate) async fn handle_export_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
     params: ExportXliffParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -72,12 +68,7 @@ pub(crate) async fn handle_export_xliff(
     }
     store.write(&output_path, &xml)?;
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!("Exported {count} keys to XLIFF"),
-    )
-    .await;
+    mcp_log(&format!("Exported {count} keys to XLIFF"));
 
     let result = ExportResult {
         output_path: params.output_path,
@@ -110,19 +101,13 @@ pub(crate) async fn handle_import_xliff(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: ImportXliffParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!(
-            "Importing translations from {xliff}",
-            xliff = params.xliff_path
-        ),
-    )
-    .await;
+    mcp_log(&format!(
+        "Importing translations from {xliff}",
+        xliff = params.xliff_path
+    ));
 
     // Read and parse XLIFF
     let xliff_path = PathBuf::from(&params.xliff_path);
@@ -233,9 +218,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = ExportXliffParams {
             file_path: None,
@@ -244,9 +227,7 @@ mod tests {
             untranslated_only: false,
         };
 
-        let result = handle_export_xliff(&store, &cache, params, None)
-            .await
-            .unwrap();
+        let result = handle_export_xliff(&store, &cache, params).await.unwrap();
         assert_eq!(result["locale"], "de");
         assert!(result["exported_count"].as_u64().unwrap() > 0);
 
@@ -264,9 +245,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = ExportXliffParams {
             file_path: None,
@@ -275,7 +254,7 @@ mod tests {
             untranslated_only: false,
         };
 
-        let result = handle_export_xliff(&store, &cache, params, None).await;
+        let result = handle_export_xliff(&store, &cache, params).await;
         assert!(result.is_err());
         let err = result.unwrap_err();
         assert!(
@@ -294,9 +273,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
@@ -317,7 +294,7 @@ mod tests {
             dry_run: true,
         };
 
-        let result = handle_import_xliff(&store, &cache, &write_lock, params, None)
+        let result = handle_import_xliff(&store, &cache, &write_lock, params)
             .await
             .unwrap();
         assert_eq!(result["dry_run"], true);
@@ -340,9 +317,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
@@ -367,7 +342,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_xliff(&store, &cache, &write_lock, params, None)
+        let result = handle_import_xliff(&store, &cache, &write_lock, params)
             .await
             .unwrap();
         assert_eq!(result["dry_run"], false);
@@ -390,9 +365,7 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
@@ -409,7 +382,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_xliff(&store, &cache, &write_lock, params, None)
+        let result = handle_import_xliff(&store, &cache, &write_lock, params)
             .await
             .unwrap();
         assert_eq!(result["accepted"], 0);

@@ -1,6 +1,3 @@
-use rmcp::RoleServer;
-use rmcp::model::LoggingLevel;
-use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -32,7 +29,6 @@ pub(crate) async fn handle_delete_keys(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: DeleteKeysParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -59,16 +55,11 @@ pub(crate) async fn handle_delete_keys(
         );
     }
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!(
-            "Deleted {} keys ({} not found)",
-            svc_result.deleted.len(),
-            svc_result.not_found.len()
-        ),
-    )
-    .await;
+    mcp_log(&format!(
+        "Deleted {} keys ({} not found)",
+        svc_result.deleted.len(),
+        svc_result.not_found.len()
+    ));
 
     let result = DeleteKeysResult {
         deleted: svc_result.deleted,
@@ -99,7 +90,6 @@ pub(crate) async fn handle_rename_key(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: RenameKeyParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -124,15 +114,10 @@ pub(crate) async fn handle_rename_key(
         },
     );
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!(
-            "Renamed key '{}' to '{}'",
-            svc_result.old_key, svc_result.new_key
-        ),
-    )
-    .await;
+    mcp_log(&format!(
+        "Renamed key '{}' to '{}'",
+        svc_result.old_key, svc_result.new_key
+    ));
 
     let result = RenameKeyResult {
         old_key: svc_result.old_key,
@@ -164,7 +149,6 @@ pub(crate) async fn handle_delete_translations(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: DeleteTranslationsParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, _file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
@@ -197,17 +181,12 @@ pub(crate) async fn handle_delete_translations(
         );
     }
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!(
-            "Deleted translations for locale '{}': {} reset, {} not found",
-            params.locale,
-            svc_result.reset.len(),
-            svc_result.not_found.len()
-        ),
-    )
-    .await;
+    mcp_log(&format!(
+        "Deleted translations for locale '{}': {} reset, {} not found",
+        params.locale,
+        svc_result.reset.len(),
+        svc_result.not_found.len()
+    ));
 
     let result = DeleteTranslationsResult {
         reset: svc_result.reset,
@@ -235,15 +214,13 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = DeleteKeysParams {
             file_path: None,
             keys: vec!["greeting".to_string()],
         };
-        let result = handle_delete_keys(&store, &cache, &write_lock, params, None)
+        let result = handle_delete_keys(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -266,16 +243,14 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = RenameKeyParams {
             file_path: None,
             old_key: "greeting".to_string(),
             new_key: "hello".to_string(),
         };
-        let result = handle_rename_key(&store, &cache, &write_lock, params, None)
+        let result = handle_rename_key(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -299,16 +274,14 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = RenameKeyParams {
             file_path: None,
             old_key: "nonexistent".to_string(),
             new_key: "new_name".to_string(),
         };
-        let result = handle_rename_key(&store, &cache, &write_lock, params, None).await;
+        let result = handle_rename_key(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
     }
 
@@ -322,16 +295,14 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = DeleteTranslationsParams {
             file_path: None,
             keys: vec!["greeting".to_string()],
             locale: "uk".to_string(),
         };
-        let result = handle_delete_translations(&store, &cache, &write_lock, params, None)
+        let result = handle_delete_translations(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -349,16 +320,14 @@ mod tests {
         let parse_params = ParseParams {
             file_path: "/test/file.xcstrings".to_string(),
         };
-        handle_parse(&store, &cache, parse_params, None)
-            .await
-            .unwrap();
+        handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = DeleteTranslationsParams {
             file_path: None,
             keys: vec!["greeting".to_string()],
             locale: "en".to_string(),
         };
-        let result = handle_delete_translations(&store, &cache, &write_lock, params, None).await;
+        let result = handle_delete_translations(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
     }
 }

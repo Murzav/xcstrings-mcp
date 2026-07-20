@@ -1,8 +1,5 @@
 use std::path::PathBuf;
 
-use rmcp::RoleServer;
-use rmcp::model::LoggingLevel;
-use rmcp::service::Peer;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
@@ -56,7 +53,6 @@ pub(crate) async fn handle_import_strings(
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: ImportStringsParams,
-    peer: Option<&Peer<RoleServer>>,
 ) -> Result<serde_json::Value, XcStringsError> {
     // 1. Validate params
     let has_paths = params.file_paths.as_ref().is_some_and(|v| !v.is_empty());
@@ -120,12 +116,7 @@ pub(crate) async fn handle_import_strings(
         ));
     }
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!("Found {} files to import", discovered.len()),
-    )
-    .await;
+    mcp_log(&format!("Found {} files to import", discovered.len()));
 
     // 3. Read, decode, and parse each file; group by locale
     let mut locale_data: OrderedMap<String, ParsedLocaleData> = OrderedMap::new();
@@ -214,12 +205,9 @@ pub(crate) async fn handle_import_strings(
         },
     );
 
-    mcp_log(
-        peer,
-        LoggingLevel::Info,
-        &format!("Imported {total_keys} keys ({plural_keys} plural)"),
-    )
-    .await;
+    mcp_log(&format!(
+        "Imported {total_keys} keys ({plural_keys} plural)"
+    ));
 
     let result = ImportStringsResult {
         output_path: params.output_path,
@@ -267,7 +255,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -301,7 +289,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -329,7 +317,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -357,7 +345,7 @@ mod tests {
             dry_run: false,
         };
 
-        handle_import_strings(&store, &cache, &write_lock, params, None)
+        handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -388,7 +376,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -412,7 +400,7 @@ mod tests {
             dry_run: true,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -438,7 +426,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None).await;
+        let result = handle_import_strings(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
     }
 
@@ -457,7 +445,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None).await;
+        let result = handle_import_strings(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
         assert!(err.contains("source language"));
@@ -499,7 +487,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 
@@ -530,7 +518,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None).await;
+        let result = handle_import_strings(&store, &cache, &write_lock, params).await;
         assert!(result.is_err());
     }
 
@@ -558,7 +546,7 @@ mod tests {
             dry_run: false,
         };
 
-        let result = handle_import_strings(&store, &cache, &write_lock, params, None)
+        let result = handle_import_strings(&store, &cache, &write_lock, params)
             .await
             .unwrap();
 

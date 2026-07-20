@@ -1,6 +1,6 @@
 use rmcp::{
     handler::server::wrapper::Parameters,
-    model::{GetPromptResult, PromptMessage, PromptMessageRole},
+    model::{GetPromptResult, PromptMessage, Role},
     prompt, prompt_router,
 };
 use schemars::JsonSchema;
@@ -98,14 +98,13 @@ impl XcStringsMcpServer {
             count = count,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!(
-            "Translate a batch of {count} strings to {}",
-            params.locale
-        )))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!(
+                    "Translate a batch of {count} strings to {}",
+                    params.locale
+                )),
+        )
     }
 
     /// Instructions for reviewing existing translations for quality
@@ -136,14 +135,13 @@ impl XcStringsMcpServer {
             locale = params.locale,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!(
-            "Review translations for locale \"{}\"",
-            params.locale
-        )))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!(
+                    "Review translations for locale \"{}\"",
+                    params.locale
+                )),
+        )
     }
 
     /// Complete workflow for translating an entire file
@@ -187,14 +185,13 @@ impl XcStringsMcpServer {
             locale = params.locale,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!(
-            "Full translation workflow for {} to {}",
-            params.file_path, params.locale
-        )))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!(
+                    "Full translation workflow for {} to {}",
+                    params.file_path, params.locale
+                )),
+        )
     }
 
     /// Complete localization audit for a locale
@@ -233,11 +230,10 @@ impl XcStringsMcpServer {
             locale = params.locale,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!("Localization audit for \"{}\"", params.locale)))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!("Localization audit for \"{}\"", params.locale)),
+        )
     }
 
     /// Fix all validation errors for a locale
@@ -276,11 +272,10 @@ impl XcStringsMcpServer {
             locale = params.locale,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!("Fix validation errors for \"{}\"", params.locale)))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!("Fix validation errors for \"{}\"", params.locale)),
+        )
     }
 
     /// Extract hardcoded strings from Swift source code into .xcstrings
@@ -331,14 +326,13 @@ impl XcStringsMcpServer {
             source_language = params.source_language,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!(
-            "Extract strings from Swift code into {}",
-            params.file_path
-        )))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!(
+                    "Extract strings from Swift code into {}",
+                    params.file_path
+                )),
+        )
     }
 
     /// Find and remove stale/unused localization keys
@@ -368,11 +362,10 @@ impl XcStringsMcpServer {
             5. Call get_coverage and get_stale to verify cleanup",
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description("Find and remove stale/unused localization keys"))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description("Find and remove stale/unused localization keys"),
+        )
     }
 
     /// Add a new language and begin translating
@@ -426,18 +419,17 @@ impl XcStringsMcpServer {
             file_instruction = file_instruction,
         );
 
-        Ok(GetPromptResult::new(vec![PromptMessage::new_text(
-            PromptMessageRole::User,
-            content,
-        )])
-        .with_description(format!("Add language \"{}\" and translate", params.locale)))
+        Ok(
+            GetPromptResult::new(vec![PromptMessage::new_text(Role::User, content)])
+                .with_description(format!("Add language \"{}\" and translate", params.locale)),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rmcp::model::PromptMessageContent;
+    use rmcp::model::{ContentBlock, TextContent};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -455,7 +447,7 @@ mod tests {
                 count: Some(10),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("uk"));
@@ -472,7 +464,7 @@ mod tests {
                 count: None,
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("20"));
@@ -486,7 +478,7 @@ mod tests {
                 locale: "fr".into(),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("fr"));
@@ -502,7 +494,7 @@ mod tests {
                 file_path: "/App/L.xcstrings".into(),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("ja"));
@@ -517,7 +509,7 @@ mod tests {
                 locale: "uk".into(),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("uk"));
@@ -533,7 +525,7 @@ mod tests {
                 locale: "de".into(),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("de"));
@@ -549,7 +541,7 @@ mod tests {
                 file_path: "/App/L.xcstrings".into(),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("create_xcstrings"));
@@ -566,7 +558,7 @@ mod tests {
                 file_path: Some("/App/L.xcstrings".into()),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("ko"));
@@ -581,7 +573,7 @@ mod tests {
                 file_path: Some("/App/L.xcstrings".into()),
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("get_stale"));
@@ -595,7 +587,7 @@ mod tests {
         let result = server
             .cleanup_stale(Parameters(CleanupStaleParams { file_path: None }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("Ensure a file is already parsed"));
@@ -610,7 +602,7 @@ mod tests {
                 file_path: None,
             }))
             .unwrap();
-        let PromptMessageContent::Text { ref text } = result.messages[0].content else {
+        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
             panic!("expected text")
         };
         assert!(text.contains("zh"));

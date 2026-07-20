@@ -2,18 +2,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use rmcp::{
-    RoleServer, ServerHandler,
+    ServerHandler,
     handler::server::{
         router::{prompt::PromptRouter, tool::ToolRouter},
         wrapper::Parameters,
     },
-    model::{
-        GetPromptRequestParams, GetPromptResult, ListPromptsResult, PaginatedRequestParams,
-        ProtocolVersion, ServerCapabilities, ServerInfo,
-    },
-    prompt_handler,
-    service::RequestContext,
-    tool, tool_handler, tool_router,
+    model::{ProtocolVersion, ServerCapabilities, ServerInfo},
+    prompt_handler, tool, tool_handler, tool_router,
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -86,16 +81,8 @@ impl XcStringsMcpServer {
     async fn parse_xcstrings(
         &self,
         Parameters(params): Parameters<ParseParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_parse(
-            self.store.as_ref(),
-            &self.cache,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_parse(self.store.as_ref(), &self.cache, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -133,16 +120,9 @@ impl XcStringsMcpServer {
     async fn submit_translations(
         &self,
         Parameters(params): Parameters<SubmitTranslationsParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_submit_translations(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_submit_translations(self.store.as_ref(), &self.cache, &self.write_lock, params)
+            .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -256,17 +236,8 @@ impl XcStringsMcpServer {
     async fn add_locale(
         &self,
         Parameters(params): Parameters<AddLocaleParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_add_locale(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_add_locale(self.store.as_ref(), &self.cache, &self.write_lock, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -284,16 +255,8 @@ impl XcStringsMcpServer {
     async fn remove_locale(
         &self,
         Parameters(params): Parameters<RemoveLocaleParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_remove_locale(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_remove_locale(self.store.as_ref(), &self.cache, &self.write_lock, params).await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -433,16 +396,8 @@ impl XcStringsMcpServer {
     async fn export_xliff(
         &self,
         Parameters(params): Parameters<ExportXliffParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_export_xliff(
-            self.store.as_ref(),
-            &self.cache,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_export_xliff(self.store.as_ref(), &self.cache, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -460,16 +415,8 @@ impl XcStringsMcpServer {
     async fn import_xliff(
         &self,
         Parameters(params): Parameters<ImportXliffParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_import_xliff(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_import_xliff(self.store.as_ref(), &self.cache, &self.write_lock, params).await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -488,16 +435,9 @@ impl XcStringsMcpServer {
     async fn import_strings(
         &self,
         Parameters(params): Parameters<ImportStringsParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_import_strings(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_import_strings(self.store.as_ref(), &self.cache, &self.write_lock, params)
+            .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -516,16 +456,8 @@ impl XcStringsMcpServer {
     async fn create_xcstrings(
         &self,
         Parameters(params): Parameters<CreateXcStringsParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_create_xcstrings(
-            self.store.as_ref(),
-            &self.cache,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_create_xcstrings(self.store.as_ref(), &self.cache, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -543,17 +475,8 @@ impl XcStringsMcpServer {
     async fn add_keys(
         &self,
         Parameters(params): Parameters<AddKeysParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_add_keys(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_add_keys(self.store.as_ref(), &self.cache, &self.write_lock, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -590,16 +513,9 @@ impl XcStringsMcpServer {
     async fn update_comments(
         &self,
         Parameters(params): Parameters<UpdateCommentsParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_update_comments(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_update_comments(self.store.as_ref(), &self.cache, &self.write_lock, params)
+            .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -618,17 +534,8 @@ impl XcStringsMcpServer {
     async fn delete_keys(
         &self,
         Parameters(params): Parameters<DeleteKeysParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_delete_keys(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_delete_keys(self.store.as_ref(), &self.cache, &self.write_lock, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -646,17 +553,8 @@ impl XcStringsMcpServer {
     async fn rename_key(
         &self,
         Parameters(params): Parameters<RenameKeyParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_rename_key(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
-        {
+        match handle_rename_key(self.store.as_ref(), &self.cache, &self.write_lock, params).await {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -693,16 +591,9 @@ impl XcStringsMcpServer {
     async fn delete_translations(
         &self,
         Parameters(params): Parameters<DeleteTranslationsParams>,
-        context: RequestContext<RoleServer>,
     ) -> Result<String, String> {
-        match handle_delete_translations(
-            self.store.as_ref(),
-            &self.cache,
-            &self.write_lock,
-            params,
-            Some(&context.peer),
-        )
-        .await
+        match handle_delete_translations(self.store.as_ref(), &self.cache, &self.write_lock, params)
+            .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
