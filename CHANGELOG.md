@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+## [1.3.4] - 2026-07-20
+
+### Changed
+- **rmcp** (MCP SDK) 1.6 → 2.2. The server no longer emits MCP `logging/message` notifications — the `logging` capability was never advertised, so those notifications were off-spec. Tool progress messages now go to stderr via `tracing` only.
+- Dependency refresh: quick-xml 0.41, tokio 1.53, regex 1.13, clap 4.6.2, clap_complete 4.6.7. CI actions: `actions/checkout` v7, `schneegans/dynamic-badges-action` 1.9.0.
+
+### Security
+- **quick-xml** 0.41 closes RUSTSEC-2026-0194 and RUSTSEC-2026-0195 (quadratic attribute parsing, unbounded namespace allocation).
+- **crossbeam-epoch** 0.9.20 closes RUSTSEC-2026-0204 (dev-dependency chain).
+
+### Fixed
+- CI: nightly clippy lints `chunks_exact_to_as_chunks` (UTF-16 strings parser) and `cloned_ref_to_slice_refs` (merger tests) no longer fail the pipeline.
+
 ## [1.3.3] - 2026-05-01
 
 ### Changed
