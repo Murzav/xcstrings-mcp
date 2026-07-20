@@ -285,7 +285,7 @@ mod tests {
         let mut file = make_file(vec![("greeting", empty_entry())]);
         let t = simple_translation("greeting", "uk", "Привіт");
 
-        let r1 = merge_translations(&mut file, &[t.clone()]);
+        let r1 = merge_translations(&mut file, std::slice::from_ref(&t));
         let r2 = merge_translations(&mut file, &[t]);
 
         assert_eq!(r1.accepted, 1);

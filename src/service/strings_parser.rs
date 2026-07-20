@@ -57,7 +57,7 @@ fn looks_like_utf16le(raw: &[u8]) -> bool {
     }
     let mut null_at_odd = 0;
     let mut pairs = 0;
-    for chunk in raw[..sample].chunks_exact(2) {
+    for chunk in raw[..sample].as_chunks::<2>().0 {
         pairs += 1;
         if chunk[1] == 0 && chunk[0] != 0 {
             null_at_odd += 1;
@@ -76,7 +76,12 @@ fn decode_utf16(
     if !data.len().is_multiple_of(2) {
         return Err(parse_err(0, "odd byte count for UTF-16 data"));
     }
-    let units: Vec<u16> = data.chunks_exact(2).map(|c| conv([c[0], c[1]])).collect();
+    let units: Vec<u16> = data
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| conv([c[0], c[1]]))
+        .collect();
     String::from_utf16(&units).map_err(|e| parse_err(0, format!("invalid UTF-16: {e}")))
 }
 
