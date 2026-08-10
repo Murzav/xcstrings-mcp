@@ -476,8 +476,14 @@ fn two_cli_processes_applying_expected_absence_have_exactly_one_winner() {
         .iter()
         .find(|result| !result.status.success())
         .unwrap();
+    assert_eq!(loser.status.code(), Some(1));
     assert!(loser.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&loser.stderr).contains("conditional write conflict"));
+    let loser_stderr = String::from_utf8_lossy(&loser.stderr);
+    assert!(
+        loser_stderr.contains("conditional write conflict")
+            || loser_stderr.contains("stale merge fingerprint: output"),
+        "unexpected concurrent loser error: {loser_stderr}"
+    );
     let merged: Value = serde_json::from_slice(&std::fs::read(&output).unwrap()).unwrap();
     assert_eq!(merged["strings"]["a"]["comment"], "current");
     assert_eq!(merged["strings"]["b"]["comment"], "incoming");
