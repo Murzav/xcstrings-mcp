@@ -39,9 +39,9 @@ struct ExportResult {
 
 /// Handle the `export_xliff` tool call.
 ///
-/// **Limitation**: Only exports simple string translations. Plural forms and
-/// device variant forms cannot be represented in XLIFF 1.2 format and are
-/// excluded from the export.
+/// **Scope**: Exports only entries that have simple `stringUnit` semantics.
+/// Variation-only entries are excluded because this exporter does not implement
+/// Apple's variation-unit ID mapping.
 pub(crate) async fn handle_export_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
@@ -93,10 +93,9 @@ pub(crate) struct ImportXliffParams {
 
 /// Handle the `import_xliff` tool call.
 ///
-/// **Limitation**: Only imports simple string translations. Plural forms and
-/// substitution translations cannot be represented in XLIFF 1.2 format and
-/// are skipped during import. Use `submit_translations` with `plural_forms`
-/// for plural key translations.
+/// **Scope**: Imports only simple string-unit IDs. Apple variation-unit IDs are
+/// rejected because this importer does not implement their path semantics. Use
+/// `submit_translations` with `plural_forms` for plural key translations.
 pub(crate) async fn handle_import_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
@@ -395,3 +394,15 @@ mod tests {
         assert!(result["rejected"].as_array().unwrap().is_empty());
     }
 }
+
+#[cfg(test)]
+#[path = "xliff/structure_tests.rs"]
+mod structure_tests;
+
+#[cfg(test)]
+#[path = "xliff/apple_compat_tests.rs"]
+mod apple_compat_tests;
+
+#[cfg(test)]
+#[path = "xliff/cdata_tests.rs"]
+mod cdata_tests;

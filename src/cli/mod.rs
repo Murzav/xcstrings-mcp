@@ -83,7 +83,7 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Export translations to XLIFF
+    /// Export simple stringUnit translations to XLIFF
     Export {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,
@@ -97,7 +97,7 @@ pub enum Command {
         #[arg(long)]
         all: bool,
     },
-    /// Import one-root XLIFF 1.2 with normalized official or legacy unqualified namespaces
+    /// Import simple stringUnit XLIFF 1.2; Apple variation-unit IDs are unsupported
     Import {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,

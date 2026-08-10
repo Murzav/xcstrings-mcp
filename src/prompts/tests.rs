@@ -14,7 +14,7 @@ fn translate_batch_returns_content() {
     let result = server
         .translate_batch(Parameters(TranslateBatchParams {
             locale: "uk".into(),
-            count: Some(10),
+            count: Some("10".into()),
         }))
         .unwrap();
     let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {

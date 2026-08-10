@@ -1,6 +1,62 @@
 use std::path::PathBuf;
 
+/// Errors returned by xcstrings-mcp library operations.
+///
+/// Downstream matches must include a wildcard arm so new error variants remain
+/// source-compatible:
+///
+/// ```
+/// use xcstrings_mcp::XcStringsError;
+///
+/// fn category(error: XcStringsError) -> &'static str {
+///     match error {
+///         XcStringsError::FileNotFound { .. } => "missing",
+///         XcStringsError::InvalidFormat(_) => "invalid",
+///         _ => "other",
+///     }
+/// }
+/// ```
+///
+/// An exhaustive downstream match is intentionally rejected:
+///
+/// ```compile_fail
+/// use xcstrings_mcp::XcStringsError;
+///
+/// fn category(error: XcStringsError) -> &'static str {
+///     match error {
+///         XcStringsError::FileNotFound { .. }
+///         | XcStringsError::InvalidPath { .. }
+///         | XcStringsError::NotXcStrings { .. }
+///         | XcStringsError::InvalidFormat(_)
+///         | XcStringsError::JsonParse(_)
+///         | XcStringsError::LocaleNotFound(_)
+///         | XcStringsError::LocaleAlreadyExists(_)
+///         | XcStringsError::NoActiveFile
+///         | XcStringsError::InvalidBatchSize(_)
+///         | XcStringsError::FileTooLarge { .. }
+///         | XcStringsError::FileLocked { .. }
+///         | XcStringsError::ConditionalWriteUnsupported { .. }
+///         | XcStringsError::ConditionalWriteConflict { .. }
+///         | XcStringsError::MergeExpectedFingerprintsRequired
+///         | XcStringsError::StaleMergeFingerprint { .. }
+///         | XcStringsError::MergeConflicts { .. }
+///         | XcStringsError::MergeIntroducedValidation { .. }
+///         | XcStringsError::CannotRemoveSourceLocale(_)
+///         | XcStringsError::GlossaryError(_)
+///         | XcStringsError::StringsParse { .. }
+///         | XcStringsError::StringsdictParse(_)
+///         | XcStringsError::XliffParse(_)
+///         | XcStringsError::XliffFormat(_)
+///         | XcStringsError::FileAlreadyExists { .. }
+///         | XcStringsError::KeyNotFound(_)
+///         | XcStringsError::KeyAlreadyExists(_)
+///         | XcStringsError::Io(_)
+///         | XcStringsError::Serde(_) => "known",
+///     }
+/// }
+/// ```
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum XcStringsError {
     #[error("file not found: {path}")]
     FileNotFound { path: PathBuf },

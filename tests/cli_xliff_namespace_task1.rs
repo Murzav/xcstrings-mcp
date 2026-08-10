@@ -377,9 +377,9 @@ fn cli_import_accepts_normalized_official_namespace_and_bound_extension() {
     fs::write(
         &input,
         r#"<x:xliff xmlns:x="urn:oasis:names:tc:xliff:document:1.&#50;" xmlns:ext="urn:example:extension" version="1.2">
-  <ext:group><x:file target-language="de"><x:body><x:trans-unit id="greeting">
+  <ext:metadata/><x:file target-language="de"><x:body><x:trans-unit id="greeting">
     <x:source>Hello</x:source><x:target>Normalized namespace</x:target>
-  </x:trans-unit></x:body></x:file></ext:group>
+  </x:trans-unit></x:body></x:file>
 </x:xliff>"#,
     )
     .unwrap();

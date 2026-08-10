@@ -395,7 +395,7 @@ impl XcStringsMcpServer {
     /// Export translations to XLIFF 1.2 format for external tools.
     #[tool(
         name = "export_xliff",
-        description = "Export translations to XLIFF 1.2 format for external tools. Only exports simple strings; plural forms not included. By default exports untranslated strings only."
+        description = "Export simple String Catalog stringUnit entries to XLIFF 1.2 for external tools. Variation-only plural, device, and substitution entries are excluded because Apple variation-unit ID paths are not implemented. By default exports untranslated strings only."
     )]
     async fn export_xliff(
         &self,
@@ -414,7 +414,7 @@ impl XcStringsMcpServer {
     /// Import translations from XLIFF 1.2 file.
     #[tool(
         name = "import_xliff",
-        description = "Import simple translations from a single-root XLIFF 1.2 document using one consistent mode: the XML-normalized official default/prefix-qualified namespace, or legacy fully unqualified input. Bound foreign extension elements are accepted; wrappers, nested/repeated roots, trailing content, mixed structural modes, unbound prefixes, malformed namespace references, and duplicate raw or expanded attribute names are rejected before writes. Use submit_translations for plurals. Decodes normalized XLIFF attributes, validates with the shared format comparator, rejects definite mismatches, and returns ambiguous percent-in-prose differences in warnings[]. Use dry_run=true to preview."
+        description = "Import simple stringUnit translations from a structurally validated single-root XLIFF 1.2 document using one consistent mode: the XML-normalized official default/prefix-qualified namespace, or legacy fully unqualified input. Requires direct file children with non-empty matching target-language values, optional header before one body, recursive groups, one source before at most one target per trans-unit, and unique trans-unit/bin-unit IDs per file after XML attribute normalization. Empty trans-unit IDs from Xcode are accepted safely; Apple |==| variation-unit IDs, raw line-break/space IDs that normalize to the same value, and duplicate IDs that would collide while flattening multiple files are rejected before writes. Schema-positioned bound extensions are accepted; malformed parent/order/cardinality, mixed file locales or structural modes, unbound prefixes, malformed namespace references, and duplicate raw or expanded attributes are rejected before writes. Use submit_translations for plurals. Returns ambiguous percent-in-prose differences in warnings[]. Use dry_run=true to preview."
     )]
     async fn import_xliff(
         &self,

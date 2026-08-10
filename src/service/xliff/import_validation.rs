@@ -8,6 +8,8 @@ use quick_xml::{Decoder, XmlVersion};
 
 use crate::error::XcStringsError;
 
+use super::import_state::{CoreElement, ImportElement};
+
 const XLIFF_1_2_NAMESPACE: &str = "urn:oasis:names:tc:xliff:document:1.2";
 
 #[derive(Clone, Copy)]
@@ -44,7 +46,7 @@ impl DocumentValidator {
         namespace: &ResolveResult<'_>,
         element: &BytesStart<'_>,
         resolver: &NamespaceResolver,
-    ) -> Result<(), XcStringsError> {
+    ) -> Result<ImportElement, XcStringsError> {
         let local_name = element.local_name();
         validate_attributes(decoder, resolver, element, local_name.as_ref())?;
 
@@ -53,9 +55,9 @@ impl DocumentValidator {
                 self.open_root(decoder, namespace, element, local_name.as_ref(), false)
             }
             DocumentLifecycle::Inside { depth } => {
-                self.validate_child(decoder, namespace, local_name.as_ref())?;
+                let child = self.validate_child(decoder, namespace, local_name.as_ref())?;
                 self.lifecycle = DocumentLifecycle::Inside { depth: depth + 1 };
-                Ok(())
+                Ok(child)
             }
             DocumentLifecycle::After => element_after_root(local_name.as_ref()),
         }
@@ -67,7 +69,7 @@ impl DocumentValidator {
         namespace: &ResolveResult<'_>,
         element: &BytesStart<'_>,
         resolver: &NamespaceResolver,
-    ) -> Result<(), XcStringsError> {
+    ) -> Result<ImportElement, XcStringsError> {
         let local_name = element.local_name();
         validate_attributes(decoder, resolver, element, local_name.as_ref())?;
 
@@ -87,7 +89,7 @@ impl DocumentValidator {
         decoder: Decoder,
         namespace: &ResolveResult<'_>,
         local_name: &[u8],
-    ) -> Result<(), XcStringsError> {
+    ) -> Result<ImportElement, XcStringsError> {
         let DocumentLifecycle::Inside { depth } = self.lifecycle else {
             return Err(XcStringsError::XliffParse(format!(
                 "unexpected closing element </{}> outside <xliff> document root",
@@ -95,13 +97,13 @@ impl DocumentValidator {
             )));
         };
 
-        validate_element_namespace(decoder, self.namespace_mode, namespace, local_name)?;
+        let element = classify_element(decoder, self.namespace_mode, namespace, local_name)?;
         if depth == 1 {
             self.lifecycle = DocumentLifecycle::After;
         } else {
             self.lifecycle = DocumentLifecycle::Inside { depth: depth - 1 };
         }
-        Ok(())
+        Ok(element)
     }
 
     pub(super) fn text(&self, text: &str) -> Result<(), XcStringsError> {
@@ -172,7 +174,7 @@ impl DocumentValidator {
         element: &BytesStart<'_>,
         local_name: &[u8],
         empty: bool,
-    ) -> Result<(), XcStringsError> {
+    ) -> Result<ImportElement, XcStringsError> {
         if local_name != b"xliff" {
             return Err(XcStringsError::XliffParse(format!(
                 "document root must be <xliff>; found <{}>",
@@ -187,7 +189,7 @@ impl DocumentValidator {
         } else {
             DocumentLifecycle::Inside { depth: 1 }
         };
-        Ok(())
+        Ok(ImportElement::core(CoreElement::Xliff, local_name))
     }
 
     fn validate_child(
@@ -195,13 +197,13 @@ impl DocumentValidator {
         decoder: Decoder,
         namespace: &ResolveResult<'_>,
         local_name: &[u8],
-    ) -> Result<(), XcStringsError> {
+    ) -> Result<ImportElement, XcStringsError> {
         if local_name == b"xliff" {
             return Err(XcStringsError::XliffParse(
                 "nested <xliff> element is not allowed".into(),
             ));
         }
-        validate_element_namespace(decoder, self.namespace_mode, namespace, local_name)
+        classify_element(decoder, self.namespace_mode, namespace, local_name)
     }
 
     fn is_outside_root(&self) -> bool {
@@ -294,17 +296,13 @@ fn namespace_mode_from_root(
     }
 }
 
-fn validate_element_namespace(
+fn classify_element(
     decoder: Decoder,
     namespace_mode: Option<NamespaceMode>,
     namespace: &ResolveResult<'_>,
     local_name: &[u8],
-) -> Result<(), XcStringsError> {
+) -> Result<ImportElement, XcStringsError> {
     let namespace = canonical_element_namespace(decoder, namespace, local_name)?;
-    if !is_structural_element(local_name) {
-        return Ok(());
-    }
-
     let Some(namespace_mode) = namespace_mode else {
         return Err(XcStringsError::XliffParse(format!(
             "element <{}> has no document namespace mode",
@@ -312,22 +310,31 @@ fn validate_element_namespace(
         )));
     };
 
-    match (namespace_mode, namespace.as_deref()) {
-        (NamespaceMode::OfficialQualified, Some(XLIFF_1_2_NAMESPACE)) => Ok(()),
-        (NamespaceMode::LegacyUnqualified, None) => Ok(()),
-        (NamespaceMode::OfficialQualified, None) => Err(XcStringsError::XliffParse(format!(
-            "element <{}> is unqualified in namespace-qualified XLIFF document; expected '{}'",
-            String::from_utf8_lossy(local_name),
-            XLIFF_1_2_NAMESPACE
-        ))),
-        (NamespaceMode::LegacyUnqualified, Some(XLIFF_1_2_NAMESPACE)) => {
+    let core = CoreElement::from_local_name(local_name);
+    match (namespace_mode, namespace.as_deref(), core) {
+        (NamespaceMode::OfficialQualified, Some(XLIFF_1_2_NAMESPACE), Some(core))
+        | (NamespaceMode::LegacyUnqualified, None, Some(core)) => {
+            Ok(ImportElement::core(core, local_name))
+        }
+        (NamespaceMode::OfficialQualified, Some(XLIFF_1_2_NAMESPACE), None) => {
+            Ok(ImportElement::core(CoreElement::Other, local_name))
+        }
+        (NamespaceMode::OfficialQualified, None, Some(_)) => {
+            Err(XcStringsError::XliffParse(format!(
+                "element <{}> is unqualified in namespace-qualified XLIFF document; expected '{}'",
+                String::from_utf8_lossy(local_name),
+                XLIFF_1_2_NAMESPACE
+            )))
+        }
+        (NamespaceMode::LegacyUnqualified, Some(XLIFF_1_2_NAMESPACE), Some(_)) => {
             Err(XcStringsError::XliffParse(format!(
                 "element <{}> uses namespace '{}' in legacy unqualified XLIFF document; expected no namespace",
                 String::from_utf8_lossy(local_name),
                 XLIFF_1_2_NAMESPACE
             )))
         }
-        (_, namespace) => namespace_error(namespace, local_name),
+        (_, Some(namespace), Some(_)) => namespace_error(Some(namespace), local_name),
+        _ => Ok(ImportElement::extension(local_name)),
     }
 }
 
@@ -389,11 +396,4 @@ fn namespace_error<T>(namespace: Option<&str>, local_name: &[u8]) -> Result<T, X
             String::from_utf8_lossy(local_name)
         ))),
     }
-}
-
-fn is_structural_element(local_name: &[u8]) -> bool {
-    matches!(
-        local_name,
-        b"xliff" | b"file" | b"body" | b"trans-unit" | b"source" | b"target"
-    )
 }

@@ -273,14 +273,14 @@ fn import_rejects_duplicate_ordinary_attribute_on_structural_start() {
 }
 
 #[test]
-fn import_accepts_misc_outside_root_and_extension_nesting() {
+fn import_accepts_misc_outside_root_and_extensions_at_schema_points() {
     let xml = format!(
         r#"<?xml version="1.0"?>
 <!-- before --><?before import?>
 <x:xliff xmlns:x="{XLIFF_NAMESPACE}" xmlns:ext="urn:example:extension" version="1.2">
-  <ext:group ext:role="container"><x:file target-language="de"><x:body>
+  <ext:metadata ext:role="container"><ext:nested/></ext:metadata><x:file target-language="de"><x:body>
     <x:trans-unit id="greeting"><x:source>Hello</x:source><x:target>Hallo</x:target></x:trans-unit>
-  </x:body></x:file></ext:group>
+  </x:body></x:file>
 </x:xliff>
 <?after import?><!-- after -->"#
     );
@@ -400,7 +400,7 @@ fn import_rejects_non_xml_ascii_whitespace_before_root() {
 #[test]
 fn import_rejects_cdata_after_root() {
     let xml = format!(
-        r#"<x:xliff xmlns:x="{XLIFF_NAMESPACE}" version="1.2"><x:file target-language="de"/></x:xliff><![CDATA[ ]]>"#
+        r#"<x:xliff xmlns:x="{XLIFF_NAMESPACE}" version="1.2"><x:file target-language="de"><x:body/></x:file></x:xliff><![CDATA[ ]]>"#
     );
 
     let error = xliff::import_xliff(&xml).unwrap_err();
@@ -424,7 +424,7 @@ fn import_rejects_missing_xliff_root() {
 #[test]
 fn import_rejects_unclosed_xliff_root() {
     let xml = format!(
-        r#"<x:xliff xmlns:x="{XLIFF_NAMESPACE}" version="1.2"><x:file target-language="de"/>"#
+        r#"<x:xliff xmlns:x="{XLIFF_NAMESPACE}" version="1.2"><x:file target-language="de"><x:body/></x:file>"#
     );
 
     let error = xliff::import_xliff(&xml).unwrap_err();

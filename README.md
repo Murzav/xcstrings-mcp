@@ -23,7 +23,7 @@ xcstrings-mcp is a small Rust process that sits between the assistant and the fi
 - Deterministic Foundation format-argument and CLDR plural validation: definite `%d`/`%@`/`%jd` mismatches block (including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text such as `%lld日`), while percent signs in prose such as `85% of` are accepted with explicit warnings; substitution plurals require exact `%arg` placeholders and reject longer Unicode words
 - Atomic writes that match Xcode's JSON formatting exactly (`" : "` colon spacing, preserved key order, BOM stripped on read and never re-emitted)
 - Legacy migration from `.strings` and `.stringsdict` (UTF-8/UTF-16, plural rules, positional specifiers)
-- XLIFF 1.2 import/export with decoded, XML-normalized attributes and namespace URIs plus consistent official default/prefix-qualified namespace support for external translation tools; imports require one `<xliff>` root, accept bound foreign extensions, reject unbound prefixes and duplicate expanded attribute names, and retain fully unqualified legacy compatibility without allowing mixed structural modes
+- XLIFF 1.2 import/export with decoded, XML-normalized attributes and namespace URIs plus consistent official default/prefix-qualified namespace support for external translation tools; imports enforce `xliff > file > body > group/trans-unit` structure, accept bound foreign extensions only at schema extension points, reject malformed order/cardinality before writes, and retain fully unqualified legacy compatibility without allowing mixed structural modes
 - Glossary support so terminology stays consistent across locales
 - Conservative ordered three-way catalog merge with stable conflicts, dry-run fingerprints, and compare-and-swap apply
 - Tested with Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, and OpenAI Codex; should work with any MCP client
@@ -153,6 +153,16 @@ rmcp = { version = "3.1.2", features = ["server", "transport-io", "macros"] }
 
 `rmcp` 2.x and 3.x expose distinct Rust traits and response types, so an embedder compiled against `rmcp` 2.x must update its direct dependency before adopting this release.
 
+The public `XcStringsError` enum is now non-exhaustive so future error variants do not create the same source break. Downstream matches must add a wildcard arm:
+
+```rust
+match error {
+    XcStringsError::FileNotFound { .. } => handle_missing(),
+    XcStringsError::InvalidFormat(message) => handle_invalid(message),
+    _ => handle_other(),
+}
+```
+
 ## Usage
 
 The basic loop:
@@ -186,8 +196,8 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 | `get_diff` | Compare cached vs on-disk file (added/removed/modified keys) |
 | `get_glossary` | Get translation glossary entries for a locale pair |
 | `update_glossary` | Add or update glossary terms |
-| `export_xliff` | Export to XLIFF 1.2 for external translation tools |
-| `import_xliff` | Import one-root XLIFF 1.2 with XML-normalized namespace URIs and a consistent official default/prefix-qualified or legacy unqualified mode; mixed structural modes, unbound prefixes, extra roots/content, and duplicate expanded attributes are rejected |
+| `export_xliff` | Export simple `stringUnit` entries to XLIFF 1.2; variation-only plural, device, and substitution entries are excluded |
+| `import_xliff` | Import simple `stringUnit` IDs from one-root XLIFF 1.2; empty Xcode IDs are accepted safely, while Apple `|==|` variation IDs, XML-normalized duplicate unit IDs, malformed structure/namespaces, and unsafe multi-file collisions are rejected before writes |
 | `import_strings` | Migrate legacy `.strings`/`.stringsdict` files to `.xcstrings` |
 | `search_keys` | Search keys by substring; `format_specifiers` lists definite arguments only |
 | `create_xcstrings` | Create a new empty .xcstrings file |
@@ -306,11 +316,16 @@ xcstrings-mcp export --locale de -o out.xliff
 | `stale` | List stale/removed keys |
 | `add-locale <locale>` | Add a new locale |
 | `remove-locale <locale>` | Remove a locale |
-| `export` | Export to XLIFF 1.2 |
-| `import` | Import one-root, consistently official default/prefix-qualified XLIFF 1.2 with XML-normalized namespace URIs (or legacy fully unqualified input); mixed structural modes, unbound prefixes, extra roots/content, and duplicate expanded attributes fail before writes |
+| `export` | Export simple `stringUnit` entries to XLIFF 1.2; skip variation-only entries |
+| `import` | Import simple `stringUnit` IDs from structurally validated XLIFF 1.2; empty Xcode IDs are accepted safely, while Apple `|==|` variation IDs, XML-normalized duplicate unit IDs, malformed structure/namespaces, and unsafe multi-file collisions fail before writes |
 | `migrate` | Migrate legacy .strings/.stringsdict |
 | `merge` | Three-way semantic catalog merge; dry-run by default, apply with exact fingerprints and resolutions |
 | `completions <shell>` | Generate shell completions |
+
+XLIFF unit IDs are compared after XML 1.0 attribute normalization. An Xcode
+export whose distinct raw keys differ only by an attribute line break versus a
+space therefore fails closed as a duplicate instead of silently overwriting a
+catalog translation.
 
 `--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`. Validation keeps definite format mismatches and invalid positional arguments blocking, recognizes arguments next to unspaced Han, Hiragana, Katakana, and Hangul text, and rejects `%arg` when it is merely a prefix of a longer Unicode word. XLIFF import reports accepted ambiguous percent sequences in `warnings[]` (and on stderr in human-readable mode).
 
@@ -331,7 +346,7 @@ There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the pr
 What it actually does for you:
 
 - Stops Claude from reading raw `.xcstrings` files (which would just dump tens of thousands of tokens into the context for no benefit)
-- Picks the right tool sequence per workflow (translate, migrate, audit, export)
+- Picks the right tool sequence per workflow (translate, migrate, audit, export, and catalog merge/conflict resolution)
 - Handles CLDR plural categories per locale (Ukrainian wants `one/few/many`, Japanese only wants `other`)
 - Keeps glossary terms consistent across translations
 - Spawns one subagent per language for parallel multi-locale work
@@ -349,7 +364,7 @@ Or clone and copy:
 cp -r skills/xcstrings-mcp ~/.claude/skills/
 ```
 
-The skill covers full translation, language management, coverage audits, legacy migration, XLIFF roundtrips, plural handling, and glossary work.
+The skill covers full translation, language management, coverage audits, legacy migration, simple-string XLIFF roundtrips, catalog merge/conflict resolution, plural handling, and glossary work.
 
 ## Performance
 

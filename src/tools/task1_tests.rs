@@ -550,9 +550,9 @@ async fn mcp_xliff_import_rejects_unbound_empty_extension_without_writing() {
 async fn mcp_xliff_import_accepts_normalized_official_namespace_and_bound_extension() {
     assert_mcp_xliff_applied(
         r#"<x:xliff xmlns:x="urn:oasis:names:tc:xliff:document:1.&#50;" xmlns:ext="urn:example:extension" version="1.2">
-  <ext:group><x:file target-language="de"><x:body><x:trans-unit id="greeting">
+  <ext:metadata/><x:file target-language="de"><x:body><x:trans-unit id="greeting">
     <x:source>Hello</x:source><x:target>Normalized namespace</x:target>
-  </x:trans-unit></x:body></x:file></ext:group>
+  </x:trans-unit></x:body></x:file>
 </x:xliff>"#,
         "Normalized namespace",
     )
@@ -620,6 +620,238 @@ async fn submit_returns_machine_readable_ambiguous_warning() {
     assert_eq!(
         result["warnings"][0]["issue_type"],
         "ambiguous_format_sequence_mismatch"
+    );
+}
+
+#[tokio::test]
+async fn submit_handler_applies_compatible_repeated_positions() {
+    let store = MemoryStore::new();
+    store.add_file(
+        "/test/file.xcstrings",
+        &simple_catalog("items", "%1$@ has %2$d items; %1$@ again"),
+    );
+    let cache = Mutex::new(FileCache::new());
+    let write_lock = Mutex::new(());
+    handle_parse(
+        &store,
+        &cache,
+        ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &write_lock,
+        SubmitTranslationsParams {
+            file_path: None,
+            translations: vec![CompletedTranslation {
+                key: "items".to_string(),
+                locale: "de".to_string(),
+                value: "%1$@ erneut: %2$d; %1$@".to_string(),
+                plural_forms: None,
+                substitution_name: None,
+            }],
+            dry_run: false,
+            continue_on_error: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result["accepted"], 1);
+    assert!(result["rejected"].as_array().unwrap().is_empty());
+    assert_eq!(result["dry_run"], false);
+    assert!(result["warnings"].is_null());
+
+    let updated = parser::parse(
+        &store
+            .get_content(Path::new("/test/file.xcstrings"))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        updated.strings["items"].localizations.as_ref().unwrap()["de"]
+            .string_unit
+            .as_ref()
+            .unwrap()
+            .value,
+        "%1$@ erneut: %2$d; %1$@"
+    );
+}
+
+#[tokio::test]
+async fn submit_handler_rejects_missing_repeated_occurrence_without_writing() {
+    let store = MemoryStore::new();
+    store.add_file(
+        "/test/file.xcstrings",
+        &simple_catalog("items", "%1$@ has %2$d items; %1$@ again"),
+    );
+    let cache = Mutex::new(FileCache::new());
+    let write_lock = Mutex::new(());
+    handle_parse(
+        &store,
+        &cache,
+        ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let before = store
+        .get_content(Path::new("/test/file.xcstrings"))
+        .unwrap();
+
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &write_lock,
+        SubmitTranslationsParams {
+            file_path: None,
+            translations: vec![CompletedTranslation {
+                key: "items".to_string(),
+                locale: "de".to_string(),
+                value: "%1$@ erneut: %2$d".to_string(),
+                plural_forms: None,
+                substitution_name: None,
+            }],
+            dry_run: false,
+            continue_on_error: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result["accepted"], 0);
+    assert_eq!(result["rejected"].as_array().unwrap().len(), 1);
+    assert!(
+        result["rejected"][0]["reason"]
+            .as_str()
+            .is_some_and(|reason| reason.contains("format specifier count mismatch"))
+    );
+    assert_eq!(result["dry_run"], false);
+    assert!(result["warnings"].is_null());
+    assert_eq!(
+        store
+            .get_content(Path::new("/test/file.xcstrings"))
+            .unwrap(),
+        before
+    );
+}
+
+#[tokio::test]
+async fn submit_handler_applies_apple_unsigned_z_and_t_aliases() {
+    let store = MemoryStore::new();
+    store.add_file(
+        "/test/file.xcstrings",
+        &simple_catalog("size", "%1$zu / %1$tu"),
+    );
+    let cache = Mutex::new(FileCache::new());
+    let write_lock = Mutex::new(());
+    handle_parse(
+        &store,
+        &cache,
+        ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &write_lock,
+        SubmitTranslationsParams {
+            file_path: None,
+            translations: vec![CompletedTranslation {
+                key: "size".to_string(),
+                locale: "de".to_string(),
+                value: "%1$tu / %1$zu".to_string(),
+                plural_forms: None,
+                substitution_name: None,
+            }],
+            dry_run: false,
+            continue_on_error: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result["accepted"], 1);
+    assert!(result["rejected"].as_array().unwrap().is_empty());
+    let updated = parser::parse(
+        &store
+            .get_content(Path::new("/test/file.xcstrings"))
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        updated.strings["size"].localizations.as_ref().unwrap()["de"]
+            .string_unit
+            .as_ref()
+            .unwrap()
+            .value,
+        "%1$tu / %1$zu"
+    );
+}
+
+#[tokio::test]
+async fn submit_handler_rejects_signed_unsigned_z_t_collision_without_writing() {
+    let store = MemoryStore::new();
+    store.add_file(
+        "/test/file.xcstrings",
+        &simple_catalog("size", "%1$zu / %1$tu"),
+    );
+    let cache = Mutex::new(FileCache::new());
+    let write_lock = Mutex::new(());
+    handle_parse(
+        &store,
+        &cache,
+        ParseParams {
+            file_path: "/test/file.xcstrings".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let before = store
+        .get_content(Path::new("/test/file.xcstrings"))
+        .unwrap();
+
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &write_lock,
+        SubmitTranslationsParams {
+            file_path: None,
+            translations: vec![CompletedTranslation {
+                key: "size".to_string(),
+                locale: "de".to_string(),
+                value: "%1$zu / %1$td".to_string(),
+                plural_forms: None,
+                substitution_name: None,
+            }],
+            dry_run: false,
+            continue_on_error: true,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result["accepted"], 0);
+    assert_eq!(result["rejected"].as_array().unwrap().len(), 1);
+    assert_eq!(
+        result["rejected"][0]["reason"],
+        "translation reuses positional argument 1 with incompatible argument types"
+    );
+    assert_eq!(
+        store
+            .get_content(Path::new("/test/file.xcstrings"))
+            .unwrap(),
+        before
     );
 }
 

@@ -465,14 +465,14 @@ fn comparator_allows_only_valid_logical_argument_reorders() {
     let valid = compare_formats("%@ has %08.2f", "%2$08.2f : %1$@");
     assert!(valid.errors.is_empty(), "{:?}", valid.errors);
 
-    let duplicate = compare_formats("%@ %d", "%1$@ %1$d");
+    let incompatible_reuse = compare_formats("%@ %d", "%1$@ %1$d");
     assert_eq!(
-        duplicate
+        incompatible_reuse
             .errors
             .iter()
             .map(|issue| issue.code)
             .collect::<Vec<_>>(),
-        ["duplicate_positional_argument"]
+        ["incompatible_positional_argument"]
     );
 
     let missing = compare_formats("%@ %d", "%1$@ %3$d");
@@ -493,6 +493,218 @@ fn comparator_allows_only_valid_logical_argument_reorders() {
             .map(|issue| issue.code)
             .collect::<Vec<_>>(),
         ["mixed_positional_arguments"]
+    );
+}
+
+#[test]
+fn classifier_preserves_every_repeated_positional_occurrence() {
+    let analysis = analyze_format("%1$@ — %1$@ / %1$*2$.*3$f / %1$*2$.*3$f");
+
+    assert_eq!(
+        analysis
+            .arguments
+            .iter()
+            .map(|argument| (
+                argument.raw.as_str(),
+                argument.position,
+                argument.width.as_deref(),
+                argument.precision.as_deref(),
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("%1$@", Some(1), None, None),
+            ("%1$@", Some(1), None, None),
+            ("%1$*2$.*3$f", Some(1), Some("*"), Some("*")),
+            ("%1$*2$.*3$f", Some(1), Some("*"), Some("*")),
+        ]
+    );
+    assert!(analysis.ambiguous.is_empty());
+    assert!(analysis.literals.is_empty());
+    assert!(analysis.problems.is_empty());
+}
+
+#[test]
+fn comparator_accepts_compatible_repeated_positional_references_and_reordering() {
+    for (source, target) in [
+        ("%1$@ — %1$@", "%1$@ — %1$@"),
+        ("%1$@ has %2$d items; %1$@ again", "%1$@ erneut: %2$d; %1$@"),
+        ("%1$@ / %2$d / %1$@", "%2$d / %1$@ / %1$@"),
+        ("%1$*2$.*3$f / %1$*2$.*3$f", "%1$*2$.*3$f / %1$*2$.*3$f"),
+        ("%1$d / %1$i", "%1$i / %1$d"),
+        ("%1$f / %1$e", "%1$e / %1$f"),
+        ("%1$*1$d", "%1$*1$d"),
+        ("%1$.*1$hd", "%1$.*1$hd"),
+        ("%2$*1$.*1$f", "%2$*1$.*1$f"),
+        ("%1$hhu / %1$d", "%1$d / %1$hhu"),
+    ] {
+        let comparison = compare_formats(source, target);
+        assert!(
+            comparison.errors.is_empty(),
+            "{source:?} vs {target:?}: {:?}",
+            comparison.errors
+        );
+        assert!(comparison.warnings.is_empty(), "{source:?} vs {target:?}");
+    }
+}
+
+#[test]
+fn comparator_rejects_incompatible_reuse_of_one_positional_argument() {
+    for format in [
+        "%1$@ / %1$d",
+        "%1$d / %1$u",
+        "%1$ld / %1$d",
+        "%1$ld / %1$lu",
+        "%1$jd / %1$jX",
+        "%1$f / %1$Lf",
+        "%1$*1$f",
+        "%1$.*1$f",
+        "%1$*1$u",
+        "%1$.*1$ld",
+    ] {
+        assert_eq!(
+            compare_formats(format, format)
+                .errors
+                .iter()
+                .map(|issue| issue.code)
+                .collect::<Vec<_>>(),
+            [
+                "incompatible_positional_argument",
+                "incompatible_positional_argument",
+            ],
+            "{format:?}"
+        );
+    }
+}
+
+#[test]
+fn comparator_accepts_apple_unsigned_z_and_t_positional_aliases() {
+    for (source, target) in [
+        ("%1$zu / %1$tu", "%1$tu / %1$zu"),
+        ("%1$zo / %1$tX", "%1$tX / %1$zo"),
+        ("%1$zx / %1$to", "%1$to / %1$zx"),
+    ] {
+        let comparison = compare_formats(source, target);
+        assert!(
+            comparison.errors.is_empty(),
+            "{source:?} vs {target:?}: {:?}",
+            comparison.errors
+        );
+        assert!(comparison.warnings.is_empty(), "{source:?} vs {target:?}");
+    }
+}
+
+#[test]
+fn comparator_rejects_non_alias_z_and_t_positional_combinations() {
+    for format in [
+        "%1$zd / %1$td",
+        "%1$zu / %1$td",
+        "%1$zd / %1$tu",
+        "%1$zu / %1$lu",
+        "%1$tu / %1$ju",
+    ] {
+        assert_eq!(
+            compare_formats(format, format)
+                .errors
+                .iter()
+                .map(|issue| issue.code)
+                .collect::<Vec<_>>(),
+            [
+                "incompatible_positional_argument",
+                "incompatible_positional_argument",
+            ],
+            "{format:?}"
+        );
+    }
+}
+
+#[test]
+fn comparator_preserves_repeated_occurrence_counts_and_signatures() {
+    let missing_occurrence = compare_formats("%1$@ — %1$@", "%1$@");
+    assert_eq!(
+        missing_occurrence
+            .errors
+            .iter()
+            .map(|issue| issue.code)
+            .collect::<Vec<_>>(),
+        ["format_specifier_count_mismatch"]
+    );
+
+    let wrong_position_count = compare_formats("%1$@ / %2$d / %1$@", "%1$@ / %2$d / %2$d");
+    assert_eq!(
+        wrong_position_count
+            .errors
+            .iter()
+            .map(|issue| issue.code)
+            .collect::<Vec<_>>(),
+        ["format_specifier_type_mismatch"]
+    );
+
+    let swapped_dynamic_roles =
+        compare_formats("%1$*2$.*3$f / %1$*2$.*3$f", "%1$*3$.*2$f / %1$*3$.*2$f");
+    assert_eq!(
+        swapped_dynamic_roles
+            .errors
+            .iter()
+            .map(|issue| issue.code)
+            .collect::<Vec<_>>(),
+        ["format_specifier_type_mismatch"]
+    );
+}
+
+#[test]
+fn submit_and_file_validation_accept_compatible_repeated_positional_occurrences() {
+    let source = "%1$@ has %2$d items; %1$@ again";
+    let target = "%1$@ erneut: %2$d; %1$@";
+    let file = file_with("items", simple_entry(source, Some(("de", target))));
+
+    let submitted =
+        validator::validate_translations_detailed(&file, &[translation("items", target)]);
+    assert!(submitted.rejected.is_empty(), "{:?}", submitted.rejected);
+
+    let file_report = file_validator::validate_file(&file, Some("de"));
+    assert!(
+        file_report[0].errors.is_empty(),
+        "{:?}",
+        file_report[0].errors
+    );
+}
+
+#[test]
+fn submit_and_file_validation_reject_missing_repeated_positional_occurrence() {
+    let source = "%1$@ has %2$d items; %1$@ again";
+    let missing = "%1$@ erneut: %2$d";
+    let file = file_with("items", simple_entry(source, None));
+    let rejected =
+        validator::validate_translations_detailed(&file, &[translation("items", missing)]);
+    assert_eq!(rejected.rejected.len(), 1);
+    assert!(
+        rejected.rejected[0]
+            .reason
+            .contains("format specifier count mismatch")
+    );
+
+    let broken = file_with("items", simple_entry(source, Some(("de", missing))));
+    assert_eq!(
+        format_issue_codes(&file_validator::validate_file(&broken, Some("de"))[0].errors),
+        ["format_specifier_count_mismatch"]
+    );
+}
+
+#[test]
+fn submit_and_file_validation_accept_apple_unsigned_z_and_t_aliases() {
+    let source = "%1$zu / %1$tu";
+    let target = "%1$tu / %1$zu";
+    let file = file_with("size", simple_entry(source, Some(("de", target))));
+
+    let submitted =
+        validator::validate_translations_detailed(&file, &[translation("size", target)]);
+    assert!(submitted.rejected.is_empty(), "{:?}", submitted.rejected);
+
+    let file_report = file_validator::validate_file(&file, Some("de"));
+    assert!(
+        file_report[0].errors.is_empty(),
+        "{:?}",
+        file_report[0].errors
     );
 }
 

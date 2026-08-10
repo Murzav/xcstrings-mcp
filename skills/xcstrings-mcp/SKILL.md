@@ -104,7 +104,7 @@ Bash("find . -name '*.xcstrings'")
 
 ## Runtime Compatibility
 
-Normal MCP clients continue to launch `xcstrings-mcp` over stdio with the same configuration. Rust applications that directly embed `XcStringsMcpServer` must use `rmcp` 3.1.2 and Rust 1.88 or newer; `rmcp` 2.x traits are not source-compatible with the server's public `rmcp` 3 implementation.
+Normal MCP clients continue to launch `xcstrings-mcp` over stdio with the same configuration. Rust applications that directly embed `XcStringsMcpServer` must use `rmcp` 3.1.2 and Rust 1.88 or newer; `rmcp` 2.x traits are not source-compatible with the server's public `rmcp` 3 implementation. `XcStringsError` is non-exhaustive, so downstream matches must include a wildcard arm for future variants.
 
 ---
 
@@ -112,7 +112,7 @@ Normal MCP clients continue to launch `xcstrings-mcp` over stdio with the same c
 
 **Step 0 — Always run first, before anything else:**
 ```
-discover_files(directory: ".")
+discover_files({"directory":"."})
 ```
 Returns all `.xcstrings` and legacy `.strings`/`.stringsdict` paths in the project immediately.
 No need to search the filesystem. Then parse all found `.xcstrings` files upfront.
@@ -143,17 +143,17 @@ Always use xcstrings-mcp tools for every operation.
 ### Translate entire file (parallel subagents per language)
 
 ```
-discover_files(directory: ".")                        // Step 0: always first
-→ parse_xcstrings(path: "Localizable.xcstrings")      // load into cache
-→ list_locales()                                      // get all locale codes
-→ get_coverage()                                      // see what needs work
+discover_files({"directory":"."})                         // Step 0: always first
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"}) // load into cache
+→ list_locales({})                                       // get all locale codes
+→ get_coverage({})                                       // see what needs work
 
 // Spawn one subagent per locale simultaneously:
 Subagent per locale:
   loop:
-    get_untranslated(locale: "uk", batch_size: 50)    // optimal batch size: 50
+    get_untranslated({"locale":"uk","batch_size":50}) // optimal batch size: 50
     if empty → done
-    submit_translations(locale: "uk", entries: [...]) // atomic write, lock-safe
+    submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
 ```
 
 **Always parallelize — one subagent per locale. Writes are atomic and lock-protected.**
@@ -161,32 +161,32 @@ Subagent per locale:
 ### Add a new language
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path: "Localizable.xcstrings")
-→ add_locale(locale: "uk")                            // creates empty entries
-→ get_untranslated(locale: "uk", batch_size: 50)
-→ submit_translations(locale: "uk", entries: [...])
-→ get_coverage()                                      // verify result
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ add_locale({"locale":"uk"})                            // creates empty entries
+→ get_untranslated({"locale":"uk","batch_size":50})
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
+→ get_coverage({})                                      // verify result
 ```
 
 ### Remove a language
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path: "Localizable.xcstrings")
-→ list_locales()                                      // confirm locale code
-→ remove_locale(locale: "fr")
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ list_locales({})                                      // confirm locale code
+→ remove_locale({"locale":"fr"})
 ```
 
 ### Check coverage & audit
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path) for each file
-→ get_coverage()                                      // per-locale percentages
-→ validate_translations()                             // format specifier errors, plural issues
-→ get_stale()                                         // unused/removed keys to clean up
-→ get_diff()                                          // cached vs on-disk changes
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"}) for each file
+→ get_coverage({})                                      // per-locale percentages
+→ validate_translations({})                             // format specifier errors, plural issues
+→ get_stale({"locale":"uk"})                          // unused/removed keys to clean up
+→ get_diff({})                                          // cached vs on-disk changes
 ```
 
 Use built-in prompt `localization_audit` for full automated audit.
@@ -196,17 +196,17 @@ Use built-in prompt `localization_audit` for full automated audit.
 Use built-in prompt: `fix_validation_errors`
 Or manually:
 ```
-validate_translations()
-→ search_keys(query: "<problematic key>")
-→ submit_translations(locale, corrected_entries)
+validate_translations({})
+→ search_keys({"pattern":"button.save","locale":"uk"})
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
 ```
 
 ### Handle plural forms
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ get_plurals()                                       // keys needing one/few/many/other forms
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ get_plurals({"locale":"uk"})                        // keys needing one/few/many/other forms
 → submit_translations with all required CLDR categories per locale:
     // uk needs: one, few, many
     // en needs: one, other
@@ -218,11 +218,11 @@ discover_files(directory: ".")
 ### Add new localization keys
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ add_keys(keys: [{ key: "button.save", value: "Save", comment: "Save button title" }])
-→ get_untranslated(locale) for each locale
-→ submit_translations(locale, entries)
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ add_keys({"keys":[{"key":"button.save","source_text":"Save","comment":"Save button title"}]})
+→ get_untranslated({"locale":"uk"}) for each locale
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
 ```
 
 ### Extract hardcoded strings from Swift code
@@ -233,53 +233,72 @@ This scans Swift source for hardcoded user-facing strings and adds them to `.xcs
 ### Migrate from legacy .strings / .stringsdict
 
 ```
-discover_files(directory: ".")                        // finds .xcstrings AND .strings files
-→ import_strings(
-    directory: "./Resources",
-    source_language: "en",
-    output_path: "Localizable.xcstrings",
-    dry_run: true                                     // preview first, no writes
-  )
+discover_files({"directory":"."})                        // finds .xcstrings AND .strings files
+→ import_strings({
+    "directory":"./Resources",
+    "source_language":"en",
+    "output_path":"Localizable.xcstrings",
+    "dry_run":true
+  })                                                   // preview first, no writes
 → review dry_run output carefully
-→ import_strings(
-    directory: "./Resources",
-    source_language: "en",
-    output_path: "Localizable.xcstrings"              // actual write
-  )
-→ parse_xcstrings("Localizable.xcstrings")
-→ get_plurals()                                       // verify .stringsdict plural rules imported
-→ get_untranslated(locale) for remaining gaps
-→ submit_translations(locale, entries)
+→ import_strings({
+    "directory":"./Resources",
+    "source_language":"en",
+    "output_path":"Localizable.xcstrings"
+  })                                                   // actual write
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ get_plurals({"locale":"uk"})                        // verify .stringsdict plural rules imported
+→ get_untranslated({"locale":"uk"}) for remaining gaps
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
 ```
 
 Supports UTF-8 and UTF-16, merge into existing `.xcstrings`.
 
 ### Export for external translators (XLIFF)
 
+XLIFF export covers simple `stringUnit` entries. Variation-only plural, device,
+and substitution entries are excluded because Apple variation-unit ID paths are
+not implemented by this workflow; use `get_plurals` and `submit_translations`
+for those entries.
+
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ export_xliff(locale: "uk", output_path: "translations_uk.xliff")
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ export_xliff({"locale":"uk","output_path":"translations_uk.xliff"})
 ```
 
 ### Import back from translators (XLIFF)
 
+Import accepts structurally valid XLIFF 1.2: each direct `<file>` needs a
+non-empty shared target locale, an optional `<header>` before one `<body>`, and
+each `<trans-unit>` needs one `<source>` before at most one `<target>`. Bound
+extensions are accepted only at XLIFF schema extension points. Malformed input
+fails before any catalog write. Empty IDs emitted by Xcode are safe: an empty
+target is ignored, while a non-empty target is accepted only when the active
+catalog contains the exact empty key. Apple `|==|` variation IDs, per-file
+duplicate `trans-unit`/`bin-unit` IDs, and cross-file IDs that would collide
+when flattened into the active catalog are rejected before writes. ID
+uniqueness is checked after XML 1.0 attribute normalization, so raw Xcode keys
+that differ only by a line break versus a space fail closed rather than
+silently overwriting a translation.
+
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ import_xliff(path: "translations_uk.xliff")
-→ validate_translations()                             // always validate after import
-→ get_coverage()
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ import_xliff({"xliff_path":"translations_uk.xliff"})
+→ validate_translations({})                             // always validate after import
+→ get_coverage({})
 ```
 
 ### Manage glossary for consistent terminology
 
 ```
-get_glossary(source_locale: "en", target_locale: "uk")  // check existing terms
-→ update_glossary(source_locale: "en", target_locale: "uk", terms: [
-    { source: "Dashboard", target: "Панель" },
-    { source: "Settings", target: "Налаштування" }
-  ])
+get_glossary({"source_locale":"en","target_locale":"uk"}) // check existing terms
+→ update_glossary({
+    "source_locale":"en",
+    "target_locale":"uk",
+    "entries":{"Dashboard":"Панель","Settings":"Налаштування"}
+  })
 ```
 
 **Always consult glossary before translating to ensure brand/product term consistency.**
@@ -289,21 +308,21 @@ get_glossary(source_locale: "en", target_locale: "uk")  // check existing terms
 Use built-in prompt: `cleanup_stale`
 Or manually:
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ get_stale(locale: "en", batch_size: 100)
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ get_stale({"locale":"en","batch_size":100})
 → review stale keys
-→ delete_keys(keys: ["unused_key_1", "unused_key_2"])
-→ get_coverage()                                      // verify no impact
+→ delete_keys({"keys":["unused_key_1","unused_key_2"]})
+→ get_coverage({})                                      // verify no impact
 ```
 
 ### Rename a key (after Swift refactoring)
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ search_keys(query: "old_key_name")                  // find the key
-→ rename_key(old_key: "old_key_name", new_key: "new_key_name")
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ search_keys({"pattern":"old_key_name","locale":"uk"}) // find the key
+→ rename_key({"old_key":"old_key_name","new_key":"new_key_name"})
 ```
 
 **All translations are preserved during rename.**
@@ -311,9 +330,9 @@ discover_files(directory: ".")
 ### Inspect a specific key
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ get_key(key: "button.save")                         // all locales at once
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ get_key({"key":"button.save"})                         // all locales at once
 ```
 
 Returns source text, comment, and translation state for every locale.
@@ -321,37 +340,47 @@ Returns source text, comment, and translation state for every locale.
 ### Fix broken translations
 
 ```
-discover_files(directory: ".")
-→ parse_xcstrings(path)
-→ validate_translations()
-→ delete_translations(keys: ["broken_key"], locale: "uk")  // reset to untranslated
-→ get_untranslated(locale: "uk")                            // re-translate
-→ submit_translations(...)
+discover_files({"directory":"."})
+→ parse_xcstrings({"file_path":"Localizable.xcstrings"})
+→ validate_translations({})
+→ delete_translations({"keys":["broken_key"],"locale":"uk"}) // reset to untranslated
+→ get_untranslated({"locale":"uk"})                            // re-translate
+→ submit_translations({"translations":[{"key":"broken_key","locale":"uk","value":"Виправлено"}]})
 ```
 
 ### Merge conflicting String Catalog branches
 
 ```
-discover_files(directory: ".")
-→ merge_xcstrings(
-    base_path: "/tmp/base.xcstrings",
-    current_path: "/tmp/current.xcstrings",
-    incoming_path: "/tmp/incoming.xcstrings",
-    output_path: "/tmp/merged.xcstrings",
-    dry_run: true
-  )
+discover_files({"directory":"."})
+→ merge_xcstrings({
+    "base_path":"/tmp/base.xcstrings",
+    "current_path":"/tmp/current.xcstrings",
+    "incoming_path":"/tmp/incoming.xcstrings",
+    "output_path":"/tmp/merged.xcstrings",
+    "dry_run":true
+  })
 → review conflicts and introduced_validation_issues
-→ merge_xcstrings(
-    same paths,
-    dry_run: false,
-    resolutions: [{ conflict_id, choice: "current" | "incoming" | "base" }],
-    expected_fingerprints: <the complete object returned by dry-run>
-  )
-→ parse_xcstrings(file_path: "/tmp/merged.xcstrings")
-→ validate_translations()
+→ copy each complete `conflicts[].id` and the complete `expected_fingerprints`
+  values from that same dry-run; never construct, shorten, or reuse them
+→ merge_xcstrings({
+    "base_path":"/tmp/base.xcstrings",
+    "current_path":"/tmp/current.xcstrings",
+    "incoming_path":"/tmp/incoming.xcstrings",
+    "output_path":"/tmp/merged.xcstrings",
+    "dry_run":false,
+    "resolutions":[{"conflict_id":"merge-v1:<placeholder; copy exact dry-run conflicts[].id over this entire string>","choice":"current"}],
+    "expected_fingerprints":{
+      "base":"sha256:<placeholder; copy exact dry-run expected_fingerprints.base over this entire string>",
+      "current":"sha256:<placeholder; copy exact dry-run expected_fingerprints.current over this entire string>",
+      "incoming":"sha256:<placeholder; copy exact dry-run expected_fingerprints.incoming over this entire string>",
+      "output":null
+    }
+  })
+→ parse_xcstrings({"file_path":"/tmp/merged.xcstrings"})
+→ validate_translations({})
 ```
 
-Never invent conflict values or edit the raw catalog. Choose only one authored side. Repeat dry-run after any stale-fingerprint error; do not reuse old fingerprints. A CLI dry-run with unresolved conflicts emits the JSON report but exits with status 2. The merge preserves unknown raw fields, but later typed mutation tools do not promise the same preservation.
+The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Overwrite each entire quoted placeholder, including the displayed prefix, with the exact complete string returned by dry-run. Never invent conflict values or edit the raw catalog. Choose only one authored side. Repeat dry-run after any stale-fingerprint error; do not reuse old fingerprints. A CLI dry-run with unresolved conflicts emits the JSON report but exits with status 2. The merge preserves unknown raw fields, but later typed mutation tools do not promise the same preservation.
 
 ---
 
@@ -363,9 +392,9 @@ Never invent conflict values or edit the raw catalog. Choose only one authored s
 | `submit_translations` write error | Cooperating writers wait on the stable lock; on an actual error, re-read the file and follow the reported filesystem cause |
 | path resolves to an internal sidecar | Use the real `.xcstrings` catalog path; never target an `xcstrings-mcp` lock or temp file |
 | `validate_translations` returns errors | Use `fix_validation_errors` prompt |
-| `import_strings` encoding error | Try with `encoding: "utf16"` parameter |
+| `import_strings` encoding error | Verify the input is supported UTF-8 or UTF-16; encoding is detected automatically |
 | `merge_xcstrings` reports conflicts | Choose `current`, `incoming`, or `base` for every stable conflict ID, then apply with fresh fingerprints |
-| `merge_xcstrings` reports stale fingerprints | Run a new dry-run; never retry apply with the old fingerprint object |
+| `merge_xcstrings` reports stale fingerprints | Discard the failed apply inputs, run a new dry-run, and never retry apply with the old fingerprint object |
 | MCP tool not found | Ask user to run `brew install Murzav/tap/xcstrings-mcp` |
 
 ---
@@ -401,8 +430,8 @@ Never invent conflict values or edit the raw catalog. Choose only one authored s
 | `create_xcstrings` | Create new empty catalog from scratch |
 | `update_comments` | Add/update developer comments on keys |
 | `import_strings` | Migrate legacy .strings/.stringsdict |
-| `export_xliff` | Export for external translators |
-| `import_xliff` | Import from external translators |
+| `export_xliff` | Export simple `stringUnit` entries; skip variation-only entries |
+| `import_xliff` | Import simple IDs; reject unsupported Apple variation paths and duplicate unit IDs |
 | `get_glossary` | Check consistent terminology |
 | `update_glossary` | Add/update glossary terms |
 | `get_diff` | Compare cache vs on-disk state |

@@ -8,12 +8,34 @@ use serde::Deserialize;
 
 use crate::server::XcStringsMcpServer;
 
+const DEFAULT_TRANSLATE_BATCH_COUNT: u32 = 20;
+const MAX_TRANSLATE_BATCH_COUNT: u32 = 100;
+
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct TranslateBatchParams {
     /// The target locale code (e.g. "uk", "fr", "de")
     locale: String,
-    /// Number of strings to translate per batch (default: 20)
-    count: Option<u32>,
+    /// Number of strings to translate per batch as an MCP string (1-100, default: 20)
+    count: Option<String>,
+}
+
+fn parse_translate_batch_count(count: Option<&str>) -> Result<u32, rmcp::ErrorData> {
+    let Some(raw_count) = count else {
+        return Ok(DEFAULT_TRANSLATE_BATCH_COUNT);
+    };
+    let count = raw_count.parse::<u32>().map_err(|_| {
+        rmcp::ErrorData::invalid_params(
+            format!("count must be an integer in 1..=100, got {raw_count:?}"),
+            None,
+        )
+    })?;
+    if !(1..=MAX_TRANSLATE_BATCH_COUNT).contains(&count) {
+        return Err(rmcp::ErrorData::invalid_params(
+            format!("count must be in 1..=100, got {count}"),
+            None,
+        ));
+    }
+    Ok(count)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -75,7 +97,7 @@ impl XcStringsMcpServer {
         &self,
         Parameters(params): Parameters<TranslateBatchParams>,
     ) -> Result<GetPromptResult, rmcp::ErrorData> {
-        let count = params.count.unwrap_or(20);
+        let count = parse_translate_batch_count(params.count.as_deref())?;
         let content = format!(
             "You are translating iOS app strings to {locale}.\n\
             \n\
@@ -122,7 +144,7 @@ impl XcStringsMcpServer {
             \n\
             Instructions:\n\
             1. Call validate_translations with locale=\"{locale}\" to find blocking errors and non-blocking warnings\n\
-            2. Call get_coverage with locale=\"{locale}\" to see overall progress\n\
+            2. Call get_coverage to see overall progress across locales, then inspect \"{locale}\"\n\
             3. For each validation issue, assess severity:\n\
             \x20  - Definite Foundation argument mismatches or invalid positions: BLOCKING \u{2014} fix before submit\n\
             \x20  - Ambiguous percent-in-prose differences: WARNING \u{2014} review context; valid prose may remain unchanged\n\
@@ -362,10 +384,11 @@ impl XcStringsMcpServer {
             "Find and remove stale/unused localization keys.\n\
             \n\
             1. Parse the file{file_instruction}\n\
-            2. Call get_stale(batch_size=100) to find keys removed from source code\n\
-            3. Review each stale key with get_key and get_context to confirm it is unused\n\
-            4. Call delete_keys with confirmed stale keys\n\
-            5. Call get_coverage and get_stale to verify cleanup",
+            2. Call list_locales and choose the locale to inspect\n\
+            3. Call get_stale(locale=\"<locale>\", batch_size=100) to find keys removed from source code\n\
+            4. Review each stale key with get_key and get_context to confirm it is unused\n\
+            5. Call delete_keys with confirmed stale keys\n\
+            6. Call get_coverage and get_stale(locale=\"<locale>\", batch_size=100) to verify cleanup",
         );
 
         Ok(
