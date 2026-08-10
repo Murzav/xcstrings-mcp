@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
-## [1.4.0] - 2026-08-11
+## [1.4.1] - 2026-08-11
 
 ### Added
 - `merge_xcstrings` MCP tool and `merge` CLI command now provide conservative ordered two-sided/three-way String Catalog merges. Dry-runs return raw-byte fingerprints, automatic choices, validation deltas, and stable paginated conflicts; apply accepts only `current`/`incoming`/`base` resolutions and refuses unresolved, newly invalid, or stale results.
