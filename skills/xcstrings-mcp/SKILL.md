@@ -316,6 +316,30 @@ discover_files(directory: ".")
 → submit_translations(...)
 ```
 
+### Merge conflicting String Catalog branches
+
+```
+discover_files(directory: ".")
+→ merge_xcstrings(
+    base_path: "/tmp/base.xcstrings",
+    current_path: "/tmp/current.xcstrings",
+    incoming_path: "/tmp/incoming.xcstrings",
+    output_path: "/tmp/merged.xcstrings",
+    dry_run: true
+  )
+→ review conflicts and introduced_validation_issues
+→ merge_xcstrings(
+    same paths,
+    dry_run: false,
+    resolutions: [{ conflict_id, choice: "current" | "incoming" | "base" }],
+    expected_fingerprints: <the complete object returned by dry-run>
+  )
+→ parse_xcstrings(file_path: "/tmp/merged.xcstrings")
+→ validate_translations()
+```
+
+Never invent conflict values or edit the raw catalog. Choose only one authored side. Repeat dry-run after any stale-fingerprint error; do not reuse old fingerprints. A CLI dry-run with unresolved conflicts emits the JSON report but exits with status 2. The merge preserves unknown raw fields, but later typed mutation tools do not promise the same preservation.
+
 ---
 
 ## Error Handling
@@ -323,9 +347,12 @@ discover_files(directory: ".")
 | Error | Action |
 |---|---|
 | `parse_xcstrings` fails | Check path from `discover_files`, verify file exists |
-| `submit_translations` conflict | Retry — lock is held <1ms, contention is transient |
+| `submit_translations` write error | Cooperating writers wait on the stable lock; on an actual error, re-read the file and follow the reported filesystem cause |
+| path resolves to an internal sidecar | Use the real `.xcstrings` catalog path; never target an `xcstrings-mcp` lock or temp file |
 | `validate_translations` returns errors | Use `fix_validation_errors` prompt |
 | `import_strings` encoding error | Try with `encoding: "utf16"` parameter |
+| `merge_xcstrings` reports conflicts | Choose `current`, `incoming`, or `base` for every stable conflict ID, then apply with fresh fingerprints |
+| `merge_xcstrings` reports stale fingerprints | Run a new dry-run; never retry apply with the old fingerprint object |
 | MCP tool not found | Ask user to run `brew install Murzav/tap/xcstrings-mcp` |
 
 ---
@@ -335,7 +362,7 @@ discover_files(directory: ".")
 | Parameter | Recommended value | Reason |
 |---|---|---|
 | `batch_size` | 50 | Fits context window, fast atomic writes |
-| `dry_run` | Always `true` first on migration | Preview before irreversible changes |
+| `dry_run` | Always `true` first on migration or merge | Preview changes and obtain apply fingerprints |
 | `directory` | `"."` | Finds all files recursively from project root |
 
 ---
@@ -371,3 +398,4 @@ discover_files(directory: ".")
 | `get_key` | Inspect one key across all locales |
 | `rename_key` | Rename key preserving all translations |
 | `list_files` | List all currently cached files |
+| `merge_xcstrings` | Three-way merge whole catalogs with dry-run fingerprints and explicit conflict choices |

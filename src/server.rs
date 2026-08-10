@@ -45,6 +45,8 @@ use crate::tools::{
     xliff::{ExportXliffParams, ImportXliffParams, handle_export_xliff, handle_import_xliff},
 };
 
+mod merge_tool;
+
 #[derive(Clone)]
 pub struct XcStringsMcpServer {
     store: Arc<dyn FileStore>,
@@ -58,13 +60,15 @@ pub struct XcStringsMcpServer {
 
 impl XcStringsMcpServer {
     pub fn new(store: Arc<dyn FileStore>, glossary_path: PathBuf) -> Self {
+        let mut tool_router = Self::tool_router();
+        tool_router.merge(Self::merge_tool_router());
         Self {
             store,
             cache: Arc::new(Mutex::new(FileCache::new())),
             write_lock: Arc::new(Mutex::new(())),
             glossary_path,
             glossary_write_lock: Arc::new(Mutex::new(())),
-            tool_router: Self::tool_router(),
+            tool_router,
             prompt_router: Self::prompt_router(),
         }
     }
@@ -95,7 +99,7 @@ impl XcStringsMcpServer {
     /// Get untranslated strings for a target locale with batching support.
     #[tool(
         name = "get_untranslated",
-        description = "Get untranslated strings for one or more target locales. Returns batched results — repeat with offset += batch_size while has_more is true. For plural keys (has_plurals=true), follow up with get_plurals."
+        description = "Get untranslated strings for one or more target locales. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are excluded and diagnosed during validation. Returns batched results — repeat with offset += batch_size while has_more is true. For plural keys (has_plurals=true), follow up with get_plurals."
     )]
     async fn get_untranslated(
         &self,
@@ -111,11 +115,11 @@ impl XcStringsMcpServer {
         }
     }
 
-    /// Submit translations: validates format specifiers and plural forms,
+    /// Submit translations: validates format arguments and plural forms,
     /// merges into the file, and writes back atomically.
     #[tool(
         name = "submit_translations",
-        description = "Submit translations for validation and atomic writing. Validates that format specifiers match source text. Use dry_run=true first to preview. Check rejected[] in response for failures with reasons. Set continue_on_error=false to reject entire batch on any failure."
+        description = "Submit translations for validation and atomic writing. Definite Foundation format arguments must preserve position, conversion, length modifier (including integer j), flags, width, and precision; valid positional reordering is allowed, including next to unspaced Han, Hiragana, Katakana, or Hangul text. Invalid positional indices block. Named substitution forms require exact %arg tokens, rejecting longer Unicode words while permitting those unspaced-script adjacencies. Percent sequences that can also be prose are accepted only with machine-readable warnings[]. Use dry_run=true first. Check rejected[] for blocking failures and warnings[] for accepted ambiguities. Set continue_on_error=false to reject the entire batch on any blocking failure."
     )]
     async fn submit_translations(
         &self,
@@ -155,7 +159,7 @@ impl XcStringsMcpServer {
     /// Get stale strings (extractionState=stale) for a target locale.
     #[tool(
         name = "get_stale",
-        description = "Get strings marked as stale (removed from source code but still in the file). Returns batched results with pagination. Use delete_keys to remove confirmed stale keys."
+        description = "Get strings marked as stale (removed from source code but still in the file). Returned format_specifiers contains only definite Foundation arguments, never percent-in-prose ambiguities. Returns batched results with pagination. Use delete_keys to remove confirmed stale keys."
     )]
     async fn get_stale(
         &self,
@@ -174,7 +178,7 @@ impl XcStringsMcpServer {
     /// Search keys by substring pattern (case-insensitive).
     #[tool(
         name = "search_keys",
-        description = "Search keys by substring pattern (case-insensitive). Matches both key names and source text. Returns translation units with pagination. Empty pattern returns all translatable keys."
+        description = "Search keys by substring pattern (case-insensitive). Matches both key names and source text. Returned format_specifiers contains only definite Foundation arguments, never percent-in-prose ambiguities. Returns translation units with pagination. Empty pattern returns all translatable keys."
     )]
     async fn search_keys(
         &self,
@@ -193,7 +197,7 @@ impl XcStringsMcpServer {
     /// Validate translations in the file for correctness.
     #[tool(
         name = "validate_translations",
-        description = "Validate translations for errors: format specifier mismatches (CRITICAL — runtime crash), missing plural forms (HIGH — wrong text shown), empty values (MEDIUM). Optionally filter by locale. Returns errors and warnings grouped by severity."
+        description = "Validate simple, plural, and substitution translations with the same source resolver and format comparator used by submit_translations. Definite Foundation argument mismatches and invalid positional indices are errors, including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text; named substitution forms require exact %arg tokens and reject longer Unicode words. Ambiguous percent-in-prose differences are warnings. Also reports missing plural forms and empty values. Optionally filter by locale."
     )]
     async fn validate_translations_file(
         &self,
@@ -270,7 +274,7 @@ impl XcStringsMcpServer {
     /// Get keys requiring plural/device translation for a locale.
     #[tool(
         name = "get_plurals",
-        description = "Get keys needing plural or device-variant translation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. Submit via submit_translations with plural_forms field."
+        description = "Get keys needing plural or device-variant translation. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are diagnosed during validation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. Submit via submit_translations with plural_forms field."
     )]
     async fn get_plurals(
         &self,
@@ -410,7 +414,7 @@ impl XcStringsMcpServer {
     /// Import translations from XLIFF 1.2 file.
     #[tool(
         name = "import_xliff",
-        description = "Import translations from XLIFF 1.2 file. Only simple strings imported; use submit_translations for plurals. Validates specifiers, merges accepted. Use dry_run=true to preview."
+        description = "Import simple translations from a single-root XLIFF 1.2 document using one consistent mode: the XML-normalized official default/prefix-qualified namespace, or legacy fully unqualified input. Bound foreign extension elements are accepted; wrappers, nested/repeated roots, trailing content, mixed structural modes, unbound prefixes, malformed namespace references, and duplicate raw or expanded attribute names are rejected before writes. Use submit_translations for plurals. Decodes normalized XLIFF attributes, validates with the shared format comparator, rejects definite mismatches, and returns ambiguous percent-in-prose differences in warnings[]. Use dry_run=true to preview."
     )]
     async fn import_xliff(
         &self,
@@ -627,13 +631,15 @@ impl ServerHandler for XcStringsMcpServer {
                  (use dry_run=true first). For plurals: get_plurals → submit with plural_forms. \
                  Use get_context for nearby keys, get_glossary for term consistency.\n\
                  \n\
-                 REVIEW: get_coverage for statistics, validate_translations for errors \
-                 (specifier mismatches, missing plurals), get_stale for removed keys, \
+                 REVIEW: get_coverage for statistics, validate_translations for blocking errors \
+                 and non-blocking warnings (format arguments, ambiguous percent prose, missing plurals), get_stale for removed keys, \
                  get_diff for changes since last parse.\n\
                  \n\
                  MANAGE: list_locales, add_locale/remove_locale, \
                  add_keys/delete_keys/rename_key/get_key, search_keys, \
                  update_comments, delete_translations, list_files.\n\
+                 MERGE: merge_xcstrings performs a conservative three-way catalog merge. \
+                 Dry-run first, resolve conflicts, then apply with returned fingerprints.\n\
                  \n\
                  MIGRATE: import_strings for legacy .strings/.stringsdict → .xcstrings. \
                  export_xliff/import_xliff for external translator tools (simple strings only).\n\

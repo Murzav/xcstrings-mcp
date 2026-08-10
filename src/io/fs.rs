@@ -1,14 +1,13 @@
 use std::fs;
-use std::io::Write;
-use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use tracing::{info, warn};
+use tracing::info;
 
 use crate::error::XcStringsError;
 
 use super::FileStore;
+use super::atomic_write::{self, ExpectedContent};
 
 pub struct FsFileStore {
     max_file_size: u64,
@@ -27,26 +26,17 @@ impl FsFileStore {
             .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(50);
 
-        // Cleanup orphan temp files from previous crashes
-        if let Ok(cwd) = std::env::current_dir()
-            && let Ok(entries) = fs::read_dir(&cwd)
-        {
-            for entry in entries.flatten() {
-                let name = entry.file_name();
-                let name_str = name.to_string_lossy();
-                if name_str.starts_with(".xcstrings-mcp-") && name_str.ends_with(".tmp") {
-                    let _ = fs::remove_file(entry.path());
-                    info!("cleaned up orphan temp file: {}", name_str);
-                }
-            }
-        }
-
         Self {
             max_file_size: max_mb * 1024 * 1024,
         }
     }
 
     fn validate_path(&self, path: &Path) -> Result<PathBuf, XcStringsError> {
+        reject_reserved_sidecar(path)?;
+        let is_catalog_symlink = path.extension().and_then(|value| value.to_str())
+            == Some("xcstrings")
+            && fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_symlink());
+
         // Reject path traversal: check for ".." components BEFORE canonicalization
         for component in path.components() {
             if matches!(component, std::path::Component::ParentDir) {
@@ -66,6 +56,11 @@ impl FsFileStore {
                     path: path.to_path_buf(),
                     reason: "no parent directory".into(),
                 })?;
+                let parent = if parent.as_os_str().is_empty() {
+                    Path::new(".")
+                } else {
+                    parent
+                };
                 let filename = path
                     .file_name()
                     .ok_or_else(|| XcStringsError::InvalidPath {
@@ -81,6 +76,15 @@ impl FsFileStore {
             }
         };
 
+        reject_reserved_sidecar(&canonical)?;
+        if is_catalog_symlink
+            && canonical.extension().and_then(|value| value.to_str()) != Some("xcstrings")
+        {
+            return Err(XcStringsError::InvalidPath {
+                path: canonical,
+                reason: "live .xcstrings alias must resolve to an .xcstrings catalog".into(),
+            });
+        }
         Ok(canonical)
     }
 
@@ -89,7 +93,28 @@ impl FsFileStore {
     }
 }
 
+fn reject_reserved_sidecar(path: &Path) -> Result<(), XcStringsError> {
+    let reserved = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| {
+            name.ends_with(".xcstrings-mcp.lock") || name.ends_with(".xcstrings-mcp.tmp")
+        });
+    if reserved {
+        Err(XcStringsError::InvalidPath {
+            path: path.to_path_buf(),
+            reason: "path resolves to a reserved xcstrings-mcp sidecar".into(),
+        })
+    } else {
+        Ok(())
+    }
+}
+
 impl FileStore for FsFileStore {
+    fn file_identity(&self, path: &Path) -> Result<PathBuf, XcStringsError> {
+        self.validate_path(path)
+    }
+
     fn read(&self, path: &Path) -> Result<String, XcStringsError> {
         let canonical = self.validate_path(path)?;
 
@@ -131,65 +156,25 @@ impl FileStore for FsFileStore {
 
     fn write(&self, path: &Path, content: &str) -> Result<(), XcStringsError> {
         let canonical = self.validate_path(path)?;
-        let dir = canonical
-            .parent()
-            .ok_or_else(|| XcStringsError::InvalidPath {
-                path: canonical.clone(),
-                reason: "no parent directory".into(),
-            })?;
-
-        // Acquire advisory lock on target file (best-effort: skip if file doesn't exist yet)
-        let _lock_file = if canonical.exists() {
-            let lock_file = fs::File::open(&canonical)?;
-            let fd = lock_file.as_raw_fd();
-            // SAFETY: flock is a POSIX syscall, fd is valid because lock_file is alive
-            let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
-            if ret != 0 {
-                let errno = std::io::Error::last_os_error();
-                if errno.kind() == std::io::ErrorKind::WouldBlock {
-                    return Err(XcStringsError::FileLocked { path: canonical });
-                }
-                // Non-blocking lock not supported (e.g. network FS) — proceed without lock
-                warn!(
-                    "advisory flock unavailable for {}: {errno} — proceeding without lock",
-                    canonical.display()
-                );
-                None
-            } else {
-                Some(lock_file)
-            }
-        } else {
-            None
-        };
-
-        let tmp_name = format!(
-            ".xcstrings-mcp-{}-{}.tmp",
-            std::process::id(),
-            SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0)
-        );
-        let tmp_path = dir.join(&tmp_name);
-
-        // Write to temp file, fsync, then atomic rename
-        let result = (|| -> Result<(), XcStringsError> {
-            let mut file = fs::File::create(&tmp_path)?;
-            file.write_all(content.as_bytes())?;
-            file.sync_all()?;
-            fs::rename(&tmp_path, &canonical)?;
-            Ok(())
-        })();
-
-        // Clean up temp file on failure
-        if result.is_err() {
-            let _ = fs::remove_file(&tmp_path);
-        }
-
-        // Lock is released when _lock_file is dropped
-        result?;
+        atomic_write::write(&canonical, content, ExpectedContent::Any)?;
 
         info!("wrote {} bytes to {}", content.len(), canonical.display());
+        Ok(())
+    }
+
+    fn write_if_matches(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        let canonical = self.validate_path(path)?;
+        atomic_write::write(&canonical, content, ExpectedContent::Exact(expected))?;
+        info!(
+            "conditionally wrote {} bytes to {}",
+            content.len(),
+            canonical.display()
+        );
         Ok(())
     }
 
@@ -200,7 +185,7 @@ impl FileStore for FsFileStore {
     }
 
     fn exists(&self, path: &Path) -> bool {
-        path.exists()
+        fs::symlink_metadata(path).is_ok()
     }
 
     fn create_parent_dirs(&self, path: &Path) -> Result<(), XcStringsError> {
@@ -212,6 +197,7 @@ impl FileStore for FsFileStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::os::fd::AsRawFd;
     use tempfile::TempDir;
 
     #[test]
@@ -344,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn test_flock_blocks_concurrent_write() {
+    fn test_write_uses_sidecar_instead_of_replaceable_target_lock() {
         let dir = TempDir::new().unwrap();
         let file_path = dir.path().join("locked.xcstrings");
         let store = FsFileStore::new();
@@ -359,20 +345,15 @@ mod tests {
         let ret = unsafe { libc::flock(fd, libc::LOCK_EX | libc::LOCK_NB) };
         assert_eq!(ret, 0, "should acquire lock");
 
-        // Attempt to write while locked — should fail with FileLocked
-        let err = store.write(&file_path, "updated").unwrap_err();
-        assert!(
-            matches!(err, XcStringsError::FileLocked { .. }),
-            "expected FileLocked, got: {err}"
-        );
+        // Cooperating writers lock a stable sibling, so replacing the target
+        // cannot invalidate the lock inode used by other MCP processes.
+        store.write(&file_path, "updated").unwrap();
 
         // Release lock
         // SAFETY: fd is valid, lock_file is alive
         unsafe { libc::flock(fd, libc::LOCK_UN) };
         drop(lock_file);
 
-        // Now write should succeed
-        store.write(&file_path, "updated").unwrap();
         let content = store.read(&file_path).unwrap();
         assert_eq!(content, "updated");
     }

@@ -18,13 +18,14 @@ xcstrings-mcp is a small Rust process that sits between the assistant and the fi
 
 ## Features
 
-- 27 MCP tools, 8 prompts, and 11 CLI commands for the full translation lifecycle
+- 28 MCP tools, 8 prompts, and 12 CLI commands for the full translation lifecycle
 - Batch translation that fits the context window: pull 50–100 keys at a time
-- Format specifier and CLDR plural validation, so `%d`/`%@` mismatches and missing plural forms get caught before they ship
+- Deterministic Foundation format-argument and CLDR plural validation: definite `%d`/`%@`/`%jd` mismatches block (including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text such as `%lld日`), while percent signs in prose such as `85% of` are accepted with explicit warnings; substitution plurals require exact `%arg` placeholders and reject longer Unicode words
 - Atomic writes that match Xcode's JSON formatting exactly (`" : "` colon spacing, preserved key order, BOM stripped on read and never re-emitted)
 - Legacy migration from `.strings` and `.stringsdict` (UTF-8/UTF-16, plural rules, positional specifiers)
-- XLIFF 1.2 import/export for handing files off to external translators
+- XLIFF 1.2 import/export with decoded, XML-normalized attributes and namespace URIs plus consistent official default/prefix-qualified namespace support for external translation tools; imports require one `<xliff>` root, accept bound foreign extensions, reject unbound prefixes and duplicate expanded attribute names, and retain fully unqualified legacy compatibility without allowing mixed structural modes
 - Glossary support so terminology stays consistent across locales
+- Conservative ordered three-way catalog merge with stable conflicts, dry-run fingerprints, and compare-and-swap apply
 - Tested with Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, and OpenAI Codex; should work with any MCP client
 
 ## Quick Start
@@ -154,31 +155,31 @@ The basic loop:
 parse_xcstrings → get_untranslated → submit_translations
 ```
 
-For projects with multiple `.xcstrings` files, parse each one. The server keeps them all in memory and tracks which is "active". `list_files` shows what's loaded.
+For projects with multiple `.xcstrings` files, parse each one. The server keeps them all in memory and tracks which is "active". `list_files` shows what's loaded. If the same displayed symlink is retargeted and parsed again, its obsolete canonical identity is evicted so the list contains one current entry.
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `parse_xcstrings` | Parse and cache `.xcstrings` file |
-| `get_untranslated` | Get untranslated strings with batching |
-| `submit_translations` | Validate and write translations atomically |
+| `get_untranslated` | Get untranslated strings with batching; `format_specifiers` lists definite arguments only |
+| `submit_translations` | Validate and write atomically; blocking format failures go to `rejected[]`, accepted percent-prose ambiguities to `warnings[]` |
 | `get_coverage` | Per-locale coverage statistics |
-| `get_stale` | Find stale/removed keys |
-| `validate_translations` | File-wide validation report |
+| `get_stale` | Find stale/removed keys; `format_specifiers` excludes percent-in-prose ambiguities |
+| `validate_translations` | File-wide errors/warnings using the same simple, plural, and substitution format rules as submit |
 | `list_locales` | List locales with stats |
 | `add_locale` | Add new locale with empty translations |
 | `remove_locale` | Remove a locale from all entries |
-| `get_plurals` | Extract keys needing plural translation |
+| `get_plurals` | Extract keys needing plural translation with definite-only `format_specifiers` |
 | `get_context` | Find related keys by shared prefix |
 | `list_files` | List all cached files with active status |
 | `get_diff` | Compare cached vs on-disk file (added/removed/modified keys) |
 | `get_glossary` | Get translation glossary entries for a locale pair |
 | `update_glossary` | Add or update glossary terms |
 | `export_xliff` | Export to XLIFF 1.2 for external translation tools |
-| `import_xliff` | Import translations from XLIFF 1.2 file |
+| `import_xliff` | Import one-root XLIFF 1.2 with XML-normalized namespace URIs and a consistent official default/prefix-qualified or legacy unqualified mode; mixed structural modes, unbound prefixes, extra roots/content, and duplicate expanded attributes are rejected |
 | `import_strings` | Migrate legacy `.strings`/`.stringsdict` files to `.xcstrings` |
-| `search_keys` | Search keys by substring (matches key names and source text) |
+| `search_keys` | Search keys by substring; `format_specifiers` lists definite arguments only |
 | `create_xcstrings` | Create a new empty .xcstrings file |
 | `add_keys` | Add new localization keys with source text |
 | `discover_files` | Find .xcstrings and legacy .strings/.stringsdict files |
@@ -187,6 +188,46 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 | `delete_translations` | Remove translations for specific keys in a locale, resetting to untranslated |
 | `get_key` | Get all translations for a specific key across all locales |
 | `rename_key` | Rename a localization key, preserving all translations |
+| `merge_xcstrings` | Three-way semantic merge of complete catalogs with stable conflicts, resolutions, validation delta, and exact-byte CAS apply |
+
+### Merging catalog conflicts
+
+`merge_xcstrings` takes an explicit common ancestor (`base`), the checked-out catalog (`current`), the catalog being merged (`incoming`), and an `output` path. It works on ordered raw JSON: current-side order is retained, incoming-only map entries are appended in incoming order, and future fields survive a clean merge. Known catalog maps are merged recursively, but each `stringUnit` and every unknown subtree is atomic, so the merge never invents a value/state combination or combines future schema it does not understand.
+
+Always start with a dry-run:
+
+```text
+merge_xcstrings(
+  base_path: "/tmp/base.xcstrings",
+  current_path: "/tmp/current.xcstrings",
+  incoming_path: "/tmp/incoming.xcstrings",
+  output_path: "/tmp/merged.xcstrings",
+  dry_run: true
+)
+```
+
+The report contains raw-byte `sha256:` fingerprints, key counts, automatic current/incoming choices, existing and introduced validation issues, and a paginated conflict list. Resolve each stable conflict ID by selecting only `current`, `incoming`, or `base`. Then call the tool again with `dry_run: false`, the resolutions, and the report's complete `expected_fingerprints` object. Apply refuses unresolved conflicts, newly introduced blocking validation errors, changed inputs, and stale, missing, or unexpectedly created output.
+
+The equivalent CLI is machine-readable on stdout. A dry-run with unresolved conflicts still emits the complete JSON report and performs no write, but exits with status 2 so automation cannot mistake it for a conflict-free preview:
+
+```sh
+xcstrings-mcp --json merge \
+  --base /tmp/base.xcstrings \
+  --current /tmp/current.xcstrings \
+  --incoming /tmp/incoming.xcstrings \
+  --output /tmp/merged.xcstrings
+
+xcstrings-mcp --json merge \
+  --base /tmp/base.xcstrings \
+  --current /tmp/current.xcstrings \
+  --incoming /tmp/incoming.xcstrings \
+  --output /tmp/merged.xcstrings \
+  --dry-run false \
+  --resolution 'merge-v1:...=current' \
+  --expected-fingerprints '{"base":"sha256:...","current":"sha256:...","incoming":"sha256:...","output":null}'
+```
+
+Filesystem apply compares the exact expected output bytes while holding a stable sibling advisory lock, then writes one target-owned temporary file, fsyncs it, and atomically renames it. Any orphan cleanup for that target happens under the same lock. Expected absence is directory-entry aware, so an unexpected dangling symlink is rejected instead of replaced. Live `.xcstrings` aliases must resolve to real `.xcstrings` catalogs; internal lock/temp sidecars are reserved, and redirected, non-regular, or multiply linked lock files fail closed. This serializes cooperating xcstrings-mcp CLI/MCP writers. It cannot prevent an external editor that ignores the advisory lock; the fingerprint/CAS checks detect stale state when it is observable, but this is not a multi-file atomic snapshot. The semantic merge preserves unknown raw JSON, while later legacy typed mutation tools do not promise to preserve unknown fields.
 
 ### Prompts
 
@@ -250,17 +291,18 @@ xcstrings-mcp export --locale de -o out.xliff
 |---------|-------------|
 | `info` | File summary: source language, keys, locales |
 | `coverage` | Translation coverage per locale |
-| `validate` | Check format specifiers, plurals, empty values |
+| `validate` | Check definite Foundation arguments, exact substitution placeholders, percent-prose warnings, plurals, and empty values |
 | `search <pattern>` | Find keys by substring |
 | `stale` | List stale/removed keys |
 | `add-locale <locale>` | Add a new locale |
 | `remove-locale <locale>` | Remove a locale |
 | `export` | Export to XLIFF 1.2 |
-| `import` | Import from XLIFF with validation |
+| `import` | Import one-root, consistently official default/prefix-qualified XLIFF 1.2 with XML-normalized namespace URIs (or legacy fully unqualified input); mixed structural modes, unbound prefixes, extra roots/content, and duplicate expanded attributes fail before writes |
 | `migrate` | Migrate legacy .strings/.stringsdict |
+| `merge` | Three-way semantic catalog merge; dry-run by default, apply with exact fingerprints and resolutions |
 | `completions <shell>` | Generate shell completions |
 
-`--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`.
+`--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`. Validation keeps definite format mismatches and invalid positional arguments blocking, recognizes arguments next to unspaced Han, Hiragana, Katakana, and Hangul text, and rejects `%arg` when it is merely a prefix of a longer Unicode word. XLIFF import reports accepted ambiguous percent sequences in `warnings[]` (and on stderr in human-readable mode).
 
 ### CLI Options
 
@@ -274,7 +316,7 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 
 ## Claude Code Skill
 
-There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the project that teaches Claude how to drive all 27 tools well. It activates automatically on localization-related requests.
+There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the project that teaches Claude how to drive all 28 tools well. It activates automatically on localization-related requests.
 
 What it actually does for you:
 
@@ -327,7 +369,7 @@ Plain layered architecture: `server` → `tools` → `service` → `model`, with
 - `tools` — tool implementations, grouped by area (parse/extract/keys/translate/manage/...)
 - `service` — the actual logic (parser, extractor, merger, validator, formatter), no filesystem access
 - `model` — serde types for the `.xcstrings` format, CLDR plural rules, and format specifiers
-- `io` — `FileStore` trait and the real filesystem implementation with atomic writes
+- `io` — `FileStore` trait and the real filesystem implementation with stable advisory locking, exact-byte conditional writes, and atomic replacement
 - `cli` — the standalone subcommands; `prompts.rs` defines the MCP prompts; `error.rs` is the single project-wide error enum
 
 ## Related

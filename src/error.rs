@@ -35,6 +35,30 @@ pub enum XcStringsError {
     #[error("file is locked by another process (likely Xcode): {path}")]
     FileLocked { path: PathBuf },
 
+    #[error("conditional writes are unsupported by this file store: {path}")]
+    ConditionalWriteUnsupported { path: PathBuf },
+
+    #[error(
+        "conditional write conflict for {path}: expected_exists={expected_exists}, actual_exists={actual_exists}"
+    )]
+    ConditionalWriteConflict {
+        path: PathBuf,
+        expected_exists: bool,
+        actual_exists: bool,
+    },
+
+    #[error("apply requires expected_fingerprints from a fresh dry-run")]
+    MergeExpectedFingerprintsRequired,
+
+    #[error("stale merge fingerprint: {input}")]
+    StaleMergeFingerprint { input: String },
+
+    #[error("merge has {count} unresolved conflict(s)")]
+    MergeConflicts { count: usize },
+
+    #[error("merge introduces {count} blocking validation issue(s)")]
+    MergeIntroducedValidation { count: usize },
+
     #[error("cannot remove source locale: {0}")]
     CannotRemoveSourceLocale(String),
 

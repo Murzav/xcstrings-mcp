@@ -9,6 +9,7 @@ use crate::io::FileStore;
 use crate::model::translation::SubmitResult;
 use crate::service::{formatter, merger, parser, validator, xliff};
 use crate::tools::parse::CachedFile;
+use crate::tools::submit_response;
 use crate::tools::{FileCache, mcp_log, resolve_file};
 
 fn default_true() -> bool {
@@ -121,11 +122,13 @@ pub(crate) async fn handle_import_xliff(
             rejected: vec![],
             dry_run: params.dry_run,
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, Vec::new());
     }
 
     // Validate using existing pipeline
-    let rejected = validator::validate_translations(&file, &translations);
+    let validation = validator::validate_translations_detailed(&file, &translations);
+    let rejected = validation.rejected;
+    let mut warnings = validation.warnings;
     let rejected_keys: std::collections::HashSet<&str> =
         rejected.iter().map(|r| r.key.as_str()).collect();
     let accepted: Vec<_> = translations
@@ -140,7 +143,7 @@ pub(crate) async fn handle_import_xliff(
             rejected,
             dry_run: params.dry_run,
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     // Write: acquire lock, re-read, merge, format, write
@@ -149,7 +152,9 @@ pub(crate) async fn handle_import_xliff(
     let mut fresh_file = parser::parse(&raw)?;
 
     // Re-validate against fresh file (it may have changed since initial validation)
-    let fresh_rejected = validator::validate_translations(&fresh_file, &translations);
+    let fresh_validation = validator::validate_translations_detailed(&fresh_file, &translations);
+    let fresh_rejected = fresh_validation.rejected;
+    submit_response::extend_unique(&mut warnings, fresh_validation.warnings);
     let fresh_rejected_keys: std::collections::HashSet<&str> =
         fresh_rejected.iter().map(|r| r.key.as_str()).collect();
 
@@ -168,7 +173,7 @@ pub(crate) async fn handle_import_xliff(
             rejected: all_rejected,
             dry_run: false,
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     let merge_result = merger::merge_translations(&mut fresh_file, &owned);
@@ -178,9 +183,10 @@ pub(crate) async fn handle_import_xliff(
 
     // Update cache (same pattern as translate.rs)
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: fresh_file,
@@ -198,7 +204,7 @@ pub(crate) async fn handle_import_xliff(
         rejected: all_rejected,
         dry_run: false,
     };
-    Ok(serde_json::to_value(result)?)
+    submit_response::to_value(result, warnings)
 }
 
 #[cfg(test)]

@@ -44,9 +44,10 @@ pub(crate) async fn handle_delete_keys(
         store.write(&path, &formatted)?;
 
         let mtime = store.modified_time(&path)?;
+        let identity = store.file_identity(&path)?;
         let mut guard = cache.lock().await;
         guard.insert(
-            path.clone(),
+            identity,
             CachedFile {
                 path,
                 content: fresh_file,
@@ -104,9 +105,10 @@ pub(crate) async fn handle_rename_key(
     store.write(&path, &formatted)?;
 
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: fresh_file,
@@ -170,9 +172,10 @@ pub(crate) async fn handle_delete_translations(
         store.write(&path, &formatted)?;
 
         let mtime = store.modified_time(&path)?;
+        let identity = store.file_identity(&path)?;
         let mut guard = cache.lock().await;
         guard.insert(
-            path.clone(),
+            identity,
             CachedFile {
                 path,
                 content: fresh_file,

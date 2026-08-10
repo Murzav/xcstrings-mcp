@@ -39,7 +39,8 @@ pub(crate) async fn handle_get_diff(
             .ok_or(XcStringsError::NoActiveFile)?
     };
 
-    let cached = guard.get(&path).ok_or(XcStringsError::NoActiveFile)?;
+    let identity = store.file_identity(&path)?;
+    let cached = guard.get(&identity).ok_or(XcStringsError::NoActiveFile)?;
     let old_content = cached.content.clone();
     drop(guard);
 

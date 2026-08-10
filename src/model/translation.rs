@@ -15,7 +15,7 @@ pub struct TranslationUnit {
     /// Developer comment providing context for translators
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
-    /// Format specifiers found in source (e.g., ["%@", "%lld"]). Translations MUST preserve these exactly.
+    /// Definite format arguments found in source (e.g., ["%@", "%lld"]). Ambiguous percent-in-prose sequences are excluded and reported as warnings during validation.
     pub format_specifiers: Vec<String>,
     /// True if key uses plural variations. Use get_plurals for full details before translating.
     pub has_plurals: bool,
@@ -30,12 +30,12 @@ pub struct CompletedTranslation {
     pub key: String,
     /// Target locale code (e.g., "uk", "de"). Must not be the source language.
     pub locale: String,
-    /// Translated text for simple strings. Must preserve all format specifiers from source. Ignored when plural_forms is set.
+    /// Translated text for simple strings. Must preserve each definite format argument's conversion, length modifier, flags, width, and precision. Positional reordering is allowed. Ignored when plural_forms is set.
     pub value: String,
     /// Plural translations keyed by CLDR category, e.g. {"one": "1 item", "other": "%lld items"}. Required categories vary by locale — use get_plurals to see which forms are needed. When set, value is ignored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub plural_forms: Option<BTreeMap<String, String>>,
-    /// Substitution variable name for multi-variable plurals (from %#@VAR@ in source). Only needed when PluralUnit.has_substitutions is true. Omit for simple plurals.
+    /// Substitution variable name for multi-variable plurals (from %#@VAR@ in source). Each submitted form must preserve the exact `%arg` placeholder token; longer Unicode words such as `%argument` are not placeholders, while direct Han, Hiragana, Katakana, or Hangul adjacency is supported. Only needed when PluralUnit.has_substitutions is true. Omit for simple plurals.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub substitution_name: Option<String>,
 }
@@ -55,7 +55,7 @@ pub struct FileSummary {
     pub keys_by_state: BTreeMap<String, usize>,
 }
 
-/// Result of submit_translations or import_xliff.
+/// Stable blocking-result fields returned by submit_translations or import_xliff. Runtime responses add `warnings` when non-blocking format diagnostics exist.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SubmitResult {
     /// Number of translations that passed validation and were written (or would be written in dry_run)
@@ -67,6 +67,17 @@ pub struct SubmitResult {
     /// List of accepted key names for reference
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub accepted_keys: Vec<String>,
+}
+
+/// Additive response used by submit and import surfaces when validation emits warnings.
+/// `SubmitResult` remains unchanged for downstream Rust code that constructs it directly.
+#[derive(Debug, Serialize, JsonSchema)]
+pub struct DetailedSubmitResult {
+    #[serde(flatten)]
+    pub result: SubmitResult,
+    /// Non-blocking, machine-readable validation diagnostics.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<ValidationIssue>,
 }
 
 /// A translation that failed validation during submit.
@@ -142,7 +153,7 @@ pub struct PluralUnit {
     /// Developer comment for context
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
-    /// Format specifiers to preserve in all plural forms (e.g., ["%lld"])
+    /// Definite format arguments to preserve in plural forms (e.g., ["%lld"]); percent-in-prose prefixes are not advertised as required arguments.
     pub format_specifiers: Vec<String>,
     /// Required CLDR plural categories for target locale (e.g., ["one", "few", "many", "other"] for Ukrainian). All forms must be provided in submit_translations.
     pub required_forms: Vec<String>,

@@ -51,9 +51,10 @@ pub(crate) async fn handle_create_xcstrings(
 
     // Update cache
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path: path.clone(),
             content: file,
@@ -130,9 +131,10 @@ pub(crate) async fn handle_add_keys(
 
     // Update cache
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: fresh_file,
@@ -202,9 +204,10 @@ pub(crate) async fn handle_update_comments(
     store.write(&path, &formatted)?;
 
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: fresh_file,

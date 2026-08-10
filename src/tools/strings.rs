@@ -195,9 +195,10 @@ pub(crate) async fn handle_import_strings(
 
     // Update cache
     let mtime = store.modified_time(&output_path)?;
+    let identity = store.file_identity(&output_path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        output_path.clone(),
+        identity,
         CachedFile {
             path: output_path,
             content: xcstrings_file,

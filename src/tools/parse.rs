@@ -42,13 +42,14 @@ pub(crate) async fn handle_parse(
     let file = parser::parse(&raw)?;
     let summary = parser::summarize(&file);
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
 
     // Verify we can format (catches issues early)
     let _ = formatter::format_xcstrings(&file)?;
 
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: file,

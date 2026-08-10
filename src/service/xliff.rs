@@ -1,11 +1,15 @@
 use std::io::Cursor;
 
-use quick_xml::Writer;
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
+use quick_xml::{Decoder, NsReader, Writer, XmlVersion};
 
 use crate::error::XcStringsError;
 use crate::model::translation::CompletedTranslation;
 use crate::model::xcstrings::{TranslationState, XcStringsFile};
+
+mod import_validation;
+
+use import_validation::DocumentValidator;
 
 /// Export an XcStringsFile to XLIFF 1.2 XML format.
 ///
@@ -164,10 +168,9 @@ fn write_event(
 pub fn import_xliff(
     xliff_content: &str,
 ) -> Result<(String, Vec<CompletedTranslation>), XcStringsError> {
-    use quick_xml::Reader;
     use quick_xml::escape::resolve_xml_entity;
 
-    let mut reader = Reader::from_str(xliff_content);
+    let mut reader = NsReader::from_str(xliff_content);
 
     let mut target_locale = String::new();
     let mut translations = Vec::new();
@@ -177,55 +180,66 @@ pub fn import_xliff(
     let mut in_target = false;
     let mut current_source = String::new();
     let mut current_target = String::new();
+    let mut document = DocumentValidator::new();
 
     loop {
-        match reader.read_event() {
-            Ok(Event::Start(ref e)) => match e.name().as_ref() {
-                b"file" => {
-                    for attr in e.attributes().flatten() {
-                        if attr.key.as_ref() == b"target-language" {
-                            target_locale = String::from_utf8_lossy(&attr.value).to_string();
+        let decoder = reader.decoder();
+        let event = reader
+            .read_event()
+            .map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
+        match event {
+            Event::Start(ref e) => {
+                let (namespace, _) = reader.resolver().resolve_element(e.name());
+                let local_name = e.local_name();
+                document.start(decoder, &namespace, e, reader.resolver())?;
+                match local_name.as_ref() {
+                    b"file" => {
+                        if let Some(value) = normalized_attribute(decoder, e, b"target-language")? {
+                            target_locale = value;
                         }
                     }
-                }
-                b"trans-unit" => {
-                    current_id.clear();
-                    current_source.clear();
-                    current_target.clear();
-                    for attr in e.attributes().flatten() {
-                        if attr.key.as_ref() == b"id" {
-                            current_id = String::from_utf8_lossy(&attr.value).to_string();
+                    b"trans-unit" => {
+                        current_id.clear();
+                        current_source.clear();
+                        current_target.clear();
+                        if let Some(value) = normalized_attribute(decoder, e, b"id")? {
+                            current_id = value;
                         }
                     }
-                }
-                b"source" => {
-                    in_source = true;
-                }
-                b"target" => {
-                    in_target = true;
-                }
-                _ => {}
-            },
-            // Empty elements (self-closing) -- extract attributes but don't
-            // set in_source/in_target since there is no text content or end tag.
-            Ok(Event::Empty(ref e)) if e.name().as_ref() == b"file" => {
-                for attr in e.attributes().flatten() {
-                    if attr.key.as_ref() == b"target-language" {
-                        target_locale = String::from_utf8_lossy(&attr.value).to_string();
+                    b"source" => {
+                        in_source = true;
                     }
+                    b"target" => {
+                        in_target = true;
+                    }
+                    _ => {}
                 }
             }
-            Ok(Event::Text(ref e)) => {
+            // Empty elements (self-closing) -- extract attributes but don't
+            // set in_source/in_target since there is no text content or end tag.
+            Event::Empty(ref e) => {
+                let (namespace, _) = reader.resolver().resolve_element(e.name());
+                let local_name = e.local_name();
+                document.empty(decoder, &namespace, e, reader.resolver())?;
+                if local_name.as_ref() == b"file"
+                    && let Some(value) = normalized_attribute(decoder, e, b"target-language")?
+                {
+                    target_locale = value;
+                }
+            }
+            Event::Text(ref e) => {
                 let text = e
                     .decode()
                     .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
+                document.text(&text)?;
                 if in_source {
                     current_source.push_str(&text);
                 } else if in_target {
                     current_target.push_str(&text);
                 }
             }
-            Ok(Event::GeneralRef(ref e)) => {
+            Event::GeneralRef(ref e) => {
+                document.general_reference()?;
                 let name = e
                     .decode()
                     .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
@@ -244,26 +258,36 @@ pub fn import_xliff(
                     current_target.push_str(&resolved);
                 }
             }
-            Ok(Event::End(ref e)) => match e.name().as_ref() {
-                b"source" => {
-                    in_source = false;
+            Event::End(ref e) => {
+                let (namespace, _) = reader.resolver().resolve_element(e.name());
+                let local_name = e.local_name();
+                document.end(decoder, &namespace, local_name.as_ref())?;
+                match local_name.as_ref() {
+                    b"source" => {
+                        in_source = false;
+                    }
+                    b"target" => {
+                        in_target = false;
+                    }
+                    b"trans-unit" if !current_id.is_empty() && !current_target.is_empty() => {
+                        translations.push(CompletedTranslation {
+                            key: current_id.clone(),
+                            locale: target_locale.clone(),
+                            value: current_target.clone(),
+                            plural_forms: None,
+                            substitution_name: None,
+                        });
+                    }
+                    _ => {}
                 }
-                b"target" => {
-                    in_target = false;
-                }
-                b"trans-unit" if !current_id.is_empty() && !current_target.is_empty() => {
-                    translations.push(CompletedTranslation {
-                        key: current_id.clone(),
-                        locale: target_locale.clone(),
-                        value: current_target.clone(),
-                        plural_forms: None,
-                        substitution_name: None,
-                    });
-                }
-                _ => {}
-            },
-            Ok(Event::Eof) => break,
-            Err(e) => return Err(XcStringsError::XliffParse(e.to_string())),
+            }
+            Event::CData(_) => document.cdata()?,
+            Event::Decl(_) => document.declaration()?,
+            Event::DocType(_) => document.doctype()?,
+            Event::Eof => {
+                document.finish()?;
+                break;
+            }
             _ => {}
         }
     }
@@ -277,210 +301,23 @@ pub fn import_xliff(
     Ok((target_locale, translations))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::service::parser;
-
-    const FIXTURE: &str = include_str!("../../tests/fixtures/simple.xcstrings");
-
-    fn parsed_fixture() -> XcStringsFile {
-        parser::parse(FIXTURE).unwrap()
-    }
-
-    #[test]
-    fn export_produces_well_formed_xml() {
-        let file = parsed_fixture();
-        let (xml, _count) = export_xliff(&file, "uk", "Localizable.xcstrings", false).unwrap();
-
-        // Should parse back without error
-        let (locale, _translations) = import_xliff(&xml).unwrap();
-        assert_eq!(locale, "uk");
-
-        // Basic structure checks
-        assert!(xml.contains("<xliff"));
-        assert!(xml.contains("</xliff>"));
-        assert!(xml.contains("target-language=\"uk\""));
-    }
-
-    #[test]
-    fn export_import_roundtrip() {
-        let file = parsed_fixture();
-        let (xml, _) = export_xliff(&file, "uk", "test.xcstrings", false).unwrap();
-        let (_locale, translations) = import_xliff(&xml).unwrap();
-
-        // "greeting" has uk translation, "welcome_message" does not
-        let greeting = translations.iter().find(|t| t.key == "greeting");
-        assert!(greeting.is_some());
-        assert_eq!(
-            greeting.unwrap().value,
-            "\u{041f}\u{0440}\u{0438}\u{0432}\u{0456}\u{0442}"
-        );
-        assert_eq!(greeting.unwrap().locale, "uk");
-    }
-
-    #[test]
-    fn export_escapes_xml_special_chars() {
-        let json = r#"{
-  "sourceLanguage" : "en",
-  "strings" : {
-    "html_key" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A & B < C > D"
-          }
+fn normalized_attribute(
+    decoder: Decoder,
+    element: &BytesStart<'_>,
+    name: &[u8],
+) -> Result<Option<String>, XcStringsError> {
+    for attribute in element.attributes().with_checks(false) {
+        let attribute = attribute.map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
+        if attribute.key.as_ref() == name {
+            let value = attribute
+                .decoded_and_normalized_value(XmlVersion::Implicit1_0, decoder)
+                .map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
+            return Ok(Some(value.into_owned()));
         }
-      }
     }
-  },
-  "version" : "1.0"
-}"#;
-        let file = parser::parse(json).unwrap();
-        let (xml, _) = export_xliff(&file, "de", "test.xcstrings", false).unwrap();
-
-        assert!(xml.contains("A &amp; B &lt; C &gt; D"));
-        // Must roundtrip correctly
-        let (_locale, translations) = import_xliff(&xml).unwrap();
-        // No translations because target is empty, but parsing succeeds
-        assert!(translations.is_empty());
-    }
-
-    #[test]
-    fn roundtrip_preserves_special_chars_in_target() {
-        let json = r#"{
-  "sourceLanguage" : "en",
-  "strings" : {
-    "terms" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terms & Conditions"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AGB & <Bedingungen>"
-          }
-        }
-      }
-    }
-  },
-  "version" : "1.0"
-}"#;
-        let file = parser::parse(json).unwrap();
-        let (xml, count) = export_xliff(&file, "de", "test.xcstrings", false).unwrap();
-        assert_eq!(count, 1);
-
-        // XML must have escaped entities
-        assert!(xml.contains("AGB &amp; &lt;Bedingungen&gt;"));
-
-        // Import must unescape back to original
-        let (_locale, translations) = import_xliff(&xml).unwrap();
-        assert_eq!(translations.len(), 1);
-        assert_eq!(translations[0].value, "AGB & <Bedingungen>");
-    }
-
-    #[test]
-    fn export_untranslated_only_false_includes_all() {
-        let file = parsed_fixture();
-        let (xml, _) = export_xliff(&file, "uk", "test.xcstrings", false).unwrap();
-
-        assert!(xml.contains("id=\"greeting\""));
-        assert!(xml.contains("id=\"welcome_message\""));
-    }
-
-    #[test]
-    fn export_untranslated_only_true_excludes_translated() {
-        let file = parsed_fixture();
-        let (xml, _) = export_xliff(&file, "uk", "test.xcstrings", true).unwrap();
-
-        // greeting is translated to uk, should be excluded
-        assert!(!xml.contains("id=\"greeting\""));
-        // welcome_message is not translated to uk, should be included
-        assert!(xml.contains("id=\"welcome_message\""));
-    }
-
-    #[test]
-    fn import_empty_xliff_returns_zero_translations() {
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="de" original="test.xcstrings" datatype="plaintext">
-    <body>
-    </body>
-  </file>
-</xliff>"#;
-
-        let (locale, translations) = import_xliff(xliff).unwrap();
-        assert_eq!(locale, "de");
-        assert!(translations.is_empty());
-    }
-
-    #[test]
-    fn import_missing_target_language_returns_error() {
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" original="test.xcstrings" datatype="plaintext">
-    <body>
-    </body>
-  </file>
-</xliff>"#;
-
-        let result = import_xliff(xliff);
-        assert!(result.is_err());
-        let err = result.unwrap_err().to_string();
-        assert!(err.contains("missing target-language"));
-    }
-
-    #[test]
-    fn import_skips_empty_targets() {
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="de" original="test.xcstrings" datatype="plaintext">
-    <body>
-      <trans-unit id="key1">
-        <source>Hello</source>
-        <target state="new"></target>
-      </trans-unit>
-      <trans-unit id="key2">
-        <source>World</source>
-        <target state="translated">Welt</target>
-      </trans-unit>
-    </body>
-  </file>
-</xliff>"#;
-
-        let (locale, translations) = import_xliff(xliff).unwrap();
-        assert_eq!(locale, "de");
-        assert_eq!(translations.len(), 1);
-        assert_eq!(translations[0].key, "key2");
-        assert_eq!(translations[0].value, "Welt");
-    }
-
-    #[test]
-    fn export_comment_appears_as_note() {
-        let json = r#"{
-  "sourceLanguage" : "en",
-  "strings" : {
-    "btn_ok" : {
-      "comment" : "OK button label",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "OK"
-          }
-        }
-      }
-    }
-  },
-  "version" : "1.0"
-}"#;
-        let file = parser::parse(json).unwrap();
-        let (xml, _) = export_xliff(&file, "de", "test.xcstrings", false).unwrap();
-        assert!(xml.contains("<note>OK button label</note>"));
-    }
+    Ok(None)
 }
+
+#[cfg(test)]
+#[path = "xliff/tests.rs"]
+mod tests;

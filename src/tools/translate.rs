@@ -8,6 +8,7 @@ use crate::model::translation::{CompletedTranslation, RejectedTranslation, Submi
 use crate::service::{formatter, merger, parser, validator};
 use crate::tools::parse::CachedFile;
 use crate::tools::resolve_file;
+use crate::tools::submit_response;
 use crate::tools::{FileCache, mcp_log};
 
 fn default_true() -> bool {
@@ -19,7 +20,7 @@ pub(crate) struct SubmitTranslationsParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// Translations to submit. Each entry needs key, locale, and either value (simple strings) or plural_forms (plural keys). Format specifiers must match source exactly.
+    /// Translations to submit. Each entry needs key, locale, and either value (simple strings) or plural_forms (plural keys). Definite format argument components must match; ambiguous percent-in-prose differences are accepted with warnings[].
     pub translations: Vec<CompletedTranslation>,
     /// If true, validate without writing to disk
     #[serde(default)]
@@ -45,7 +46,9 @@ pub(crate) async fn handle_submit_translations(
     ));
 
     // Validate all translations against the file
-    let rejected = validator::validate_translations(&file, &params.translations);
+    let validation = validator::validate_translations_detailed(&file, &params.translations);
+    let rejected = validation.rejected;
+    let mut warnings = validation.warnings;
 
     // If continue_on_error=false and any rejected, return ALL as rejected without writing
     if !params.continue_on_error && !rejected.is_empty() {
@@ -71,7 +74,7 @@ pub(crate) async fn handle_submit_translations(
             dry_run: params.dry_run,
             accepted_keys: Vec::new(),
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     // Build set of rejected keys to filter them out
@@ -103,7 +106,7 @@ pub(crate) async fn handle_submit_translations(
             dry_run: true,
             accepted_keys: accepted_key_list,
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     if accepted_count == 0 {
@@ -113,7 +116,7 @@ pub(crate) async fn handle_submit_translations(
             dry_run: false,
             accepted_keys: Vec::new(),
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     // Acquire write lock for safe concurrent access
@@ -124,7 +127,10 @@ pub(crate) async fn handle_submit_translations(
     let mut fresh_file = parser::parse(&raw)?;
 
     // Re-validate against fresh file (it may have changed since initial validation)
-    let fresh_rejected = validator::validate_translations(&fresh_file, &params.translations);
+    let fresh_validation =
+        validator::validate_translations_detailed(&fresh_file, &params.translations);
+    let fresh_rejected = fresh_validation.rejected;
+    submit_response::extend_unique(&mut warnings, fresh_validation.warnings);
 
     // If continue_on_error=false and fresh re-validation rejects anything, abort
     if !params.continue_on_error && !fresh_rejected.is_empty() {
@@ -148,7 +154,7 @@ pub(crate) async fn handle_submit_translations(
             dry_run: false,
             accepted_keys: Vec::new(),
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     let fresh_rejected_keys: std::collections::HashSet<&str> =
@@ -169,7 +175,7 @@ pub(crate) async fn handle_submit_translations(
             dry_run: false,
             accepted_keys: Vec::new(),
         };
-        return Ok(serde_json::to_value(result)?);
+        return submit_response::to_value(result, warnings);
     }
 
     let merge_result = merger::merge_translations(&mut fresh_file, &owned);
@@ -186,9 +192,10 @@ pub(crate) async fn handle_submit_translations(
 
     // Update cache
     let mtime = store.modified_time(&path)?;
+    let identity = store.file_identity(&path)?;
     let mut guard = cache.lock().await;
     guard.insert(
-        path.clone(),
+        identity,
         CachedFile {
             path,
             content: fresh_file,
@@ -208,7 +215,7 @@ pub(crate) async fn handle_submit_translations(
         accepted_keys: merge_result.accepted_keys,
     };
 
-    Ok(serde_json::to_value(result)?)
+    submit_response::to_value(result, warnings)
 }
 
 #[cfg(test)]

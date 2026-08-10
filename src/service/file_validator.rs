@@ -1,9 +1,9 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::plural::required_plural_forms;
-use crate::model::specifier::extract_specifiers;
-use crate::model::translation::{ValidationIssue, ValidationReport};
-use crate::model::xcstrings::{TranslationState, XcStringsFile};
+use crate::model::translation::{CompletedTranslation, ValidationIssue, ValidationReport};
+use crate::model::xcstrings::{Localization, TranslationState, XcStringsFile};
+use crate::service::validator;
 
 /// Validate all translations in a file for a specific locale (or all locales).
 pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<ValidationReport> {
@@ -41,8 +41,6 @@ pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<Validati
                 .and_then(|loc| loc.string_unit.as_ref())
                 .map(|su| su.value.as_str());
 
-            let source_specs = source_text.map(extract_specifiers);
-
             let target_loc = entry
                 .localizations
                 .as_ref()
@@ -70,33 +68,10 @@ pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<Validati
                 });
             }
 
-            // Format specifier checks
-            if let (Some(src_specs), Some(target_val)) = (&source_specs, target_value) {
-                let tgt_specs = extract_specifiers(target_val);
-                if src_specs.len() != tgt_specs.len() {
-                    errors.push(ValidationIssue {
-                        key: key.clone(),
-                        issue_type: "format_specifier_count_mismatch".into(),
-                        message: format!(
-                            "source has {} specifiers, translation has {}",
-                            src_specs.len(),
-                            tgt_specs.len()
-                        ),
-                    });
-                } else {
-                    for (src, tgt) in src_specs.iter().zip(tgt_specs.iter()) {
-                        if !src.is_compatible_with(tgt) {
-                            errors.push(ValidationIssue {
-                                key: key.clone(),
-                                issue_type: "format_specifier_type_mismatch".into(),
-                                message: format!(
-                                    "specifier mismatch: source has {}, translation has {}",
-                                    src.raw, tgt.raw
-                                ),
-                            });
-                        }
-                    }
-                }
+            for translation in translations_from_localization(key, locale, target_loc) {
+                let format_report = validator::validate_translation_formats(file, &translation);
+                errors.extend(format_report.format_errors);
+                warnings.extend(format_report.warnings);
             }
 
             // Missing plural forms
@@ -156,6 +131,69 @@ pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<Validati
     }
 
     reports
+}
+
+fn translations_from_localization(
+    key: &str,
+    locale: &str,
+    localization: &Localization,
+) -> Vec<CompletedTranslation> {
+    let mut translations = Vec::new();
+    if let Some(unit) = &localization.string_unit {
+        translations.push(CompletedTranslation {
+            key: key.to_string(),
+            locale: locale.to_string(),
+            value: unit.value.clone(),
+            plural_forms: None,
+            substitution_name: None,
+        });
+    }
+    if let Some(plural) = localization
+        .variations
+        .as_ref()
+        .and_then(|variations| variations.plural.as_ref())
+    {
+        translations.push(CompletedTranslation {
+            key: key.to_string(),
+            locale: locale.to_string(),
+            value: String::new(),
+            plural_forms: Some(
+                plural
+                    .iter()
+                    .map(|(form, value)| (form.clone(), value.string_unit.value.clone()))
+                    .collect(),
+            ),
+            substitution_name: None,
+        });
+    }
+    if let Some(substitutions) = &localization.substitutions {
+        for (name, substitution) in substitutions {
+            let Some(forms) = substitution_forms(substitution) else {
+                continue;
+            };
+            translations.push(CompletedTranslation {
+                key: key.to_string(),
+                locale: locale.to_string(),
+                value: String::new(),
+                plural_forms: Some(forms),
+                substitution_name: Some(name.clone()),
+            });
+        }
+    }
+    translations
+}
+
+fn substitution_forms(substitution: &serde_json::Value) -> Option<BTreeMap<String, String>> {
+    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
+    Some(
+        plural
+            .iter()
+            .filter_map(|(form, value)| {
+                let value = value.get("stringUnit")?.get("value")?.as_str()?;
+                Some((form.clone(), value.to_string()))
+            })
+            .collect(),
+    )
 }
 
 #[cfg(test)]

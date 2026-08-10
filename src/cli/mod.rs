@@ -5,6 +5,7 @@ mod export_cmd;
 mod import_cmd;
 mod info;
 mod locale;
+mod merge_cmd;
 mod migrate;
 mod search;
 mod stale;
@@ -30,7 +31,7 @@ pub enum Command {
         #[arg(long)]
         locale: Option<String>,
     },
-    /// Validate translations (format specifiers, plurals)
+    /// Validate Foundation arguments, exact substitutions, warnings, and plurals
     Validate {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,
@@ -96,7 +97,7 @@ pub enum Command {
         #[arg(long)]
         all: bool,
     },
-    /// Import translations from XLIFF
+    /// Import one-root XLIFF 1.2 with normalized official or legacy unqualified namespaces
     Import {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,
@@ -124,6 +125,40 @@ pub enum Command {
         /// Preview changes without writing
         #[arg(long)]
         dry_run: bool,
+    },
+    /// Three-way semantic merge with conflict resolution and exact-byte CAS
+    #[command(after_long_help = "CONCURRENCY LIMITS:
+The advisory lock serializes cooperating writers only; external editors can still race.
+Live catalog aliases cannot resolve to internal lock/temp sidecars or non-.xcstrings files.
+This is not a multi-file atomic snapshot; base/current/incoming are fingerprinted separately.")]
+    Merge {
+        /// Common ancestor .xcstrings catalog
+        #[arg(long)]
+        base: PathBuf,
+        /// Current-branch .xcstrings catalog
+        #[arg(long)]
+        current: PathBuf,
+        /// Incoming-branch .xcstrings catalog
+        #[arg(long)]
+        incoming: PathBuf,
+        /// Destination .xcstrings catalog (may equal --current)
+        #[arg(long)]
+        output: PathBuf,
+        /// Preview by default; pass `--dry-run false` only with fresh fingerprints
+        #[arg(long, default_value_t = true, action = clap::ArgAction::Set)]
+        dry_run: bool,
+        /// Conflict choice as `<conflict-id>=current|incoming|base`; repeat as needed
+        #[arg(long = "resolution")]
+        resolutions: Vec<String>,
+        /// JSON object copied from the dry-run `expected_fingerprints` field
+        #[arg(long)]
+        expected_fingerprints: Option<String>,
+        /// Zero-based offset into unresolved conflicts
+        #[arg(long, default_value_t = 0)]
+        conflict_offset: usize,
+        /// Unresolved conflicts to return (1 through 500)
+        #[arg(long, default_value_t = 50)]
+        conflict_limit: usize,
     },
     /// Generate shell completions
     Completions {
@@ -176,6 +211,28 @@ pub fn run(cmd: Command, json: bool) -> ExitCode {
             files,
             dry_run,
         } => migrate::run(source_language, output, directory, files, dry_run, json),
+        Command::Merge {
+            base,
+            current,
+            incoming,
+            output,
+            dry_run,
+            resolutions,
+            expected_fingerprints,
+            conflict_offset,
+            conflict_limit,
+        } => merge_cmd::run(
+            base,
+            current,
+            incoming,
+            output,
+            dry_run,
+            resolutions,
+            expected_fingerprints,
+            conflict_offset,
+            conflict_limit,
+            json,
+        ),
         Command::Completions { shell } => completions::run_shell(shell),
     }
 }

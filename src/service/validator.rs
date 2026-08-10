@@ -1,8 +1,15 @@
 use crate::model::plural::required_plural_forms;
-use crate::model::specifier::{FormatSpecifier, extract_specifiers};
+use crate::model::specifier::{FormatComparison, compare_formats, compare_substitution_formats};
 
-use crate::model::translation::{CompletedTranslation, RejectedTranslation};
-use crate::model::xcstrings::XcStringsFile;
+use crate::model::translation::{CompletedTranslation, RejectedTranslation, ValidationIssue};
+use crate::model::xcstrings::{Localization, StringEntry, XcStringsFile};
+
+#[derive(Debug, Default)]
+pub struct TranslationValidationReport {
+    pub rejected: Vec<RejectedTranslation>,
+    pub warnings: Vec<ValidationIssue>,
+    pub(crate) format_errors: Vec<ValidationIssue>,
+}
 
 /// Validate a batch of translations against the source file.
 /// Returns a list of rejected translations with reasons.
@@ -10,14 +17,20 @@ pub fn validate_translations(
     file: &XcStringsFile,
     translations: &[CompletedTranslation],
 ) -> Vec<RejectedTranslation> {
-    let mut rejected = Vec::new();
+    validate_translations_detailed(file, translations).rejected
+}
+
+pub fn validate_translations_detailed(
+    file: &XcStringsFile,
+    translations: &[CompletedTranslation],
+) -> TranslationValidationReport {
+    let mut report = TranslationValidationReport::default();
 
     for translation in translations {
-        // Check 1: Key exists in file
         let entry = match file.strings.get(&translation.key) {
             Some(e) => e,
             None => {
-                rejected.push(RejectedTranslation {
+                report.rejected.push(RejectedTranslation {
                     key: translation.key.clone(),
                     reason: "key not found in file".into(),
                 });
@@ -25,132 +38,170 @@ pub fn validate_translations(
             }
         };
 
-        // Check 2: shouldTranslate is true
         if !entry.should_translate {
-            rejected.push(RejectedTranslation {
+            report.rejected.push(RejectedTranslation {
                 key: translation.key.clone(),
                 reason: "key is marked as shouldTranslate=false".into(),
             });
             continue;
         }
 
-        // Check 3: Non-empty value (for simple translations)
         if translation.value.is_empty() && translation.plural_forms.is_none() {
-            rejected.push(RejectedTranslation {
+            report.rejected.push(RejectedTranslation {
                 key: translation.key.clone(),
                 reason: "translation value is empty".into(),
             });
             continue;
         }
 
-        // Check 4: Format specifier validation
-        // Get source localization for specifier extraction
-        let source_loc = entry
-            .localizations
-            .as_ref()
-            .and_then(|locs| locs.get(&file.source_language));
-
-        // Get source text — fall back to the key itself if no source localization exists
-        let source_text = source_loc
-            .and_then(|loc| loc.string_unit.as_ref())
-            .map(|su| su.value.as_str())
-            .unwrap_or(&translation.key);
-
-        let source_specs = extract_specifiers(source_text);
-
         if let Some(plural_forms) = &translation.plural_forms {
-            // Validate required plural forms are present
             let required = required_plural_forms(&translation.locale);
             for req in &required {
                 let form_name = req.as_str().to_string();
                 if !plural_forms.contains_key(&form_name) {
-                    rejected.push(RejectedTranslation {
+                    report.rejected.push(RejectedTranslation {
                         key: translation.key.clone(),
                         reason: format!("missing required plural form: {form_name}"),
                     });
                 }
             }
-
-            // Substitution plural forms use %arg placeholders, not format specifiers
-            // from the parent string_unit (which contains %#@VAR@ markers).
-            // Skip specifier validation for substitution translations.
-            if translation.substitution_name.is_none() {
-                // For plural keys where source has no string_unit but has plural variations,
-                // extract specifiers from the first source plural form instead.
-                let effective_source_specs = if source_specs.is_empty() {
-                    source_loc
-                        .and_then(|loc| loc.variations.as_ref())
-                        .and_then(|v| v.plural.as_ref())
-                        .and_then(|p| p.values().next())
-                        .map(|var| extract_specifiers(&var.string_unit.value))
-                        .unwrap_or_default()
-                } else {
-                    source_specs.clone()
-                };
-
-                // Validate specifiers in each plural form value
-                for (form, value) in plural_forms {
-                    let target_specs = extract_specifiers(value);
-                    if let Some(reason) = check_specifier_mismatch(
-                        &effective_source_specs,
-                        &target_specs,
-                        &translation.key,
-                        Some(form),
-                    ) {
-                        rejected.push(reason);
-                    }
-                }
-            }
-        } else {
-            // Simple translation — validate specifiers
-            let target_specs = extract_specifiers(&translation.value);
-            if let Some(reason) =
-                check_specifier_mismatch(&source_specs, &target_specs, &translation.key, None)
-            {
-                rejected.push(reason);
-            }
         }
+
+        let format_report = validate_translation_formats(file, translation);
+        report.rejected.extend(format_report.rejected);
+        report.warnings.extend(format_report.warnings);
+        report.format_errors.extend(format_report.format_errors);
     }
 
-    rejected
+    report
 }
 
-fn check_specifier_mismatch(
-    source_specs: &[FormatSpecifier],
-    target_specs: &[FormatSpecifier],
+pub(crate) fn validate_translation_formats(
+    file: &XcStringsFile,
+    translation: &CompletedTranslation,
+) -> TranslationValidationReport {
+    let mut report = TranslationValidationReport::default();
+    let Some(entry) = file.strings.get(&translation.key) else {
+        return report;
+    };
+    let source = source_localization(file, entry);
+    if let Some(plural_forms) = &translation.plural_forms {
+        for (form, target) in plural_forms {
+            let Some(source_value) = resolve_plural_source(
+                source,
+                &translation.key,
+                translation.substitution_name.as_deref(),
+                form,
+            ) else {
+                continue;
+            };
+            let comparison = if translation.substitution_name.is_some() {
+                compare_substitution_formats(source_value, target)
+            } else {
+                compare_formats(source_value, target)
+            };
+            append_comparison(&mut report, &translation.key, Some(form), comparison);
+        }
+    } else {
+        let source_value = source
+            .and_then(|localization| localization.string_unit.as_ref())
+            .map(|unit| unit.value.as_str())
+            .unwrap_or(&translation.key);
+        append_comparison(
+            &mut report,
+            &translation.key,
+            None,
+            compare_formats(source_value, &translation.value),
+        );
+    }
+    report
+}
+
+fn append_comparison(
+    report: &mut TranslationValidationReport,
     key: &str,
     plural_form: Option<&str>,
-) -> Option<RejectedTranslation> {
-    if source_specs.len() != target_specs.len() {
-        let context = plural_form
-            .map(|f| format!(" (plural form: {f})"))
-            .unwrap_or_default();
-        return Some(RejectedTranslation {
+    comparison: FormatComparison,
+) {
+    let context = plural_form
+        .map(|form| format!(" (plural form: {form})"))
+        .unwrap_or_default();
+    for issue in comparison.errors {
+        let message = format!("{}{context}", issue.message);
+        report.rejected.push(RejectedTranslation {
             key: key.to_string(),
-            reason: format!(
-                "format specifier count mismatch{context}: source has {}, translation has {}",
-                source_specs.len(),
-                target_specs.len()
-            ),
+            reason: message.clone(),
+        });
+        report.format_errors.push(ValidationIssue {
+            key: key.to_string(),
+            issue_type: issue.code.to_string(),
+            message,
         });
     }
-
-    for (src, tgt) in source_specs.iter().zip(target_specs.iter()) {
-        if !src.is_compatible_with(tgt) {
-            let context = plural_form
-                .map(|f| format!(" (plural form: {f})"))
-                .unwrap_or_default();
-            return Some(RejectedTranslation {
+    report.warnings.extend(
+        comparison
+            .warnings
+            .into_iter()
+            .map(|issue| ValidationIssue {
                 key: key.to_string(),
-                reason: format!(
-                    "format specifier type mismatch{context}: source has {}, translation has {}",
-                    src.raw, tgt.raw
-                ),
-            });
+                issue_type: issue.code.to_string(),
+                message: format!("{}{context}", issue.message),
+            }),
+    );
+}
+
+fn source_localization<'a>(
+    file: &XcStringsFile,
+    entry: &'a StringEntry,
+) -> Option<&'a Localization> {
+    entry
+        .localizations
+        .as_ref()
+        .and_then(|localizations| localizations.get(&file.source_language))
+}
+
+fn resolve_plural_source<'a>(
+    source: Option<&'a Localization>,
+    key: &'a str,
+    substitution_name: Option<&str>,
+    form: &str,
+) -> Option<&'a str> {
+    if let Some(name) = substitution_name {
+        return source
+            .and_then(|localization| localization.substitutions.as_ref())
+            .and_then(|substitutions| substitutions.get(name))
+            .and_then(|value| plural_value(value, form));
+    }
+
+    if let Some(plural) = source
+        .and_then(|localization| localization.variations.as_ref())
+        .and_then(|variations| variations.plural.as_ref())
+    {
+        if let Some(value) = plural.get(form) {
+            return Some(&value.string_unit.value);
+        }
+        if let Some(value) = plural.get("other").or_else(|| plural.values().next()) {
+            return Some(&value.string_unit.value);
         }
     }
 
-    None
+    Some(
+        source
+            .and_then(|localization| localization.string_unit.as_ref())
+            .map(|unit| unit.value.as_str())
+            .unwrap_or(key),
+    )
+}
+
+fn plural_value<'a>(substitution: &'a serde_json::Value, form: &str) -> Option<&'a str> {
+    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
+    plural
+        .get(form)
+        .or_else(|| plural.get("other"))
+        .or_else(|| plural.values().next())?
+        .get("stringUnit")?
+        .get("value")?
+        .as_str()
 }
 
 #[cfg(test)]

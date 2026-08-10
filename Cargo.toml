@@ -34,6 +34,8 @@ clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4"
 quick-xml = { version = "0.41", features = ["serialize"] }
 libc = "0.2.186"
+unicode-script = "0.5.8"
+sha2 = "0.11.0"
 
 [dev-dependencies]
 tempfile = "3.27"

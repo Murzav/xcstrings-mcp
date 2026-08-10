@@ -6,9 +6,15 @@ pub(crate) mod files;
 pub(crate) mod glossary;
 pub(crate) mod keys;
 pub(crate) mod manage;
+pub(crate) mod merge;
 pub(crate) mod parse;
 pub(crate) mod plural;
 pub(crate) mod strings;
+pub(crate) mod submit_response;
+#[cfg(test)]
+mod task1_tests;
+#[cfg(test)]
+mod task2_tests;
 pub(crate) mod translate;
 pub(crate) mod xliff;
 
@@ -57,19 +63,42 @@ impl FileCache {
     }
 
     /// Insert (or replace) a cached file, and set it as active.
-    pub(crate) fn insert(&mut self, path: PathBuf, cached: CachedFile) {
-        self.active = Some(path.clone());
-        self.files.insert(path, cached);
+    pub(crate) fn insert(&mut self, identity: PathBuf, cached: CachedFile) {
+        let display_path = cached.path.as_path();
+        self.files.retain(|existing_identity, existing| {
+            existing_identity == &identity || existing.path.as_path() != display_path
+        });
+        self.active = Some(identity.clone());
+        self.files.insert(identity, cached);
     }
 
-    /// Get a reference to a cached file by path.
-    pub(crate) fn get(&self, path: &PathBuf) -> Option<&CachedFile> {
-        self.files.get(path)
+    /// Replace a cached entry without changing which file is active.
+    pub(crate) fn replace_if_cached(&mut self, identity: PathBuf, mut cached: CachedFile) -> bool {
+        let Some(entry) = self.files.get_mut(&identity) else {
+            return false;
+        };
+        cached.path = entry.path.clone();
+        *entry = cached;
+        true
+    }
+
+    /// Get a reference to a cached file by stable identity.
+    pub(crate) fn get(&self, identity: &PathBuf) -> Option<&CachedFile> {
+        self.files.get(identity)
     }
 
     /// Return the active file path, if any.
     pub(crate) fn active_path(&self) -> Option<&PathBuf> {
-        self.active.as_ref()
+        self.active
+            .as_ref()
+            .and_then(|identity| self.files.get(identity))
+            .map(|cached| &cached.path)
+    }
+
+    fn active_cached(&self) -> Option<&CachedFile> {
+        self.active
+            .as_ref()
+            .and_then(|identity| self.files.get(identity))
     }
 
     /// Return info about all cached files, sorted by path.
@@ -77,11 +106,11 @@ impl FileCache {
         let mut infos: Vec<CachedFileInfo> = self
             .files
             .iter()
-            .map(|(path, cached)| CachedFileInfo {
-                path: path.clone(),
+            .map(|(identity, cached)| CachedFileInfo {
+                path: cached.path.clone(),
                 source_language: cached.content.source_language.clone(),
                 total_keys: cached.content.strings.len(),
-                is_active: self.active.as_ref() == Some(path),
+                is_active: self.active.as_ref() == Some(identity),
             })
             .collect();
         infos.sort_by(|a, b| a.path.cmp(&b.path));
@@ -106,9 +135,10 @@ pub(crate) async fn resolve_file(
         let raw = store.read(&path)?;
         let file = parser::parse(&raw)?;
         let mtime = store.modified_time(&path)?;
+        let identity = store.file_identity(&path)?;
         let mut guard = cache.lock().await;
         guard.insert(
-            path.clone(),
+            identity,
             CachedFile {
                 path: path.clone(),
                 content: file.clone(),
@@ -118,13 +148,7 @@ pub(crate) async fn resolve_file(
         Ok((path, file))
     } else {
         let guard = cache.lock().await;
-        let active_path = guard
-            .active_path()
-            .cloned()
-            .ok_or(XcStringsError::NoActiveFile)?;
-        let cached = guard
-            .get(&active_path)
-            .ok_or(XcStringsError::NoActiveFile)?;
+        let cached = guard.active_cached().ok_or(XcStringsError::NoActiveFile)?;
 
         // Validate mtime — re-read if file changed externally
         if let Ok(current_mtime) = store.modified_time(&cached.path)
@@ -136,8 +160,9 @@ pub(crate) async fn resolve_file(
             let file = parser::parse(&raw)?;
             let mtime = store.modified_time(&path)?;
             let mut guard = cache.lock().await;
+            let identity = store.file_identity(&path)?;
             guard.insert(
-                path.clone(),
+                identity,
                 CachedFile {
                     path: path.clone(),
                     content: file.clone(),

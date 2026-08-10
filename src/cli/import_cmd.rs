@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use xcstrings_mcp::io::FileStore;
 use xcstrings_mcp::io::fs::FsFileStore;
-use xcstrings_mcp::model::translation::SubmitResult;
+use xcstrings_mcp::model::translation::{DetailedSubmitResult, SubmitResult, ValidationIssue};
 use xcstrings_mcp::service::{formatter, merger, parser, validator, xliff};
 
 use super::common::{EXIT_ERROR, EXIT_OK, EXIT_VALIDATION_ISSUES, handle_error, load_file};
@@ -34,11 +34,13 @@ pub fn run(file: Option<PathBuf>, xliff_path: PathBuf, dry_run: bool, json: bool
             rejected: vec![],
             dry_run,
         };
-        return print_result(&result, &xliff_path, json);
+        return print_result(&result, &[], &xliff_path, json);
     }
 
     // Validate translations
-    let rejected = validator::validate_translations(&parsed, &translations);
+    let validation = validator::validate_translations_detailed(&parsed, &translations);
+    let rejected = validation.rejected;
+    let warnings = validation.warnings;
     let rejected_keys: HashSet<&str> = rejected.iter().map(|r| r.key.as_str()).collect();
     let valid: Vec<_> = translations
         .iter()
@@ -53,7 +55,7 @@ pub fn run(file: Option<PathBuf>, xliff_path: PathBuf, dry_run: bool, json: bool
             rejected,
             dry_run,
         };
-        return print_result(&result, &xliff_path, json);
+        return print_result(&result, &warnings, &xliff_path, json);
     }
 
     // Re-read file fresh (same pattern as MCP tool), merge, format, write
@@ -86,14 +88,27 @@ pub fn run(file: Option<PathBuf>, xliff_path: PathBuf, dry_run: bool, json: bool
         dry_run: false,
     };
 
-    print_result(&result, &xliff_path, json)
+    print_result(&result, &warnings, &xliff_path, json)
 }
 
-fn print_result(result: &SubmitResult, xliff_path: &std::path::Path, json: bool) -> ExitCode {
+fn print_result(
+    result: &SubmitResult,
+    warnings: &[ValidationIssue],
+    xliff_path: &std::path::Path,
+    json: bool,
+) -> ExitCode {
     let has_rejected = !result.rejected.is_empty();
 
     if json {
-        match serde_json::to_string_pretty(result) {
+        match serde_json::to_string_pretty(&DetailedSubmitResult {
+            result: SubmitResult {
+                accepted: result.accepted,
+                rejected: result.rejected.clone(),
+                dry_run: result.dry_run,
+                accepted_keys: result.accepted_keys.clone(),
+            },
+            warnings: warnings.to_vec(),
+        }) {
             Ok(out) => println!("{out}"),
             Err(e) => {
                 eprintln!("error: failed to serialize: {e}");
@@ -114,6 +129,15 @@ fn print_result(result: &SubmitResult, xliff_path: &std::path::Path, json: bool)
             eprintln!("Rejected: {} translations", result.rejected.len());
             for r in &result.rejected {
                 eprintln!("  key \"{}\": {}", r.key, r.reason);
+            }
+        }
+        if !warnings.is_empty() {
+            eprintln!("Warnings: {}", warnings.len());
+            for warning in warnings {
+                eprintln!(
+                    "  key \"{}\" [{}]: {}",
+                    warning.key, warning.issue_type, warning.message
+                );
             }
         }
     }

@@ -12,8 +12,8 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "xcstrings-mcp",
     about = "MCP server & CLI for iOS/macOS .xcstrings (String Catalog) localization.\n\n\
-             26 MCP tools + 11 CLI commands for the full localization lifecycle:\n\
-             migrate → create → extract → translate → validate → export.\n\n\
+             28 MCP tools + 12 CLI commands for the full localization lifecycle:\n\
+             migrate → create → extract → translate → validate → merge → export.\n\n\
              Without a subcommand, starts the MCP server (stdio transport).\n\
              Use subcommands for direct CLI access to localization operations.",
     version,
@@ -28,6 +28,7 @@ use tracing_subscriber::EnvFilter;
                   xcstrings-mcp validate              Validate translations\n  \
                   xcstrings-mcp add-locale fr         Add a new locale\n  \
                   xcstrings-mcp export --locale de -o out.xliff   Export to XLIFF\n  \
+                  xcstrings-mcp merge --help        Three-way merge catalogs safely\n  \
                   xcstrings-mcp completions zsh       Generate shell completions\n\n\
                   ENVIRONMENT:\n  \
                   RUST_LOG=debug xcstrings-mcp        Enable debug logging to stderr"

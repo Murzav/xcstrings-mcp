@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- `merge_xcstrings` MCP tool and `merge` CLI command now provide conservative ordered two-sided/three-way String Catalog merges. Dry-runs return raw-byte fingerprints, automatic choices, validation deltas, and stable paginated conflicts; apply accepts only `current`/`incoming`/`base` resolutions and refuses unresolved, newly invalid, or stale results.
+
+### Changed
+- Format validation now parses Foundation arguments deterministically, including the integer `j` length modifier, preserves position, conversion, length modifier, flags, width, and precision per logical argument, and permits valid positional reordering across simple, plural, and substitution validation paths.
+- `submit_translations`, MCP XLIFF import, CLI XLIFF import, and file validation now expose non-blocking, machine-readable warnings when ambiguous percent-in-prose sequences differ.
+- Filesystem writes now coordinate through a stable sibling advisory lock instead of locking the replaceable destination inode. The public `FileStore` has a source-compatible conditional-write method whose default fails closed; the real store compares exact expected bytes or expected absence under the lock before temp-file fsync and atomic rename.
+
+### Fixed
+- Merge dry-runs with unresolved conflicts now retain the complete CLI JSON report while returning validation exit status 2. Validation deltas list only issues that remain in the candidate, MCP pagination schema matches the 1–500 runtime range, conflict metadata handles marker-like key names, and cached path aliases refresh by canonical file identity without switching the active file.
+- Filesystem temp cleanup is now target-owned and performed under that target's stable lock, so starting another cooperating store cannot remove an active writer's temp. Expected-absence writes also reject and preserve dangling symlinks, existing BOM-prefixed output reports the correct key count, and unused merge resolutions are diagnosed deterministically in request order.
+- Catalog aliases can no longer resolve to internal lock/temp sidecars or non-catalog files, and stable locks are opened without following redirects and accepted only as uniquely linked regular files. Reparsing a retargeted symlink now evicts its obsolete cache identity instead of leaving a duplicate `list_files` entry.
+- Natural percentage prose such as `100% Local Storage`, `You've logged 85% of...`, and `7.0-8.0% - Acceptable...` is no longer rejected as a definite format mismatch.
+- Definite format arguments next to unspaced Han, Hiragana, Katakana, or Hangul text (for example `%lld日`) remain blocking validation requirements, while other Unicode word continuations remain ambiguous; substitution plurals require exact `%arg` placeholders instead of accepting longer Unicode words or escaped percent sequences.
+- Zero or overflowing value, dynamic-width, and dynamic-precision positional indices now fail with `invalid_positional_argument` instead of being interpreted as sequential arguments.
+- Foundation integer length modifiers now reject unsupported uppercase legacy, `i`, and `n` conversions instead of accepting malformed pairs such as `%hD` or `%llO`.
+- XLIFF import now decodes and XML-normalizes `trans-unit@id` and `file@target-language`, preserving named and numeric character references in keys and locales.
+- XLIFF import now accepts both default-namespace and prefix-qualified XLIFF 1.2 documents from external tools while retaining legacy fully unqualified input compatibility. Imports require exactly one `<xliff>` document root and lock its namespace mode for every structural element; XML-normalized namespace URIs are compared consistently, bound foreign extension elements remain supported, and wrappers, nested or repeated roots, trailing fragments/content, mixed structural modes, unbound prefixes, malformed namespace references, and duplicate raw or expanded attribute names are rejected before any catalog write.
+
 ## [1.3.4] - 2026-07-20
 
 ### Changed
