@@ -267,7 +267,7 @@ fn validate_attributes(
 
         if !expanded_names.insert((namespace.clone(), attribute_local_name.clone())) {
             let expanded_name = match namespace {
-                Some(namespace) => format!("{{{}}}{}", namespace, attribute_local_name),
+                Some(namespace) => format!("{{{namespace}}}{attribute_local_name}"),
                 None => attribute_local_name,
             };
             return Err(XcStringsError::XliffParse(format!(
