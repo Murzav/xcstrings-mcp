@@ -4,8 +4,9 @@ description: >
   Use this skill for ANY task involving iOS/macOS localization: translating strings,
   adding or removing languages, checking coverage, finding missing or stale translations,
   validating format specifiers, managing plural forms, migrating from legacy .strings format,
-  exporting/importing XLIFF for external translators, managing glossary, adding new keys,
-  extracting hardcoded strings from Swift code, or auditing localization quality.
+  exporting/importing XLIFF for external translators, merging catalog changes across branches,
+  resolving translation conflicts, managing glossary, adding new keys, extracting hardcoded
+  strings from Swift code, or auditing localization quality.
   Activate whenever the user mentions languages, translations, localization, xcstrings,
   App Store markets, or anything related to making an iOS/macOS app multilingual.
 ---
@@ -57,6 +58,12 @@ description: >
 - "import translations / got translations back from agency"
 - "XLIFF / .xliff file"
 
+### Catalog & Branch Merges
+- "merge xcstrings / merge String Catalogs / merge localization branches"
+- "translation conflict / localization merge conflict / xcstrings conflict"
+- "preserve translations from both branches / reconcile two catalogs"
+- a Git merge or pull request reports conflicting `.xcstrings` changes
+
 ### Plural Forms
 - "plural forms in localization / pluralization in xcstrings"
 - "one/few/many/other localization forms"
@@ -92,6 +99,12 @@ Bash("find . -name '*.xcstrings'")
 ```
 
 **Always use xcstrings-mcp tools instead. No exceptions.**
+
+---
+
+## Runtime Compatibility
+
+Normal MCP clients continue to launch `xcstrings-mcp` over stdio with the same configuration. Rust applications that directly embed `XcStringsMcpServer` must use `rmcp` 3.1.2 and Rust 1.88 or newer; `rmcp` 2.x traits are not source-compatible with the server's public `rmcp` 3 implementation.
 
 ---
 

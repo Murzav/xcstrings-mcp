@@ -143,6 +143,16 @@ transport: stdio
 ```
 </details>
 
+### Rust library compatibility
+
+The CLI binary and stdio MCP configuration are unchanged. Rust applications that embed the public `XcStringsMcpServer` type must use `rmcp` 3.1.2 and Rust 1.88 or newer:
+
+```toml
+rmcp = { version = "3.1.2", features = ["server", "transport-io", "macros"] }
+```
+
+`rmcp` 2.x and 3.x expose distinct Rust traits and response types, so an embedder compiled against `rmcp` 2.x must update its direct dependency before adopting this release.
+
 ## Usage
 
 The basic loop:

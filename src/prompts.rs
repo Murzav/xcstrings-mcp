@@ -82,18 +82,19 @@ impl XcStringsMcpServer {
             Instructions:\n\
             1. Call get_untranslated with locale=\"{locale}\" and batch_size={count}\n\
             2. For each string, translate naturally \u{2014} not word-for-word\n\
-            3. Preserve all format specifiers (%@, %d, %lld, etc.) exactly as they appear\n\
+            3. Preserve the conversion, length modifier, flags, width, and precision of all definite Foundation format arguments; valid positional reordering is allowed\n\
             4. For plural forms, use get_plurals to see required CLDR forms for {locale}\n\
             5. Use get_context to understand nearby related strings\n\
             6. Submit translations using submit_translations\n\
-            7. If there are more untranslated strings, repeat from step 1\n\
+            7. Inspect rejected[] for blocking failures and warnings[] for accepted ambiguous percent-in-prose differences\n\
+            8. If there are more untranslated strings, repeat from step 1\n\
             \n\
             Guidelines:\n\
             - Keep translations concise \u{2014} mobile UI has limited space\n\
             - Maintain consistent terminology \u{2014} use get_glossary to check existing terms\n\
             - Don't translate brand names or technical identifiers\n\
             - Preserve the tone and formality level of the source text\n\
-            - Review rejected translations in response and fix format specifier issues before retranslating",
+            - Fix rejected definite-argument errors before retranslating; review warnings without changing intentional percentage prose merely to silence them",
             locale = params.locale,
             count = count,
         );
@@ -120,10 +121,11 @@ impl XcStringsMcpServer {
             "You are reviewing existing translations for locale \"{locale}\".\n\
             \n\
             Instructions:\n\
-            1. Call validate_translations with locale=\"{locale}\" to find technical issues\n\
+            1. Call validate_translations with locale=\"{locale}\" to find blocking errors and non-blocking warnings\n\
             2. Call get_coverage with locale=\"{locale}\" to see overall progress\n\
             3. For each validation issue, assess severity:\n\
-            \x20  - Format specifier mismatches: CRITICAL \u{2014} fix immediately\n\
+            \x20  - Definite Foundation argument mismatches or invalid positions: BLOCKING \u{2014} fix before submit\n\
+            \x20  - Ambiguous percent-in-prose differences: WARNING \u{2014} review context; valid prose may remain unchanged\n\
             \x20  - Missing plural forms: HIGH \u{2014} will cause runtime issues\n\
             \x20  - Empty translations: MEDIUM \u{2014} incomplete but not broken\n\
             4. Review a sample of translated strings for quality:\n\
@@ -175,8 +177,8 @@ impl XcStringsMcpServer {
             \x20 Submit using submit_translations with plural_forms\n\
             \n\
             Step 5: Validate\n\
-            \x20 Call validate_translations to check for issues\n\
-            \x20 Fix any problems found\n\
+            \x20 Call validate_translations to check blocking errors and non-blocking warnings\n\
+            \x20 Fix blocking problems; review ambiguous percent-in-prose warnings in context\n\
             \n\
             Step 6: Final check\n\
             \x20 Call get_coverage to confirm 100% for {locale}\n\
@@ -212,7 +214,8 @@ impl XcStringsMcpServer {
             Step 2: Validate existing translations\n\
             \x20 Call validate_translations to find technical issues for {locale}\n\
             \x20 Categorize by severity:\n\
-            \x20   CRITICAL: format specifier mismatches \u{2014} will crash at runtime\n\
+            \x20   BLOCKING: definite Foundation argument mismatch or invalid position\n\
+            \x20   WARNING: ambiguous percent-in-prose difference \u{2014} review, but do not rewrite valid prose solely to silence it\n\
             \x20   HIGH: missing plural forms \u{2014} will show wrong text\n\
             \x20   MEDIUM: empty translations \u{2014} incomplete but not broken\n\
             \n\
@@ -251,23 +254,26 @@ impl XcStringsMcpServer {
             Step 1: Get all validation issues\n\
             \x20 Call validate_translations with locale=\"{locale}\"\n\
             \n\
-            Step 2: Fix CRITICAL issues first (format specifier mismatches)\n\
-            \x20 For each specifier mismatch:\n\
+            Step 2: Fix blocking format errors first\n\
+            \x20 For each definite Foundation argument mismatch or invalid position:\n\
             \x20 - Call get_context to understand the string's purpose\n\
-            \x20 - Fix the translation to include the correct specifiers\n\
+            \x20 - Preserve conversion, length modifier, flags, width, and precision; positional reordering is allowed when argument numbers remain correct\n\
             \x20 - Submit with submit_translations (dry_run=true first to verify)\n\
             \n\
-            Step 3: Fix HIGH issues (missing plural forms)\n\
+            Step 3: Review warnings[]\n\
+            \x20 Ambiguous percent-in-prose differences are non-blocking; confirm the wording is intentional instead of forcing it to resemble a format argument\n\
+            \n\
+            Step 4: Fix HIGH issues (missing plural forms)\n\
             \x20 For each missing plural form:\n\
             \x20 - Call get_plurals to see required CLDR forms for {locale}\n\
             \x20 - Provide all required forms (one, few, many, other etc.)\n\
             \x20 - Submit with submit_translations using plural_forms\n\
             \n\
-            Step 4: Fix MEDIUM issues (empty translations)\n\
+            Step 5: Fix MEDIUM issues (empty translations)\n\
             \x20 These are untranslated strings \u{2014} use the translate_batch workflow\n\
             \x20 Call get_untranslated and translate in batches\n\
             \n\
-            Step 5: Verify\n\
+            Step 6: Verify\n\
             \x20 Call validate_translations again to confirm zero issues remain",
             locale = params.locale,
         );
@@ -317,7 +323,7 @@ impl XcStringsMcpServer {
             \n\
             Step 5: Replace hardcoded strings in Swift code\n\
             \x20 Replace each hardcoded string with String(localized: \"key.name\")\n\
-            \x20 For strings with format specifiers, use appropriate interpolation\n\
+            \x20 For strings with definite Foundation format arguments, use appropriate interpolation\n\
             \n\
             Step 6: Validate\n\
             \x20 Call parse_xcstrings to verify the file is valid\n\
@@ -403,7 +409,7 @@ impl XcStringsMcpServer {
             \n\
             Step 5: Translate simple strings\n\
             \x20 Call get_untranslated in batches (batch_size=20)\n\
-            \x20 Translate each batch naturally, preserving format specifiers\n\
+            \x20 Translate each batch naturally, preserving definite Foundation argument components; valid positional reordering is allowed\n\
             \x20 Submit with submit_translations\n\
             \x20 Repeat until no untranslated strings remain\n\
             \n\
@@ -413,7 +419,7 @@ impl XcStringsMcpServer {
             \x20 Submit using submit_translations with plural_forms\n\
             \n\
             Step 7: Validate and finalize\n\
-            \x20 Call validate_translations to check for issues\n\
+            \x20 Call validate_translations to fix blocking errors and review non-blocking warnings\n\
             \x20 Call get_coverage to confirm 100% for {locale}",
             locale = params.locale,
             file_instruction = file_instruction,
@@ -427,185 +433,5 @@ impl XcStringsMcpServer {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use rmcp::model::{ContentBlock, TextContent};
-    use std::path::PathBuf;
-    use std::sync::Arc;
-
-    fn make_server() -> XcStringsMcpServer {
-        let store = Arc::new(crate::tools::test_helpers::MemoryStore::new());
-        XcStringsMcpServer::new(store, PathBuf::from("/tmp/g.json"))
-    }
-
-    #[test]
-    fn translate_batch_returns_content() {
-        let server = make_server();
-        let result = server
-            .translate_batch(Parameters(TranslateBatchParams {
-                locale: "uk".into(),
-                count: Some(10),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("uk"));
-        assert!(text.contains("10"));
-        assert!(text.contains("get_untranslated"));
-    }
-
-    #[test]
-    fn translate_batch_default_count() {
-        let server = make_server();
-        let result = server
-            .translate_batch(Parameters(TranslateBatchParams {
-                locale: "de".into(),
-                count: None,
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("20"));
-    }
-
-    #[test]
-    fn review_translations_returns_content() {
-        let server = make_server();
-        let result = server
-            .review_translations(Parameters(ReviewTranslationsParams {
-                locale: "fr".into(),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("fr"));
-        assert!(text.contains("validate_translations"));
-    }
-
-    #[test]
-    fn full_translate_returns_content() {
-        let server = make_server();
-        let result = server
-            .full_translate(Parameters(FullTranslateParams {
-                locale: "ja".into(),
-                file_path: "/App/L.xcstrings".into(),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("ja"));
-        assert!(text.contains("/App/L.xcstrings"));
-    }
-
-    #[test]
-    fn localization_audit_returns_content() {
-        let server = make_server();
-        let result = server
-            .localization_audit(Parameters(LocalizationAuditParams {
-                locale: "uk".into(),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("uk"));
-        assert!(text.contains("get_coverage"));
-        assert!(text.contains("get_stale"));
-    }
-
-    #[test]
-    fn fix_validation_errors_returns_content() {
-        let server = make_server();
-        let result = server
-            .fix_validation_errors(Parameters(FixValidationErrorsParams {
-                locale: "de".into(),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("de"));
-        assert!(text.contains("CRITICAL"));
-    }
-
-    #[test]
-    fn extract_strings_returns_content() {
-        let server = make_server();
-        let result = server
-            .extract_strings(Parameters(ExtractStringsParams {
-                source_language: "en".into(),
-                file_path: "/App/L.xcstrings".into(),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("create_xcstrings"));
-        assert!(text.contains("add_keys"));
-        assert!(text.contains("String(localized"));
-    }
-
-    #[test]
-    fn add_language_with_file_path() {
-        let server = make_server();
-        let result = server
-            .add_language(Parameters(AddLanguageParams {
-                locale: "ko".into(),
-                file_path: Some("/App/L.xcstrings".into()),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("ko"));
-        assert!(text.contains("/App/L.xcstrings"));
-    }
-
-    #[test]
-    fn cleanup_stale_returns_content() {
-        let server = make_server();
-        let result = server
-            .cleanup_stale(Parameters(CleanupStaleParams {
-                file_path: Some("/App/L.xcstrings".into()),
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("get_stale"));
-        assert!(text.contains("delete_keys"));
-        assert!(text.contains("/App/L.xcstrings"));
-    }
-
-    #[test]
-    fn cleanup_stale_without_file_path() {
-        let server = make_server();
-        let result = server
-            .cleanup_stale(Parameters(CleanupStaleParams { file_path: None }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("Ensure a file is already parsed"));
-    }
-
-    #[test]
-    fn add_language_without_file_path() {
-        let server = make_server();
-        let result = server
-            .add_language(Parameters(AddLanguageParams {
-                locale: "zh".into(),
-                file_path: None,
-            }))
-            .unwrap();
-        let ContentBlock::Text(TextContent { ref text, .. }) = result.messages[0].content else {
-            panic!("expected text")
-        };
-        assert!(text.contains("zh"));
-        assert!(text.contains("Ensure a file is already parsed"));
-    }
-}
+#[path = "prompts/tests.rs"]
+mod tests;
