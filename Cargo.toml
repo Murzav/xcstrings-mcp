@@ -32,7 +32,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 regex = "1.12"
 clap = { version = "4.6", features = ["derive"] }
 clap_complete = "4"
-quick-xml = { version = "0.41", features = ["serialize"] }
+quick-xml = { version = "0.42", features = ["serialize"] }
 libc = "0.2.186"
 unicode-script = "0.5.8"
 sha2 = "0.11.0"
@@ -46,7 +46,7 @@ tokio-test = "0.4"
 assert_cmd = "2"
 predicates = "3"
 proptest = "1.11"
-jsonschema = { version = "0.49.9", default-features = false }
+jsonschema = { version = "0.52.1", default-features = false }
 
 [[bench]]
 name = "parse_benchmark"
