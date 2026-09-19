@@ -16,6 +16,7 @@ pub fn create_empty_file(source_language: &str) -> Result<XcStringsFile, XcStrin
         source_language: source_language.to_string(),
         strings: IndexMap::new(),
         version: "1.0".to_string(),
+        ..Default::default()
     })
 }
 
@@ -51,9 +52,11 @@ pub fn add_keys(file: &mut XcStringsFile, keys: &[AddKeyRequest]) -> AddKeysResu
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: req.source_text.clone(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
 
@@ -62,6 +65,7 @@ pub fn add_keys(file: &mut XcStringsFile, keys: &[AddKeyRequest]) -> AddKeysResu
             should_translate: true,
             comment: req.comment.clone(),
             localizations: Some(localizations),
+            ..Default::default()
         };
 
         file.strings.insert(req.key.clone(), entry);

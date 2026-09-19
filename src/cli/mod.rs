@@ -83,7 +83,7 @@ pub enum Command {
         #[arg(long)]
         dry_run: bool,
     },
-    /// Export simple stringUnit translations to XLIFF
+    /// Export Apple String Catalog translation leaves to XLIFF 1.2
     Export {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,
@@ -93,17 +93,23 @@ pub enum Command {
         /// Output file path
         #[arg(short, long)]
         output: Option<PathBuf>,
+        /// Exact XLIFF file original (defaults to the catalog filename)
+        #[arg(long)]
+        original: Option<String>,
         /// Export all strings (including already translated)
         #[arg(long)]
         all: bool,
     },
-    /// Import simple stringUnit XLIFF 1.2; Apple variation-unit IDs are unsupported
+    /// Import Apple XLIFF 1.2 leaves atomically, preserving draft states
     Import {
         /// Path to .xcstrings file (auto-discovered if omitted)
         file: Option<PathBuf>,
         /// Path to XLIFF file to import
         #[arg(long)]
         xliff: PathBuf,
+        /// Select an exact XLIFF file original when multiple catalog scopes exist
+        #[arg(long)]
+        original: Option<String>,
         /// Preview changes without writing
         #[arg(long)]
         dry_run: bool,
@@ -197,13 +203,15 @@ pub fn run(cmd: Command, json: bool) -> ExitCode {
             file,
             locale,
             output,
+            original,
             all,
-        } => export_cmd::run(file, locale, output, all, json),
+        } => export_cmd::run(file, locale, output, original, all, json),
         Command::Import {
             file,
             xliff,
+            original,
             dry_run,
-        } => import_cmd::run(file, xliff, dry_run, json),
+        } => import_cmd::run(file, xliff, original, dry_run, json),
         Command::Migrate {
             source_language,
             output,

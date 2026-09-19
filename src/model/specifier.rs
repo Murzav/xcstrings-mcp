@@ -5,7 +5,7 @@ use unicode_script::{Script, UnicodeScript};
 #[path = "specifier/comparison.rs"]
 mod comparison;
 pub use comparison::compare_formats;
-pub(crate) use comparison::compare_substitution_formats;
+pub(crate) use comparison::{compare_format_fragment, compare_substitution_fragment};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct FormatSpecifier {

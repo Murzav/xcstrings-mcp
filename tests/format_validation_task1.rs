@@ -21,9 +21,11 @@ fn simple_entry(source: &str, target: Option<(&str, &str)>) -> StringEntry {
             string_unit: Some(StringUnit {
                 state: TranslationState::Translated,
                 value: source.to_string(),
+                ..Default::default()
             }),
             variations: None,
             substitutions: None,
+            ..Default::default()
         },
     );
     if let Some((locale, value)) = target {
@@ -33,9 +35,11 @@ fn simple_entry(source: &str, target: Option<(&str, &str)>) -> StringEntry {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
     }
@@ -44,6 +48,7 @@ fn simple_entry(source: &str, target: Option<(&str, &str)>) -> StringEntry {
         should_translate: true,
         comment: None,
         localizations: Some(localizations),
+        ..Default::default()
     }
 }
 
@@ -52,6 +57,7 @@ fn file_with(key: &str, entry: StringEntry) -> XcStringsFile {
         source_language: "en".to_string(),
         strings: IndexMap::from([(key.to_string(), entry)]),
         version: "1.0".to_string(),
+        ..Default::default()
     }
 }
 
@@ -62,6 +68,7 @@ fn translation(key: &str, value: &str) -> CompletedTranslation {
         value: value.to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }
 }
 
@@ -911,6 +918,7 @@ fn shared_source_resolver_handles_key_fallback_and_matching_plural_forms() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: None,
+        ..Default::default()
     };
     let detailed = validator::validate_translations_detailed(&plural_file, &[plural]);
     assert!(detailed.rejected.is_empty(), "{:?}", detailed.rejected);
@@ -919,23 +927,27 @@ fn shared_source_resolver_handles_key_fallback_and_matching_plural_forms() {
 #[test]
 fn submit_and_file_validation_have_plural_classification_parity() {
     let mut entry = plural_entry();
-    let target_plural = BTreeMap::from([
+    let target_plural = IndexMap::from([
         (
             "one".to_string(),
             PluralVariation {
-                string_unit: StringUnit {
+                string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "%d Element".to_string(),
-                },
+                    ..Default::default()
+                }),
+                ..Default::default()
             },
         ),
         (
             "other".to_string(),
             PluralVariation {
-                string_unit: StringUnit {
+                string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "%lld Elemente".to_string(),
-                },
+                    ..Default::default()
+                }),
+                ..Default::default()
             },
         ),
     ]);
@@ -946,8 +958,10 @@ fn submit_and_file_validation_have_plural_classification_parity() {
             variations: Some(Variations {
                 plural: Some(target_plural),
                 device: None,
+                ..Default::default()
             }),
             substitutions: None,
+            ..Default::default()
         },
     );
     let file = file_with("items", entry);
@@ -960,6 +974,7 @@ fn submit_and_file_validation_have_plural_classification_parity() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: None,
+        ..Default::default()
     };
 
     let submit = validator::validate_translations_detailed(&file, &[submitted]);
@@ -982,6 +997,8 @@ fn submit_and_file_validation_have_plural_classification_parity() {
         .get_mut("other")
         .unwrap()
         .string_unit
+        .as_mut()
+        .unwrap()
         .value = "Elemente".to_string();
     let report = file_validator::validate_file(&broken, Some("de"));
     assert!(
@@ -1004,6 +1021,7 @@ fn shared_source_resolver_validates_substitution_placeholders() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: Some("BIRDS".to_string()),
+        ..Default::default()
     };
     let detailed = validator::validate_translations_detailed(&file, &[submitted]);
     assert!(
@@ -1141,27 +1159,32 @@ fn simple_entry_without_source() -> StringEntry {
         should_translate: true,
         comment: None,
         localizations: None,
+        ..Default::default()
     }
 }
 
 fn plural_entry() -> StringEntry {
-    let plural = BTreeMap::from([
+    let plural = IndexMap::from([
         (
             "one".to_string(),
             PluralVariation {
-                string_unit: StringUnit {
+                string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "%d item".to_string(),
-                },
+                    ..Default::default()
+                }),
+                ..Default::default()
             },
         ),
         (
             "other".to_string(),
             PluralVariation {
-                string_unit: StringUnit {
+                string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "%lld items".to_string(),
-                },
+                    ..Default::default()
+                }),
+                ..Default::default()
             },
         ),
     ]);
@@ -1170,14 +1193,17 @@ fn plural_entry() -> StringEntry {
         variations: Some(Variations {
             plural: Some(plural),
             device: None,
+            ..Default::default()
         }),
         substitutions: None,
+        ..Default::default()
     };
     StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), localization)])),
+        ..Default::default()
     }
 }
 
@@ -1187,15 +1213,21 @@ fn substitution_entry() -> StringEntry {
         string_unit: Some(StringUnit {
             state: TranslationState::Translated,
             value: "I saw %#@BIRDS@".to_string(),
+            ..Default::default()
         }),
         variations: None,
-        substitutions: Some(BTreeMap::from([("BIRDS".to_string(), substitution)])),
+        substitutions: Some(IndexMap::from([(
+            "BIRDS".to_string(),
+            serde_json::from_value(substitution).unwrap(),
+        )])),
+        ..Default::default()
     };
     StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), localization)])),
+        ..Default::default()
     }
 }
 
@@ -1204,12 +1236,16 @@ fn substitution_entry_with_target(one: &str, other: &str) -> StringEntry {
     entry.localizations.as_mut().unwrap().insert(
         "de".to_string(),
         Localization {
-            string_unit: None,
+            string_unit: Some(StringUnit::new(
+                TranslationState::Translated,
+                "Ich sah %#@BIRDS@",
+            )),
             variations: None,
-            substitutions: Some(BTreeMap::from([(
+            substitutions: Some(IndexMap::from([(
                 "BIRDS".to_string(),
-                substitution_value(one, other),
+                serde_json::from_value(substitution_value(one, other)).unwrap(),
             )])),
+            ..Default::default()
         },
     );
     entry
@@ -1238,5 +1274,6 @@ fn substitution_translation(one: &str, other: &str) -> CompletedTranslation {
             ("other".to_string(), other.to_string()),
         ])),
         substitution_name: Some("BIRDS".to_string()),
+        ..Default::default()
     }
 }

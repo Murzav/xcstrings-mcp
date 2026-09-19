@@ -1,5 +1,7 @@
 use crate::model::translation::ContextKey;
-use crate::model::xcstrings::{TranslationState, XcStringsFile};
+#[cfg(test)]
+use crate::model::xcstrings::TranslationState;
+use crate::model::xcstrings::XcStringsFile;
 
 /// Count shared prefix segments between pre-split key segments and another key.
 fn shared_prefix_length(key_segments: &[&str], other_key: &str) -> usize {
@@ -58,13 +60,17 @@ pub fn get_context(file: &XcStringsFile, key: &str, locale: &str, count: usize) 
                 .as_ref()
                 .and_then(|locs| locs.get(locale))
                 .and_then(|loc| loc.string_unit.as_ref())
-                .filter(|su| su.state == TranslationState::Translated)
+                .filter(|su| super::assessment::ready(&su.state))
                 .map(|su| su.value.clone());
 
+            let assessment =
+                super::assessment::assess(other_key, entry, &file.source_language, locale);
             ContextKey {
                 key: other_key.to_string(),
                 source_text,
                 translated_text,
+                leaves: assessment.leaves,
+                diagnostics: assessment.diagnostics,
             }
         })
         .collect()
@@ -85,6 +91,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -96,9 +103,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source_value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -106,6 +115,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -122,9 +132,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source_value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -133,9 +145,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state,
                     value: translated_value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -143,6 +157,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 

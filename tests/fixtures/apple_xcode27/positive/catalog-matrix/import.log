@@ -1,0 +1,13 @@
+COMMAND: ['xcodebuild', '-importLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/positive-matrix/export/fr.xcloc/Localized Contents/fr.xliff']
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj -localizationPath "/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/positive-matrix/export/fr.xcloc/Localized Contents/fr.xliff"
+
+Localization Import started for Oracle project
+2026-09-19 23:34:36 Started import
+2026-09-19 23:34:37 Comparing
+2026-09-19 23:34:37 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+--- xcodebuild: WARNING: Localizable.xcstrings: Target has unfinished state "new" (Key: "state_new")
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "source_only_plural|==|plural.other")
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "source_only_plural|==|plural.one")
+--- xcodebuild: WARNING: Localizable.xcstrings: Target has unfinished state "needs-review-l10n" (Key: "state_needs_review")
+2026-09-19 23:34:37 Writing

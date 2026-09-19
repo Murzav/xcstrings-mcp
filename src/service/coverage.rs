@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::model::translation::{CoverageReport, LocaleCoverage};
 use crate::model::xcstrings::XcStringsFile;
-use crate::service::is_translated_for;
+use crate::service::assessment;
 
 /// Calculate per-locale coverage for the entire file.
 pub fn get_coverage(file: &XcStringsFile) -> CoverageReport {
@@ -41,7 +41,7 @@ fn locale_coverage(
         .strings
         .values()
         .filter(|e| e.should_translate)
-        .filter(|e| is_translated_for(e, locale))
+        .filter(|e| assessment::assess("", e, &file.source_language, locale).complete())
         .count();
 
     let percentage = if translatable_keys == 0 {
@@ -61,7 +61,6 @@ fn locale_coverage(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
 
     use indexmap::IndexMap;
 
@@ -75,6 +74,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -87,9 +87,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: state.clone(),
                         value: format!("value_{locale}"),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
         }
@@ -102,6 +104,7 @@ mod tests {
             } else {
                 Some(localizations)
             },
+            ..Default::default()
         }
     }
 
@@ -111,6 +114,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         }
     }
 
@@ -232,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn variations_treated_as_translated() {
+    fn empty_variations_are_incomplete() {
         let mut strings = IndexMap::new();
         let mut localizations = IndexMap::new();
         localizations.insert(
@@ -240,10 +244,12 @@ mod tests {
             Localization {
                 string_unit: None,
                 variations: Some(Variations {
-                    plural: Some(BTreeMap::new()),
+                    plural: Some(IndexMap::new()),
                     device: None,
+                    ..Default::default()
                 }),
                 substitutions: None,
+                ..Default::default()
             },
         );
         strings.insert(
@@ -253,12 +259,13 @@ mod tests {
                 should_translate: true,
                 comment: None,
                 localizations: Some(localizations),
+                ..Default::default()
             },
         );
         let file = make_file(strings);
         let report = get_coverage(&file);
 
         let de = report.locales.iter().find(|l| l.locale == "de").unwrap();
-        assert_eq!(de.translated, 1);
+        assert_eq!(de.translated, 0);
     }
 }

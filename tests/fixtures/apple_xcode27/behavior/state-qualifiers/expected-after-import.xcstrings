@@ -1,0 +1,108 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "exact-match": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "source exact-match"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "changed exact-match"
+          }
+        }
+      }
+    },
+    "fuzzy-match": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "source fuzzy-match"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "changed fuzzy-match"
+          }
+        }
+      }
+    },
+    "leveraged-mt": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "source leveraged-mt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "machine_translated",
+            "value": "changed leveraged-mt"
+          }
+        }
+      }
+    },
+    "machine_translated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Machine"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "machine_translated",
+            "value": "Machine fr"
+          }
+        }
+      }
+    },
+    "x-apple-machine-translated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "source x-apple-machine-translated"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "changed x-apple-machine-translated"
+          }
+        }
+      }
+    },
+    "x-machine-translated": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "source x-machine-translated"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "changed x-machine-translated"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.3"
+}

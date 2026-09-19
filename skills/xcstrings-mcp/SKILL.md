@@ -104,7 +104,7 @@ Bash("find . -name '*.xcstrings'")
 
 ## Runtime Compatibility
 
-Normal MCP clients continue to launch `xcstrings-mcp` over stdio with the same configuration. Rust applications that directly embed `XcStringsMcpServer` must use `rmcp` 3.1.2 and Rust 1.88 or newer; `rmcp` 2.x traits are not source-compatible with the server's public `rmcp` 3 implementation. `XcStringsError` is non-exhaustive, so downstream matches must include a wildcard arm for future variants.
+Version 2.0 keeps the binary name and stdio configuration. Rust embedders need `rmcp` 3.4 and Rust 1.88 or newer. Catalog maps now use `OrderedMap` (`IndexMap`), and plural/device branches are recursive `Localization` values. Use catalog constructors or `..Default::default()` for new objects; preserve parsed `extra`/`layout` metadata. `CompletedTranslation` adds optional `path` (`None` for legacy submissions). `XcStringsError` is non-exhaustive; downstream matches need a wildcard arm.
 
 ---
 
@@ -152,8 +152,10 @@ discover_files({"directory":"."})                         // Step 0: always firs
 Subagent per locale:
   loop:
     get_untranslated({"locale":"uk","batch_size":50}) // optimal batch size: 50
-    if empty → done
-    submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
+    inspect leaves and diagnostics; translate supported required incomplete leaves
+    submit_translations({"translations":[{"key":"button.save","locale":"uk","path":[],"value":"Зберегти"}]})
+    if no progress because of unsupported diagnostics → report them; do not loop forever
+  validate_translations and get_coverage; claim completion only when required leaves are complete
 ```
 
 **Always parallelize — one subagent per locale. Writes are atomic and lock-protected.**
@@ -201,19 +203,24 @@ validate_translations({})
 → submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
 ```
 
-### Handle plural forms
+### Handle plurals, devices, substitutions, and chains
 
 ```
 discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
-→ get_plurals({"locale":"uk"})                        // keys needing one/few/many/other forms
-→ submit_translations with all required CLDR categories per locale:
-    // uk needs: one, few, many
-    // en needs: one, other
-    // ja needs: other only
+→ get_plurals({"locale":"uk"})                        // inspect leaves[].path and diagnostics
+→ submit_translations({"translations":[
+    {"key":"phone_items","locale":"uk","path":[{"device":"iphone"},{"plural":"few"}],"value":"%lld елементи"},
+    {"key":"bird_count","locale":"uk","path":[{"substitution":"BIRDS"},{"plural":"other"}],"value":"%arg птаха"}
+  ],"dry_run":true})
+→ inspect rejected/warnings, then submit with dry_run=false
 ```
 
-**Always check CLDR categories per locale — they differ significantly.**
+Copy paths returned by the tools. `path: []` means the root stringUnit. Omit `path` for legacy simple requests or `plural_forms`/`substitution_name` aggregates; never combine those selectors with `path`. Preserve each leaf's own format arguments and substitution metadata. Native `accepted` counts input requests; `accepted_destinations` identifies actual key/locale/path leaves. Use `continue_on_error:false` for an all-or-nothing native batch.
+
+All seven devices are supported: iphone, ipad, mac, applewatch, appletv, applevision, other. Supported chains include device→plural. Device text can reference substitutions declared at the localization root; their leaf paths start with `substitution`, independently of the device path. Nested substitutions inside a device branch are unsupported. A plural case cannot have further variations; device.other is a simple fallback. Target-only variations are valid. Unknown fields survive editing, but unsupported axes/shapes and unknown locales remain diagnostic and incomplete.
+
+**Use the returned CLDR 48.2.1 requirements:** Ukrainian one/few/many/other, English one/other, French one/many/other, Japanese other. These completion recommendations exceed Xcode's compiler minimum in some locales. All required leaves must be translated or machine_translated; intentional empty text in those states is complete. Missing, new, needs_review, and unknown states are incomplete. Do not overwrite an intentional blank or mark source fallback text translated merely to increase coverage.
 
 ### Add new localization keys
 
@@ -256,37 +263,28 @@ Supports UTF-8 and UTF-16, merge into existing `.xcstrings`.
 
 ### Export for external translators (XLIFF)
 
-XLIFF export covers simple `stringUnit` entries. Variation-only plural, device,
-and substitution entries are excluded because Apple variation-unit ID paths are
-not implemented by this workflow; use `get_plurals` and `submit_translations`
-for those entries.
+Export supports Apple XLIFF 1.2 IDs for simple, plural, device, substitution, and supported chained leaves. It includes incomplete leaves by default; set `untranslated_only:false` for all leaves. Set `original` to the exact file scope expected by the recipient.
 
 ```
 discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
-→ export_xliff({"locale":"uk","output_path":"translations_uk.xliff"})
+→ export_xliff({"locale":"uk","original":"App/Localizable.xcstrings","output_path":"translations_uk.xliff"})
 ```
 
 ### Import back from translators (XLIFF)
 
-Import accepts structurally valid XLIFF 1.2: each direct `<file>` needs a
-non-empty shared target locale, an optional `<header>` before one `<body>`, and
-each `<trans-unit>` needs one `<source>` before at most one `<target>`. Bound
-extensions are accepted only at XLIFF schema extension points. Malformed input
-fails before any catalog write. Empty IDs emitted by Xcode are safe: an empty
-target is ignored, while a non-empty target is accepted only when the active
-catalog contains the exact empty key. Apple `|==|` variation IDs, per-file
-duplicate `trans-unit`/`bin-unit` IDs, and cross-file IDs that would collide
-when flattened into the active catalog are rejected before writes. ID
-uniqueness is checked after XML 1.0 attribute normalization, so raw Xcode keys
-that differ only by a line break versus a space fail closed rather than
-silently overwriting a translation.
+Import one exact `original` when several catalog scopes exist; omitted selection is allowed only for one distinct scope. Do not guess a basename. Check `skipped_scopes`, `rejected`, `accepted_destinations`, and `missing_targets`. Import is all-or-nothing for the selected scope, using a fresh catalog and conditional atomic write. Rejection, stale-write failure, and dry run do not change the catalog or active cache.
+
+Draft new/needs-review targets retain their text and state; translated + leveraged-mt maps to machine_translated. Missing target is a no-op, but an explicit empty translated target intentionally clears a leaf and is complete. This also applies to the exact empty catalog key. Xcode may skip drafts; do not mistake its behavior for the server's import policy. XLIFF accepted/exported counts are trans-units, which may share a catalog key.
+
+Ambiguous destinations, duplicate IDs after XML normalization, malformed structures/namespaces, unsupported states, opaque inline placeholders, and unsafe shapes fail before writes. The importer accepts Xcode’s source-less plural units only when they contain a target and resolve to an existing target plural leaf; source-less simple units remain invalid. XLIFF 2.x is unsupported. Xcode can silently ignore literal keys that look like valid variation IDs or lose target-only substitution leaves. Unsafe literal-ID exports and delimiter-bearing substitution names fail safely; ordinary keys containing `|==|` remain supported. Keep native typed paths for supported catalogs that cannot safely roundtrip through Xcode, and compare changed content after external imports.
 
 ```
 discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
-→ import_xliff({"xliff_path":"translations_uk.xliff"})
-→ validate_translations({})                             // always validate after import
+→ import_xliff({"xliff_path":"translations_uk.xliff","original":"App/Localizable.xcstrings","dry_run":true})
+→ review result, then repeat with dry_run=false
+→ validate_translations({})
 → get_coverage({})
 ```
 
@@ -335,7 +333,7 @@ discover_files({"directory":"."})
 → get_key({"key":"button.save"})                         // all locales at once
 ```
 
-Returns source text, comment, and translation state for every locale.
+Returns source text, comment, and per-locale translation states, leaves, and diagnostics.
 
 ### Fix broken translations
 
@@ -380,7 +378,7 @@ discover_files({"directory":"."})
 → validate_translations({})
 ```
 
-The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Overwrite each entire quoted placeholder, including the displayed prefix, with the exact complete string returned by dry-run. Never invent conflict values or edit the raw catalog. Choose only one authored side. Repeat dry-run after any stale-fingerprint error; do not reuse old fingerprints. A CLI dry-run with unresolved conflicts emits the JSON report but exits with status 2. The merge preserves unknown raw fields, but later typed mutation tools do not promise the same preservation.
+The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Overwrite each entire quoted placeholder, including the displayed prefix, with the exact complete string returned by dry-run. Never invent conflict values or edit the raw catalog. Choose only one authored side. Repeat dry-run after any stale-fingerprint error; do not reuse old fingerprints. A CLI dry-run with unresolved conflicts emits the JSON report but exits with status 2. Both merge and native typed mutation preserve unknown fields and existing member order.
 
 ---
 
@@ -393,6 +391,8 @@ The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Over
 | path resolves to an internal sidecar | Use the real `.xcstrings` catalog path; never target an `xcstrings-mcp` lock or temp file |
 | `validate_translations` returns errors | Use `fix_validation_errors` prompt |
 | `import_strings` encoding error | Verify the input is supported UTF-8 or UTF-16; encoding is detected automatically |
+| XLIFF rejected or stale write | No selected translations were written; resolve diagnostics and preview again against fresh catalog bytes |
+| Unsupported locale or variation diagnostics | Preserve the catalog data and report the unsupported shape; never claim complete coverage |
 | `merge_xcstrings` reports conflicts | Choose `current`, `incoming`, or `base` for every stable conflict ID, then apply with fresh fingerprints |
 | `merge_xcstrings` reports stale fingerprints | Discard the failed apply inputs, run a new dry-run, and never retry apply with the old fingerprint object |
 | MCP tool not found | Ask user to run `brew install Murzav/tap/xcstrings-mcp` |
@@ -423,15 +423,15 @@ The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Over
 | `get_coverage` | Check translation progress per locale |
 | `validate_translations` | Find format/plural errors |
 | `get_stale` | Find unused keys |
-| `get_plurals` | Get keys needing plural forms |
+| `get_plurals` | Inspect required typed leaves for plural/device/substitution chains |
 | `get_context` | Find related keys by shared prefix |
 | `search_keys` | Search by key name or source text |
 | `add_keys` | Add new localization keys |
 | `create_xcstrings` | Create new empty catalog from scratch |
 | `update_comments` | Add/update developer comments on keys |
 | `import_strings` | Migrate legacy .strings/.stringsdict |
-| `export_xliff` | Export simple `stringUnit` entries; skip variation-only entries |
-| `import_xliff` | Import simple IDs; reject unsupported Apple variation paths and duplicate unit IDs |
+| `export_xliff` | Export supported Apple leaves with exact original scope |
+| `import_xliff` | Atomically import one scope, preserving draft states and explicit blank targets |
 | `get_glossary` | Check consistent terminology |
 | `update_glossary` | Add/update glossary terms |
 | `get_diff` | Compare cache vs on-disk state |

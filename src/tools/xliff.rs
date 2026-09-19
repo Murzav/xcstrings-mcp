@@ -6,11 +6,10 @@ use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
 use crate::io::FileStore;
-use crate::model::translation::SubmitResult;
-use crate::service::{formatter, merger, parser, validator, xliff};
+use crate::service::xliff;
 use crate::tools::parse::CachedFile;
-use crate::tools::submit_response;
 use crate::tools::{FileCache, mcp_log, resolve_file};
+use crate::xliff_operation::{execute_import, resolve_export_destination};
 
 fn default_true() -> bool {
     true
@@ -21,6 +20,9 @@ pub(crate) struct ExportXliffParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
+    /// Exact XLIFF file original, such as App/Localizable.xcstrings; defaults to the filename.
+    #[serde(default)]
+    pub original: Option<String>,
     /// Target locale for the XLIFF export
     pub locale: String,
     /// Path where the XLIFF file will be written
@@ -37,11 +39,7 @@ struct ExportResult {
     exported_count: usize,
 }
 
-/// Handle the `export_xliff` tool call.
-///
-/// **Scope**: Exports only entries that have simple `stringUnit` semantics.
-/// Variation-only entries are excluded because this exporter does not implement
-/// Apple's variation-unit ID mapping.
+/// Export every supported Apple translation leaf with its exact variation identity.
 pub(crate) async fn handle_export_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
@@ -49,27 +47,20 @@ pub(crate) async fn handle_export_xliff(
 ) -> Result<serde_json::Value, XcStringsError> {
     let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
 
-    let original = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("Localizable.xcstrings");
+    let original = params.original.as_deref().unwrap_or_else(|| {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Localizable.xcstrings")
+    });
 
     let (xml, count) =
         xliff::export_xliff(&file, &params.locale, original, params.untranslated_only)?;
 
-    let output_path = PathBuf::from(&params.output_path);
-    match output_path.extension().and_then(|e| e.to_str()) {
-        Some("xliff") | Some("xlf") => {}
-        _ => {
-            return Err(XcStringsError::InvalidPath {
-                path: output_path,
-                reason: "output file must have .xliff or .xlf extension".into(),
-            });
-        }
-    }
+    let output_path =
+        resolve_export_destination(store, &path, &PathBuf::from(&params.output_path))?;
     store.write(&output_path, &xml)?;
 
-    mcp_log(&format!("Exported {count} keys to XLIFF"));
+    mcp_log(&format!("Exported {count} translation leaves to XLIFF"));
 
     let result = ExportResult {
         output_path: params.output_path,
@@ -84,6 +75,9 @@ pub(crate) struct ImportXliffParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
+    /// Select an exact file@original when the document contains multiple catalog scopes.
+    #[serde(default)]
+    pub original: Option<String>,
     /// Path to the XLIFF file to import
     pub xliff_path: String,
     /// If true, validate without writing
@@ -91,119 +85,55 @@ pub(crate) struct ImportXliffParams {
     pub dry_run: bool,
 }
 
-/// Handle the `import_xliff` tool call.
-///
-/// **Scope**: Imports only simple string-unit IDs. Apple variation-unit IDs are
-/// rejected because this importer does not implement their path semantics. Use
-/// `submit_translations` with `plural_forms` for plural key translations.
+/// Import one selected Apple catalog scope as an all-or-nothing transaction.
 pub(crate) async fn handle_import_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
     params: ImportXliffParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-
-    mcp_log(&format!(
-        "Importing translations from {xliff}",
-        xliff = params.xliff_path
-    ));
-
-    // Read and parse XLIFF
-    let xliff_path = PathBuf::from(&params.xliff_path);
-    let xliff_content = store.read(&xliff_path)?;
-    let (_locale, translations) = xliff::import_xliff(&xliff_content)?;
-
-    if translations.is_empty() {
-        let result = SubmitResult {
-            accepted: 0,
-            accepted_keys: vec![],
-            rejected: vec![],
-            dry_run: params.dry_run,
-        };
-        return submit_response::to_value(result, Vec::new());
-    }
-
-    // Validate using existing pipeline
-    let validation = validator::validate_translations_detailed(&file, &translations);
-    let rejected = validation.rejected;
-    let mut warnings = validation.warnings;
-    let rejected_keys: std::collections::HashSet<&str> =
-        rejected.iter().map(|r| r.key.as_str()).collect();
-    let accepted: Vec<_> = translations
-        .iter()
-        .filter(|t| !rejected_keys.contains(t.key.as_str()))
-        .collect();
-
-    if params.dry_run || accepted.is_empty() {
-        let result = SubmitResult {
-            accepted: accepted.len(),
-            accepted_keys: accepted.iter().map(|t| t.key.clone()).collect(),
-            rejected,
-            dry_run: params.dry_run,
-        };
-        return submit_response::to_value(result, warnings);
-    }
-
-    // Write: acquire lock, re-read, merge, format, write
-    let _write_guard = write_lock.lock().await;
-    let raw = store.read(&path)?;
-    let mut fresh_file = parser::parse(&raw)?;
-
-    // Re-validate against fresh file (it may have changed since initial validation)
-    let fresh_validation = validator::validate_translations_detailed(&fresh_file, &translations);
-    let fresh_rejected = fresh_validation.rejected;
-    submit_response::extend_unique(&mut warnings, fresh_validation.warnings);
-    let fresh_rejected_keys: std::collections::HashSet<&str> =
-        fresh_rejected.iter().map(|r| r.key.as_str()).collect();
-
-    let owned: Vec<_> = accepted
-        .into_iter()
-        .filter(|t| !fresh_rejected_keys.contains(t.key.as_str()))
-        .cloned()
-        .collect();
-
-    if owned.is_empty() {
-        let mut all_rejected = rejected;
-        all_rejected.extend(fresh_rejected);
-        let result = SubmitResult {
-            accepted: 0,
-            accepted_keys: vec![],
-            rejected: all_rejected,
-            dry_run: false,
-        };
-        return submit_response::to_value(result, warnings);
-    }
-
-    let merge_result = merger::merge_translations(&mut fresh_file, &owned);
-
-    let formatted = formatter::format_xcstrings(&fresh_file)?;
-    store.write(&path, &formatted)?;
-
-    // Update cache (same pattern as translate.rs)
-    let mtime = store.modified_time(&path)?;
-    let identity = store.file_identity(&path)?;
-    let mut guard = cache.lock().await;
-    guard.insert(
-        identity,
-        CachedFile {
-            path,
-            content: fresh_file,
-            modified: mtime,
-        },
-    );
-
-    let mut all_rejected = rejected;
-    all_rejected.extend(fresh_rejected);
-    all_rejected.extend(merge_result.rejected);
-
-    let result = SubmitResult {
-        accepted: merge_result.accepted,
-        accepted_keys: merge_result.accepted_keys,
-        rejected: all_rejected,
-        dry_run: false,
+    let path = match params.file_path {
+        Some(path) => PathBuf::from(path),
+        None => cache
+            .lock()
+            .await
+            .active_path()
+            .cloned()
+            .ok_or(XcStringsError::NoActiveFile)?,
     };
-    submit_response::to_value(result, warnings)
+    if path.extension().and_then(|extension| extension.to_str()) != Some("xcstrings") {
+        return Err(XcStringsError::NotXcStrings { path });
+    }
+    let xml = store.read(&PathBuf::from(&params.xliff_path))?;
+    let _write_guard = write_lock.lock().await;
+    let outcome = execute_import(
+        store,
+        &path,
+        &xml,
+        params.original.as_deref(),
+        params.dry_run,
+    )?;
+    if let Some(content) = outcome.updated_file {
+        match store.modified_time(&outcome.path) {
+            Ok(modified) => cache.lock().await.insert(
+                outcome.path,
+                CachedFile {
+                    path,
+                    content,
+                    modified,
+                },
+            ),
+            Err(error) => {
+                // The conditional write already committed. Never report it as failed
+                // because refreshing optional cache metadata was unsuccessful.
+                cache.lock().await.files.remove(&outcome.path);
+                mcp_log(&format!(
+                    "Import saved; catalog cache invalidated because metadata could not be read: {error}"
+                ));
+            }
+        }
+    }
+    Ok(serde_json::to_value(outcome.result)?)
 }
 
 #[cfg(test)]
@@ -226,6 +156,7 @@ mod tests {
         handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = ExportXliffParams {
+            original: None,
             file_path: None,
             locale: "de".to_string(),
             output_path: "/test/output.xliff".to_string(),
@@ -253,6 +184,7 @@ mod tests {
         handle_parse(&store, &cache, parse_params).await.unwrap();
 
         let params = ExportXliffParams {
+            original: None,
             file_path: None,
             locale: "de".to_string(),
             output_path: "/test/output.txt".to_string(),
@@ -294,6 +226,7 @@ mod tests {
         store.add_file("/test/input.xliff", xliff);
 
         let params = ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: true,
@@ -342,6 +275,7 @@ mod tests {
         store.add_file("/test/input.xliff", xliff);
 
         let params = ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -382,6 +316,7 @@ mod tests {
         store.add_file("/test/input.xliff", xliff);
 
         let params = ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -406,3 +341,7 @@ mod apple_compat_tests;
 #[cfg(test)]
 #[path = "xliff/cdata_tests.rs"]
 mod cdata_tests;
+
+#[cfg(test)]
+#[path = "xliff/cache_tests.rs"]
+mod cache_tests;

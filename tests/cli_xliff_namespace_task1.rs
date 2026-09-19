@@ -81,7 +81,7 @@ fn cli_import_accepts_prefix_bound_xliff_for_dry_run_and_apply() {
     assert_eq!(dry_json["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(dry_json["rejected"], serde_json::json!([]));
     assert_eq!(dry_json["dry_run"], true);
-    assert!(dry_json["warnings"].is_null());
+    assert_eq!(dry_json["warnings"], serde_json::json!([]));
     assert_eq!(fs::read(&catalog).unwrap(), before);
 
     let applied = cmd()
@@ -101,7 +101,7 @@ fn cli_import_accepts_prefix_bound_xliff_for_dry_run_and_apply() {
     assert_eq!(apply_json["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(apply_json["rejected"], serde_json::json!([]));
     assert_eq!(apply_json["dry_run"], false);
-    assert!(apply_json["warnings"].is_null());
+    assert_eq!(apply_json["warnings"], serde_json::json!([]));
 
     cmd()
         .args([
@@ -401,7 +401,7 @@ fn cli_import_accepts_normalized_official_namespace_and_bound_extension() {
     assert_eq!(dry_json["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(dry_json["rejected"], serde_json::json!([]));
     assert_eq!(dry_json["dry_run"], true);
-    assert!(dry_json["warnings"].is_null());
+    assert_eq!(dry_json["warnings"], serde_json::json!([]));
     assert_eq!(fs::read(&catalog).unwrap(), before);
 
     let applied = cmd()
@@ -420,7 +420,7 @@ fn cli_import_accepts_normalized_official_namespace_and_bound_extension() {
     assert_eq!(apply_json["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(apply_json["rejected"], serde_json::json!([]));
     assert_eq!(apply_json["dry_run"], false);
-    assert!(apply_json["warnings"].is_null());
+    assert_eq!(apply_json["warnings"], serde_json::json!([]));
 
     cmd()
         .args([

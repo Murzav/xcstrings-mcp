@@ -1,18 +1,16 @@
-use crate::model::plural::required_plural_forms;
-use crate::model::specifier::{FormatComparison, compare_formats, compare_substitution_formats};
-
+use super::{assessment, submission};
+use crate::model::specifier::{FormatComparison, compare_formats, compare_substitution_fragment};
 use crate::model::translation::{CompletedTranslation, RejectedTranslation, ValidationIssue};
-use crate::model::xcstrings::{Localization, StringEntry, XcStringsFile};
+use crate::model::xcstrings::{XcStringsFile, paths::LeafStep};
 
 #[derive(Debug, Default)]
 pub struct TranslationValidationReport {
     pub rejected: Vec<RejectedTranslation>,
     pub warnings: Vec<ValidationIssue>,
     pub(crate) format_errors: Vec<ValidationIssue>,
+    pub(crate) rejected_indices: Vec<usize>,
 }
 
-/// Validate a batch of translations against the source file.
-/// Returns a list of rejected translations with reasons.
 pub fn validate_translations(
     file: &XcStringsFile,
     translations: &[CompletedTranslation],
@@ -24,117 +22,138 @@ pub fn validate_translations_detailed(
     file: &XcStringsFile,
     translations: &[CompletedTranslation],
 ) -> TranslationValidationReport {
+    let (plans, rejected) = submission::prepare(file, translations);
+    let mut rejected: Vec<Vec<RejectedTranslation>> = rejected
+        .into_iter()
+        .map(|value| value.into_iter().collect())
+        .collect();
     let mut report = TranslationValidationReport::default();
-
-    for translation in translations {
-        let entry = match file.strings.get(&translation.key) {
-            Some(e) => e,
-            None => {
-                report.rejected.push(RejectedTranslation {
-                    key: translation.key.clone(),
-                    reason: "key not found in file".into(),
-                });
-                continue;
-            }
-        };
-
-        if !entry.should_translate {
-            report.rejected.push(RejectedTranslation {
-                key: translation.key.clone(),
-                reason: "key is marked as shouldTranslate=false".into(),
-            });
+    for plan in plans {
+        let request = &translations[plan.index];
+        if let Err(reason) = submission::mutation::validate(file, &plan.leaves) {
+            let code = if reason.contains("substitution metadata") {
+                "missing_substitution_metadata"
+            } else {
+                "invalid_path"
+            };
+            rejected[plan.index].push(submission::reject(request, code, reason));
             continue;
         }
-
-        if translation.value.is_empty() && translation.plural_forms.is_none() {
-            report.rejected.push(RejectedTranslation {
-                key: translation.key.clone(),
-                reason: "translation value is empty".into(),
-            });
-            continue;
-        }
-
-        if let Some(plural_forms) = &translation.plural_forms {
-            let required = required_plural_forms(&translation.locale);
-            for req in &required {
-                let form_name = req.as_str().to_string();
-                if !plural_forms.contains_key(&form_name) {
-                    report.rejected.push(RejectedTranslation {
-                        key: translation.key.clone(),
-                        reason: format!("missing required plural form: {form_name}"),
-                    });
-                }
-            }
-        }
-
-        let format_report = validate_translation_formats(file, translation);
-        report.rejected.extend(format_report.rejected);
-        report.warnings.extend(format_report.warnings);
-        report.format_errors.extend(format_report.format_errors);
+        let formats = validate_translation_formats(file, request);
+        rejected[plan.index].extend(formats.rejected);
+        report.warnings.extend(formats.warnings);
+        report.format_errors.extend(formats.format_errors);
     }
-
+    for (index, rejection) in rejected.into_iter().enumerate() {
+        for rejection in rejection {
+            report.rejected_indices.push(index);
+            report.rejected.push(rejection);
+        }
+    }
     report
 }
 
 pub(crate) fn validate_translation_formats(
     file: &XcStringsFile,
-    translation: &CompletedTranslation,
+    request: &CompletedTranslation,
 ) -> TranslationValidationReport {
     let mut report = TranslationValidationReport::default();
-    let Some(entry) = file.strings.get(&translation.key) else {
+    let (plans, _) = submission::prepare(file, std::slice::from_ref(request));
+    let Some(entry) = file.strings.get(&request.key) else {
         return report;
     };
-    let source = source_localization(file, entry);
-    if let Some(plural_forms) = &translation.plural_forms {
-        for (form, target) in plural_forms {
-            let Some(source_value) = resolve_plural_source(
-                source,
-                &translation.key,
-                translation.substitution_name.as_deref(),
-                form,
-            ) else {
+    let source = entry
+        .localizations
+        .as_ref()
+        .and_then(|locs| locs.get(&file.source_language));
+    let target = entry
+        .localizations
+        .as_ref()
+        .and_then(|locs| locs.get(&request.locale));
+    for plan in plans {
+        for (destination, value) in plan.leaves {
+            // An explicit blank is an intentional Apple translation, not an absent target.
+            if value.is_empty() {
                 continue;
-            };
-            let comparison = if translation.substitution_name.is_some() {
-                compare_substitution_formats(source_value, target)
-            } else {
-                compare_formats(source_value, target)
-            };
-            append_comparison(&mut report, &translation.key, Some(form), comparison);
+            }
+            let source_value = source
+                .and_then(|node| assessment::source_unit(node, &destination.path))
+                .or_else(|| {
+                    target.and_then(|node| assessment::source_unit(node, &destination.path))
+                })
+                .map_or(request.key.as_str(), |unit| unit.value.as_str());
+            let mut comparison = FormatComparison::default();
+            submission::formats::check_references(
+                &mut comparison,
+                source,
+                target,
+                &destination.path,
+                source_value,
+                &value,
+            );
+            if comparison.errors.is_empty() {
+                comparison = if destination
+                    .path
+                    .iter()
+                    .any(|step| matches!(step, LeafStep::Substitution(_)))
+                {
+                    compare_substitution_fragment(source_value, &value)
+                } else {
+                    let expanded = submission::formats::expand_references(
+                        source,
+                        target,
+                        &destination.path,
+                        source_value,
+                    )
+                    .and_then(|expanded_source| {
+                        submission::formats::expand_references(
+                            target,
+                            source,
+                            &destination.path,
+                            &value,
+                        )
+                        .map(|expanded_target| (expanded_source, expanded_target))
+                    });
+                    match expanded {
+                        Ok((source, target)) => compare_formats(&source, &target),
+                        Err(message) => FormatComparison {
+                            errors: vec![crate::model::specifier::FormatComparisonIssue {
+                                code: "substitution_reference_mismatch",
+                                message,
+                            }],
+                            ..Default::default()
+                        },
+                    }
+                };
+            }
+            append_comparison(&mut report, request, &destination.path, comparison);
         }
-    } else {
-        let source_value = source
-            .and_then(|localization| localization.string_unit.as_ref())
-            .map(|unit| unit.value.as_str())
-            .unwrap_or(&translation.key);
-        append_comparison(
-            &mut report,
-            &translation.key,
-            None,
-            compare_formats(source_value, &translation.value),
-        );
     }
     report
 }
 
 fn append_comparison(
     report: &mut TranslationValidationReport,
-    key: &str,
-    plural_form: Option<&str>,
+    request: &CompletedTranslation,
+    path: &[LeafStep],
     comparison: FormatComparison,
 ) {
-    let context = plural_form
-        .map(|form| format!(" (plural form: {form})"))
-        .unwrap_or_default();
+    let context = if path.is_empty() {
+        String::new()
+    } else {
+        format!(
+            " (path: {})",
+            serde_json::to_string(path).unwrap_or_default()
+        )
+    };
     for issue in comparison.errors {
         let message = format!("{}{context}", issue.message);
-        report.rejected.push(RejectedTranslation {
-            key: key.to_string(),
-            reason: message.clone(),
-        });
+        let mut rejection = submission::reject(request, "invalid_translation", message.clone());
+        rejection.path = Some(path.to_vec());
+        report.rejected.push(rejection);
         report.format_errors.push(ValidationIssue {
-            key: key.to_string(),
-            issue_type: issue.code.to_string(),
+            key: request.key.clone(),
+            issue_type: issue.code.into(),
             message,
         });
     }
@@ -143,65 +162,11 @@ fn append_comparison(
             .warnings
             .into_iter()
             .map(|issue| ValidationIssue {
-                key: key.to_string(),
-                issue_type: issue.code.to_string(),
+                key: request.key.clone(),
+                issue_type: issue.code.into(),
                 message: format!("{}{context}", issue.message),
             }),
     );
-}
-
-fn source_localization<'a>(
-    file: &XcStringsFile,
-    entry: &'a StringEntry,
-) -> Option<&'a Localization> {
-    entry
-        .localizations
-        .as_ref()
-        .and_then(|localizations| localizations.get(&file.source_language))
-}
-
-fn resolve_plural_source<'a>(
-    source: Option<&'a Localization>,
-    key: &'a str,
-    substitution_name: Option<&str>,
-    form: &str,
-) -> Option<&'a str> {
-    if let Some(name) = substitution_name {
-        return source
-            .and_then(|localization| localization.substitutions.as_ref())
-            .and_then(|substitutions| substitutions.get(name))
-            .and_then(|value| plural_value(value, form));
-    }
-
-    if let Some(plural) = source
-        .and_then(|localization| localization.variations.as_ref())
-        .and_then(|variations| variations.plural.as_ref())
-    {
-        if let Some(value) = plural.get(form) {
-            return Some(&value.string_unit.value);
-        }
-        if let Some(value) = plural.get("other").or_else(|| plural.values().next()) {
-            return Some(&value.string_unit.value);
-        }
-    }
-
-    Some(
-        source
-            .and_then(|localization| localization.string_unit.as_ref())
-            .map(|unit| unit.value.as_str())
-            .unwrap_or(key),
-    )
-}
-
-fn plural_value<'a>(substitution: &'a serde_json::Value, form: &str) -> Option<&'a str> {
-    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
-    plural
-        .get(form)
-        .or_else(|| plural.get("other"))
-        .or_else(|| plural.values().next())?
-        .get("stringUnit")?
-        .get("value")?
-        .as_str()
 }
 
 #[cfg(test)]
@@ -223,6 +188,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -234,9 +200,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source_value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -244,6 +212,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -254,6 +223,7 @@ mod tests {
             value: value.to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         }
     }
 
@@ -281,6 +251,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         };
         let file = make_file(vec![("api_key", entry)]);
         let translations = vec![simple_translation("api_key", "uk", "ключ")];
@@ -290,12 +261,11 @@ mod tests {
     }
 
     #[test]
-    fn test_empty_value() {
+    fn explicit_empty_value_is_a_valid_translation() {
         let file = make_file(vec![("greeting", simple_entry("Hello"))]);
         let translations = vec![simple_translation("greeting", "uk", "")];
         let rejected = validate_translations(&file, &translations);
-        assert_eq!(rejected.len(), 1);
-        assert!(rejected[0].reason.contains("empty"));
+        assert!(rejected.is_empty());
     }
 
     #[test]
@@ -317,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_plural_form() {
+    fn partial_plural_forms_are_valid_updates() {
         let file = make_file(vec![("items", simple_entry("%lld items"))]);
         let mut plural_forms = BTreeMap::new();
         plural_forms.insert("one".to_string(), "%lld елемент".to_string());
@@ -330,11 +300,11 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: None,
+            ..Default::default()
         }];
 
         let rejected = validate_translations(&file, &translations);
-        assert!(rejected.iter().any(|r| r.reason.contains("few")));
-        assert!(rejected.iter().any(|r| r.reason.contains("many")));
+        assert!(rejected.is_empty());
     }
 
     #[test]
@@ -348,30 +318,36 @@ mod tests {
                 string_unit: None,
                 variations: Some(crate::model::xcstrings::Variations {
                     plural: Some({
-                        let mut plural = std::collections::BTreeMap::new();
+                        let mut plural = crate::model::xcstrings::OrderedMap::new();
                         plural.insert(
                             "one".to_string(),
                             crate::model::xcstrings::PluralVariation {
-                                string_unit: StringUnit {
+                                string_unit: Some(StringUnit {
                                     state: TranslationState::Translated,
                                     value: "%lld item".to_string(),
-                                },
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
                             },
                         );
                         plural.insert(
                             "other".to_string(),
                             crate::model::xcstrings::PluralVariation {
-                                string_unit: StringUnit {
+                                string_unit: Some(StringUnit {
                                     state: TranslationState::Translated,
                                     value: "%lld items".to_string(),
-                                },
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
                             },
                         );
                         plural
                     }),
                     device: None,
+                    ..Default::default()
                 }),
                 substitutions: None,
+                ..Default::default()
             },
         );
         let entry = StringEntry {
@@ -379,6 +355,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         };
         let file = make_file(vec![("items", entry)]);
 
@@ -393,6 +370,7 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms_ok),
             substitution_name: None,
+            ..Default::default()
         }];
 
         let rejected = validate_translations(&file, &translations_ok);
@@ -412,6 +390,7 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms_bad),
             substitution_name: None,
+            ..Default::default()
         }];
 
         let rejected = validate_translations(&file, &translations_bad);
@@ -439,6 +418,7 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: None,
+            ..Default::default()
         }];
 
         let rejected = validate_translations(&file, &translations);
@@ -452,10 +432,8 @@ mod tests {
     }
 
     #[test]
-    fn test_substitution_skips_specifier_validation() {
-        // Source has %#@BIRDS@ substitution marker — NOT a format specifier.
-        // Substitution plural forms use %arg, which is different.
-        // Validator must skip specifier check when substitution_name is set.
+    fn substitution_without_metadata_is_rejected() {
+        // A marker alone cannot establish argument identity or type.
         let file = make_file(vec![("bird", simple_entry("I saw %#@BIRDS@ in the park"))]);
 
         let mut plural_forms = BTreeMap::new();
@@ -468,12 +446,14 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: Some("BIRDS".to_string()),
+            ..Default::default()
         }];
 
         let rejected = validate_translations(&file, &translations);
-        assert!(
-            rejected.is_empty(),
-            "substitution plural forms should not be rejected for specifier mismatch: {rejected:?}"
+        assert_eq!(rejected.len(), 1);
+        assert_eq!(
+            rejected[0].code.as_deref(),
+            Some("missing_substitution_metadata")
         );
     }
 }

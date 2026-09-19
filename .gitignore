@@ -3,3 +3,4 @@ tests/fixtures/large.xcstrings
 CLAUDE.md
 .claude/
 docs/
+__pycache__/

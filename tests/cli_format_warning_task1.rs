@@ -36,7 +36,7 @@ fn cli_xliff_import_returns_machine_readable_ambiguous_warning() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "{:?}", output);
+    assert!(output.status.success(), "{output:?}");
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["accepted"], 1);
     assert!(json["rejected"].as_array().unwrap().is_empty());
@@ -80,12 +80,14 @@ fn cli_xliff_import_blocks_definite_modifier_mismatch() {
     assert_eq!(json["accepted"], 0);
     assert_eq!(json["rejected"].as_array().unwrap().len(), 1);
     assert!(
-        json["rejected"][0]["reason"]
+        json["rejected"][0]["message"]
             .as_str()
             .unwrap()
             .contains("invalid format sequence %Ld")
     );
-    assert!(json["warnings"].is_null());
+    assert_eq!(json["rejected"][0]["code"], "format_mismatch");
+    assert_eq!(json["written"], false);
+    assert_eq!(json["warnings"], serde_json::json!([]));
 }
 
 fn prose_catalog() -> String {
@@ -97,20 +99,24 @@ fn simple_catalog(key: &str, value: &str) -> String {
         string_unit: Some(StringUnit {
             state: TranslationState::Translated,
             value: value.to_string(),
+            ..Default::default()
         }),
         variations: None,
         substitutions: None,
+        ..Default::default()
     };
     let entry = StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), localization)])),
+        ..Default::default()
     };
     formatter::format_xcstrings(&XcStringsFile {
         source_language: "en".to_string(),
         strings: IndexMap::from([(key.to_string(), entry)]),
         version: "1.0".to_string(),
+        ..Default::default()
     })
     .unwrap()
 }

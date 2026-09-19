@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::collections::BTreeMap;
 
 use serde::Serialize;
@@ -5,7 +6,7 @@ use serde::Serialize;
 use crate::error::XcStringsError;
 use crate::model::xcstrings::{
     ExtractionState, Localization, OrderedMap, PluralVariation, StringEntry, StringUnit,
-    TranslationState, Variations, XcStringsFile,
+    Substitution, TranslationState, Variations, XcStringsFile,
 };
 use crate::service::strings_parser::StringsEntry;
 use crate::service::stringsdict_parser::StringsdictEntry;
@@ -57,31 +58,33 @@ pub(crate) fn replace_specifier_with_arg(value: &str, format_specifier: &str) ->
 }
 
 /// Build substitutions map for complex plurals.
-fn build_substitutions(entry: &StringsdictEntry) -> BTreeMap<String, serde_json::Value> {
-    let mut subs = BTreeMap::new();
+fn build_substitutions(entry: &StringsdictEntry) -> OrderedMap<String, Substitution> {
+    let mut subs = OrderedMap::new();
     for (idx, (var_name, var)) in entry.variables.iter().enumerate() {
-        let mut plural_forms = serde_json::Map::new();
-        for (form, value) in &var.forms {
-            let replaced = replace_specifier_with_arg(value, &var.format_specifier);
-            plural_forms.insert(
-                form.clone(),
-                serde_json::json!({
-                    "stringUnit": {
-                        "state": "translated",
-                        "value": replaced
-                    }
-                }),
-            );
-        }
+        let plural = var
+            .forms
+            .iter()
+            .map(|(form, value)| {
+                (
+                    form.clone(),
+                    Localization::with_unit(StringUnit::new(
+                        TranslationState::Translated,
+                        replace_specifier_with_arg(value, &var.format_specifier),
+                    )),
+                )
+            })
+            .collect();
         subs.insert(
             var_name.clone(),
-            serde_json::json!({
-                "argNum": idx + 1,
-                "formatSpecifier": var.format_specifier,
-                "variations": {
-                    "plural": plural_forms
-                }
-            }),
+            Substitution {
+                arg_num: u32::try_from(idx + 1).ok(),
+                format_specifier: Some(var.format_specifier.clone()),
+                variations: Some(Variations {
+                    plural: Some(plural),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
         );
     }
     subs
@@ -93,15 +96,17 @@ fn build_stringsdict_localization(entry: &StringsdictEntry) -> Localization {
         && entry.variables.len() == 1
         && let Some(var) = entry.variables.values().next()
     {
-        let mut plural = BTreeMap::new();
+        let mut plural = OrderedMap::new();
         for (form, value) in &var.forms {
             plural.insert(
                 form.clone(),
                 PluralVariation {
-                    string_unit: StringUnit {
+                    string_unit: Some(StringUnit {
                         state: TranslationState::Translated,
                         value: value.clone(),
-                    },
+                        ..Default::default()
+                    }),
+                    ..Default::default()
                 },
             );
         }
@@ -110,8 +115,10 @@ fn build_stringsdict_localization(entry: &StringsdictEntry) -> Localization {
             variations: Some(Variations {
                 plural: Some(plural),
                 device: None,
+                ..Default::default()
             }),
             substitutions: None,
+            ..Default::default()
         }
     } else {
         // Complex plural: stringUnit + substitutions
@@ -119,9 +126,11 @@ fn build_stringsdict_localization(entry: &StringsdictEntry) -> Localization {
             string_unit: Some(StringUnit {
                 state: TranslationState::Translated,
                 value: entry.format_key.clone(),
+                ..Default::default()
             }),
             variations: None,
             substitutions: Some(build_substitutions(entry)),
+            ..Default::default()
         }
     }
 }
@@ -164,9 +173,11 @@ pub fn build_xcstrings_from_legacy(
                 string_unit: Some(StringUnit {
                     state,
                     value: entry.value.clone(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
 
@@ -183,6 +194,7 @@ pub fn build_xcstrings_from_legacy(
                 should_translate: true,
                 comment: entry.comment.clone(),
                 localizations: Some(localizations),
+                ..Default::default()
             },
         );
     }
@@ -210,6 +222,7 @@ pub fn build_xcstrings_from_legacy(
                 should_translate: true,
                 comment: None,
                 localizations: Some(localizations),
+                ..Default::default()
             },
         );
         plural_keys += 1;
@@ -243,9 +256,11 @@ pub fn build_xcstrings_from_legacy(
                         string_unit: Some(StringUnit {
                             state: TranslationState::New,
                             value: String::new(),
+                            ..Default::default()
                         }),
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     },
                 );
                 strings.insert(
@@ -255,6 +270,7 @@ pub fn build_xcstrings_from_legacy(
                         should_translate: true,
                         comment: None,
                         localizations: Some(localizations),
+                        ..Default::default()
                     },
                 );
             }
@@ -277,9 +293,11 @@ pub fn build_xcstrings_from_legacy(
                     string_unit: Some(StringUnit {
                         state,
                         value: entry.value.clone(),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
             keys_count += 1;
@@ -299,9 +317,11 @@ pub fn build_xcstrings_from_legacy(
                         string_unit: Some(StringUnit {
                             state: TranslationState::New,
                             value: String::new(),
+                            ..Default::default()
                         }),
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     },
                 );
                 strings.insert(
@@ -311,6 +331,7 @@ pub fn build_xcstrings_from_legacy(
                         should_translate: true,
                         comment: None,
                         localizations: Some(localizations),
+                        ..Default::default()
                     },
                 );
             }
@@ -335,6 +356,7 @@ pub fn build_xcstrings_from_legacy(
         source_language: source_language.to_owned(),
         strings,
         version: "1.0".to_owned(),
+        ..Default::default()
     };
 
     // Step 7: Merge mode: if existing is Some, add only new keys
@@ -441,7 +463,7 @@ mod tests {
         let subs = build_substitutions(&entry);
         assert_eq!(subs.len(), 1);
 
-        let items_sub = &subs["items"];
+        let items_sub = serde_json::to_value(&subs["items"]).unwrap();
         assert_eq!(items_sub["argNum"], 1);
         assert_eq!(items_sub["formatSpecifier"], "lld");
         assert!(items_sub["variations"]["plural"]["one"].is_object());
@@ -720,9 +742,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Original".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         existing_strings.insert(
@@ -732,12 +756,14 @@ mod tests {
                 should_translate: true,
                 comment: None,
                 localizations: Some(existing_locs),
+                ..Default::default()
             },
         );
         let existing_file = XcStringsFile {
             source_language: "en".to_string(),
             strings: existing_strings,
             version: "1.0".to_string(),
+            ..Default::default()
         };
 
         let result = build_xcstrings_from_legacy("en", &locale_data, Some(existing_file)).unwrap();

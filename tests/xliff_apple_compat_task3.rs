@@ -15,10 +15,19 @@ fn assert_parse_error(xml: &str, expected: &str) {
 fn import_accepts_real_xcode_empty_id_unit_with_empty_target() {
     let xml = include_str!("fixtures/xcode_26_6_empty_id.xliff");
 
-    let (locale, translations) = xliff::import_xliff(xml).unwrap();
+    let file =
+        parser::parse(r#"{"sourceLanguage":"en","strings":{"":{}},"version":"1.0"}"#).unwrap();
+    let document = xliff::parse_document(xml).unwrap();
+    let plan = xliff::plan_import(&file, &document, None).unwrap();
 
-    assert_eq!(locale, "ca");
-    assert!(translations.is_empty());
+    assert_eq!(plan.report.locale, "ca");
+    assert_eq!(plan.report.accepted, 1);
+    assert!(plan.report.rejected.is_empty());
+    let updated = plan.candidate.unwrap();
+    assert_eq!(
+        serde_json::to_value(&updated.strings[""].localizations.as_ref().unwrap()["ca"]).unwrap(),
+        serde_json::json!({"stringUnit":{"state":"new","value":""}})
+    );
 }
 
 #[test]
@@ -37,16 +46,33 @@ fn import_preserves_nonempty_target_for_empty_id() {
 }
 
 #[test]
-fn export_excludes_variation_only_entries_from_units_and_count() {
+fn export_includes_variation_units_and_required_locale_categories() {
     let file = parser::parse(include_str!("fixtures/with_plurals.xcstrings")).unwrap();
-
     let (xml, count) = xliff::export_xliff(&file, "uk", "Localizable.xcstrings", false).unwrap();
-
-    assert_eq!(count, 1);
-    assert!(xml.contains(r#"<trans-unit id="simple_key">"#));
-    assert!(!xml.contains(r#"<trans-unit id="days_remaining">"#));
-    assert!(!xml.contains(r#"<trans-unit id="items_count">"#));
-    assert!(!xml.contains(r#"<trans-unit id="photos_count">"#));
+    let doc = xliff::parse_document(&xml).unwrap();
+    assert_eq!(count, 13);
+    assert_eq!(
+        doc.files[0]
+            .units
+            .iter()
+            .map(|u| u.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "days_remaining|==|plural.few",
+            "days_remaining|==|plural.many",
+            "days_remaining|==|plural.one",
+            "days_remaining|==|plural.other",
+            "items_count|==|plural.few",
+            "items_count|==|plural.many",
+            "items_count|==|plural.one",
+            "items_count|==|plural.other",
+            "photos_count|==|plural.few",
+            "photos_count|==|plural.many",
+            "photos_count|==|plural.one",
+            "photos_count|==|plural.other",
+            "simple_key"
+        ]
+    );
 }
 
 #[test]
@@ -57,7 +83,10 @@ fn export_preserves_unlocalized_simple_entry() {
     let (xml, count) = xliff::export_xliff(&file, "de", "Localizable.xcstrings", false).unwrap();
 
     assert_eq!(count, 1);
-    assert!(xml.contains(r#"<trans-unit id="new_key">"#));
+    assert_eq!(
+        xliff::parse_document(&xml).unwrap().files[0].units[0].id,
+        "new_key"
+    );
     assert!(xml.contains("<source>new_key</source>"));
 }
 
@@ -80,7 +109,10 @@ fn export_preserves_entry_when_any_localization_has_simple_string_unit() {
     let (xml, count) = xliff::export_xliff(&file, "de", "Localizable.xcstrings", false).unwrap();
 
     assert_eq!(count, 1);
-    assert!(xml.contains(r#"<trans-unit id="mixed_key">"#));
+    assert_eq!(
+        xliff::parse_document(&xml).unwrap().files[0].units[0].id,
+        "mixed_key"
+    );
     assert!(xml.contains("<target state=\"translated\">Einfach</target>"));
 }
 

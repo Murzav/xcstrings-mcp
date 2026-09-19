@@ -1,0 +1,2 @@
+['xcrun', 'xcstringstool', 'compile', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/Localizable.xcstrings', '--output-directory', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/compiled']
+EXIT: 0

@@ -60,25 +60,24 @@ pub(crate) async fn handle_discover_files(
     let mut legacy_paths = Vec::new();
     discovery::walk_localization_files(&dir, &mut xcstrings_paths, &mut legacy_paths);
 
-    xcstrings_paths.sort();
-    legacy_paths.sort_by(|a, b| a.0.cmp(&b.0));
-
-    let files: Vec<DiscoveredFile> = xcstrings_paths
+    let mut files: Vec<DiscoveredFile> = xcstrings_paths
         .iter()
         .map(|p| DiscoveredFile {
             path: p.to_string_lossy().to_string(),
             file_type: "xcstrings",
         })
         .collect();
+    files.sort_by(|a, b| a.path.cmp(&b.path));
     let count = files.len();
 
-    let legacy_files: Vec<DiscoveredFile> = legacy_paths
+    let mut legacy_files: Vec<DiscoveredFile> = legacy_paths
         .iter()
         .map(|(p, ft)| DiscoveredFile {
             path: p.to_string_lossy().to_string(),
             file_type: ft,
         })
         .collect();
+    legacy_files.sort_by(|a, b| a.path.cmp(&b.path));
     let legacy_count = legacy_files.len();
 
     let result = DiscoverFilesResult {

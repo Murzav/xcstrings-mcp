@@ -1,10 +1,14 @@
+pub mod leaf;
+use crate::model::xcstrings::paths::LeafDiagnostic;
+pub use leaf::{LeafSubstitution, TranslationDestination, TranslationLeaf};
+
 use std::collections::BTreeMap;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// A string needing translation, returned by get_untranslated, get_stale, and search_keys.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct TranslationUnit {
     /// Localization key name
     pub key: String,
@@ -15,16 +19,20 @@ pub struct TranslationUnit {
     /// Developer comment providing context for translators
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
-    /// Definite format arguments found in source (e.g., ["%@", "%lld"]). Ambiguous percent-in-prose sequences are excluded and reported as warnings during validation.
+    /// Definite format arguments found in source (e.g., `["%@", "%lld"]`). Ambiguous percent-in-prose sequences are excluded and reported as warnings during validation.
     pub format_specifiers: Vec<String>,
-    /// True if key uses plural variations. Use get_plurals for full details before translating.
+    /// True if any leaf uses plural variations; leaves include the exact scopes.
     pub has_plurals: bool,
     /// True if key uses substitution variables (%#@VAR@). Use get_plurals for details.
     pub has_substitutions: bool,
+    #[serde(default)]
+    pub leaves: Vec<TranslationLeaf>,
+    #[serde(default)]
+    pub diagnostics: Vec<LeafDiagnostic>,
 }
 
 /// A completed translation to submit via submit_translations.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct CompletedTranslation {
     /// Localization key exactly as returned by get_untranslated or get_plurals
     pub key: String,
@@ -38,6 +46,9 @@ pub struct CompletedTranslation {
     /// Substitution variable name for multi-variable plurals (from %#@VAR@ in source). Each submitted form must preserve the exact `%arg` placeholder token; longer Unicode words such as `%argument` are not placeholders, while direct Han, Hiragana, Katakana, or Hangul adjacency is supported. Only needed when PluralUnit.has_substitutions is true. Omit for simple plurals.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub substitution_name: Option<String>,
+    /// Explicit leaf destination; [] denotes the root. Cannot be combined with aggregate selectors.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<crate::model::xcstrings::paths::LeafPath>,
 }
 
 /// Summary of a parsed .xcstrings file, returned by parse_xcstrings.
@@ -56,7 +67,7 @@ pub struct FileSummary {
 }
 
 /// Stable blocking-result fields returned by submit_translations or import_xliff. Runtime responses add `warnings` when non-blocking format diagnostics exist.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct SubmitResult {
     /// Number of translations that passed validation and were written (or would be written in dry_run)
     pub accepted: usize,
@@ -67,10 +78,12 @@ pub struct SubmitResult {
     /// List of accepted key names for reference
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub accepted_keys: Vec<String>,
+    #[serde(default)]
+    pub accepted_destinations: Vec<TranslationDestination>,
 }
 
 /// Additive response used by submit and import surfaces when validation emits warnings.
-/// `SubmitResult` remains unchanged for downstream Rust code that constructs it directly.
+/// The result includes concrete accepted destinations for scoped updates.
 #[derive(Debug, Serialize, JsonSchema)]
 pub struct DetailedSubmitResult {
     #[serde(flatten)]
@@ -81,12 +94,18 @@ pub struct DetailedSubmitResult {
 }
 
 /// A translation that failed validation during submit.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct RejectedTranslation {
     /// The key that was rejected
     pub key: String,
     /// Human-readable rejection reason (e.g., missing format specifier, wrong plural forms)
     pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<crate::model::xcstrings::paths::LeafPath>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
 }
 
 /// Per-locale translation coverage statistics.
@@ -142,7 +161,7 @@ pub struct LocaleInfo {
 }
 
 /// A key requiring plural translation (returned by get_plurals).
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct PluralUnit {
     /// Localization key name
     pub key: String,
@@ -155,7 +174,7 @@ pub struct PluralUnit {
     pub comment: Option<String>,
     /// Definite format arguments to preserve in plural forms (e.g., ["%lld"]); percent-in-prose prefixes are not advertised as required arguments.
     pub format_specifiers: Vec<String>,
-    /// Required CLDR plural categories for target locale (e.g., ["one", "few", "many", "other"] for Ukrainian). All forms must be provided in submit_translations.
+    /// Required CLDR plural categories for target locale (e.g., ["one", "few", "many", "other"] for Ukrainian). These define completeness; submit_translations also accepts partial updates.
     pub required_forms: Vec<String>,
     /// Source language plural forms (if available).
     pub source_forms: BTreeMap<String, String>,
@@ -166,10 +185,14 @@ pub struct PluralUnit {
     /// Device variant forms needed (if any).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub device_forms: Vec<String>,
+    #[serde(default)]
+    pub leaves: Vec<TranslationLeaf>,
+    #[serde(default)]
+    pub diagnostics: Vec<LeafDiagnostic>,
 }
 
 /// A nearby key sharing a common prefix, used for translator context.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct ContextKey {
     /// Related key name
     pub key: String,
@@ -178,6 +201,10 @@ pub struct ContextKey {
     /// Existing translation in the target locale, if available
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub translated_text: Option<String>,
+    #[serde(default)]
+    pub leaves: Vec<TranslationLeaf>,
+    #[serde(default)]
+    pub diagnostics: Vec<LeafDiagnostic>,
 }
 
 /// Report of differences between cached and on-disk versions.

@@ -1,13 +1,13 @@
+use super::{assessment, extractor::build_translation_unit};
+use crate::error::XcStringsError;
+use crate::model::{
+    plural::plural_categories,
+    translation::PluralUnit,
+    xcstrings::{XcStringsFile, paths::LeafStep},
+};
 use std::collections::BTreeMap;
 
-use crate::error::XcStringsError;
-use crate::model::plural::required_plural_forms;
-use crate::model::specifier::extract_specifiers;
-use crate::model::translation::PluralUnit;
-use crate::model::xcstrings::XcStringsFile;
-
-/// Extract keys needing plural/device translation for a locale.
-/// Returns `(batch, total_count)`.
+/// Return incomplete keys with any plural, device or substitution destination.
 pub fn get_untranslated_plurals(
     file: &XcStringsFile,
     locale: &str,
@@ -22,198 +22,89 @@ pub fn get_untranslated_plurals(
             "batch_size must be 1..=100, got {batch_size}"
         )));
     }
-
-    let required = required_plural_forms(locale);
-    let required_form_names: Vec<String> = required
+    let required_forms: Vec<String> = plural_categories(locale)?
         .iter()
-        .map(|cat| cat.as_str().to_string())
+        .map(|c| c.as_str().into())
         .collect();
-
     let mut results = Vec::new();
-
     for (key, entry) in &file.strings {
         if !entry.should_translate {
             continue;
         }
-
-        let source_loc = entry
-            .localizations
-            .as_ref()
-            .and_then(|locs| locs.get(&file.source_language));
-
-        let source_loc = match source_loc {
-            Some(loc) => loc,
-            None => continue,
-        };
-
-        let has_plural_variations = source_loc
-            .variations
-            .as_ref()
-            .is_some_and(|v| v.plural.is_some());
-
-        let has_device_variations = source_loc
-            .variations
-            .as_ref()
-            .is_some_and(|v| v.device.is_some());
-
-        let has_substitutions = source_loc.substitutions.is_some();
-
-        // Skip simple keys (no plurals, no substitutions, no device variants)
-        if !has_plural_variations && !has_substitutions && !has_device_variations {
+        let assessment = assessment::assess(key, entry, &file.source_language, locale);
+        if assessment.complete() || !assessment.leaves.iter().any(|leaf| !leaf.path.is_empty()) {
             continue;
         }
-
-        // Get source text: from string_unit or fall back to key
-        let source_text = source_loc
-            .string_unit
-            .as_ref()
-            .map(|su| su.value.clone())
-            .unwrap_or_else(|| key.clone());
-
-        let format_specifiers: Vec<String> = extract_specifiers(&source_text)
-            .iter()
-            .map(|s| s.raw.clone())
-            .collect();
-
-        // Collect source plural forms
-        let mut source_forms = BTreeMap::new();
-        if let Some(variations) = &source_loc.variations
-            && let Some(plural) = &variations.plural
-        {
-            for (form, var) in plural {
-                source_forms.insert(form.clone(), var.string_unit.value.clone());
-            }
-        }
-
-        // Collect source plural forms from substitutions
-        let sub_plurals = source_loc
-            .substitutions
-            .as_ref()
-            .map(parse_substitution_plurals)
-            .unwrap_or_default();
-
-        // For substitution keys without direct plural variations, use substitution plurals
-        if source_forms.is_empty()
-            && !sub_plurals.is_empty()
-            && let Some((_, forms)) = sub_plurals.first()
-        {
-            source_forms.clone_from(forms);
-        }
-
-        // Collect device forms from source
-        let device_forms: Vec<String> = if let Some(variations) = &source_loc.variations {
-            if let Some(device) = &variations.device {
-                device
-                    .keys()
-                    .map(|cat| {
-                        serde_json::to_string(cat)
-                            .unwrap_or_else(|_| "\"unknown\"".to_string())
-                            .trim_matches('"')
-                            .to_string()
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
-        };
-
-        // Check target locale: collect existing translations
-        let target_loc = entry
-            .localizations
-            .as_ref()
-            .and_then(|locs| locs.get(locale));
-
-        let mut existing_translations = BTreeMap::new();
-        let mut target_has_all_forms = false;
-
-        if let Some(t_loc) = target_loc {
-            if let Some(variations) = &t_loc.variations {
-                if let Some(plural) = &variations.plural {
-                    for (form, var) in plural {
-                        existing_translations.insert(form.clone(), var.string_unit.value.clone());
-                    }
-                }
-
-                // Check device variations for target
-                if let Some(device) = &variations.device
-                    && !device_forms.is_empty()
-                    && device.len() >= device_forms.len()
-                {
-                    // Has all device forms — for device-only keys this counts as complete
-                    if !has_plural_variations && !has_substitutions {
-                        target_has_all_forms = true;
-                    }
+        let unit = build_translation_unit(key, entry, &file.source_language, locale);
+        let source_forms = flat_forms(
+            entry
+                .localizations
+                .as_ref()
+                .and_then(|locs| locs.get(&file.source_language)),
+        );
+        let existing_translations = flat_forms(
+            entry
+                .localizations
+                .as_ref()
+                .and_then(|locs| locs.get(locale)),
+        );
+        let mut device_forms = Vec::new();
+        // Legacy flattened fields describe direct plural branches; leaves retain all scopes.
+        for leaf in &unit.leaves {
+            if let Some(LeafStep::Device(category)) = leaf.path.first() {
+                let name = serde_json::to_value(category)
+                    .ok()
+                    .and_then(|v| v.as_str().map(str::to_owned))
+                    .unwrap_or_default();
+                if !device_forms.contains(&name) {
+                    device_forms.push(name);
                 }
             }
-
-            // For plural keys, check if all required forms are present
-            if has_plural_variations || has_substitutions {
-                target_has_all_forms = required_form_names
-                    .iter()
-                    .all(|form| existing_translations.contains_key(form));
-            }
         }
-
-        // Skip fully translated plural keys
-        if target_has_all_forms {
-            continue;
-        }
-
         results.push(PluralUnit {
-            key: key.clone(),
-            source_text,
-            target_locale: locale.to_string(),
-            comment: entry.comment.clone(),
-            format_specifiers,
-            required_forms: required_form_names.clone(),
+            key: unit.key,
+            source_text: unit.source_text,
+            target_locale: unit.target_locale,
+            comment: unit.comment,
+            format_specifiers: unit.format_specifiers,
+            required_forms: required_forms.clone(),
             source_forms,
             existing_translations,
-            has_substitutions,
+            has_substitutions: unit.has_substitutions,
             device_forms,
+            leaves: unit.leaves,
+            diagnostics: unit.diagnostics,
         });
     }
-
     let total = results.len();
-    let batch: Vec<PluralUnit> = results.into_iter().skip(offset).take(batch_size).collect();
-
-    Ok((batch, total))
+    Ok((
+        results.into_iter().skip(offset).take(batch_size).collect(),
+        total,
+    ))
 }
 
-/// Extract plural form values from substitution JSON entries.
-/// Returns `(substitution_name, { form_name -> value })`.
-fn parse_substitution_plurals(
-    subs: &BTreeMap<String, serde_json::Value>,
-) -> Vec<(String, BTreeMap<String, String>)> {
-    let mut result = Vec::new();
-
-    for (name, value) in subs {
-        let mut forms = BTreeMap::new();
-
-        let plural = value
-            .get("variations")
-            .and_then(|v| v.get("plural"))
-            .and_then(|p| p.as_object());
-
-        if let Some(plural_map) = plural {
-            for (form, form_value) in plural_map {
-                if let Some(val) = form_value
-                    .get("stringUnit")
-                    .and_then(|su| su.get("value"))
-                    .and_then(|v| v.as_str())
-                {
-                    forms.insert(form.clone(), val.to_string());
-                }
+fn flat_forms(node: Option<&crate::model::xcstrings::Localization>) -> BTreeMap<String, String> {
+    let Some(node) = node else {
+        return BTreeMap::new();
+    };
+    let leaves = crate::model::xcstrings::paths::collect_leaves(node).leaves;
+    let names: std::collections::HashSet<_> = leaves
+        .iter()
+        .filter_map(|leaf| match leaf.path.first() {
+            Some(LeafStep::Substitution(name)) => Some(name),
+            _ => None,
+        })
+        .collect();
+    leaves
+        .iter()
+        .filter_map(|leaf| match leaf.path.as_slice() {
+            [LeafStep::Plural(form)] => Some((form.clone(), leaf.unit.value.clone())),
+            [LeafStep::Substitution(_), LeafStep::Plural(form)] if names.len() == 1 => {
+                Some((form.clone(), leaf.unit.value.clone()))
             }
-        }
-
-        if !forms.is_empty() {
-            result.push((name.clone(), forms));
-        }
-    }
-
-    result
+            _ => None,
+        })
+        .collect()
 }
 
 #[cfg(test)]

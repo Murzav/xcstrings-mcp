@@ -2,8 +2,10 @@ use std::collections::BTreeSet;
 
 use crate::error::XcStringsError;
 use crate::model::translation::LocaleInfo;
-use crate::model::xcstrings::{Localization, StringUnit, TranslationState, XcStringsFile};
-use crate::service::is_translated_for;
+use crate::model::xcstrings::XcStringsFile;
+#[cfg(test)]
+use crate::model::xcstrings::{Localization, StringUnit, TranslationState};
+use crate::service::assessment;
 
 /// List all locales found across all entries with translation statistics.
 pub fn list_locales(file: &XcStringsFile) -> Vec<LocaleInfo> {
@@ -25,7 +27,7 @@ pub fn list_locales(file: &XcStringsFile) -> Vec<LocaleInfo> {
                 .strings
                 .values()
                 .filter(|e| e.should_translate)
-                .filter(|e| is_translated_for(e, &locale))
+                .filter(|e| assessment::assess("", e, &file.source_language, &locale).complete())
                 .count();
             let percentage = if total == 0 {
                 0.0
@@ -58,24 +60,27 @@ pub fn add_locale(file: &mut XcStringsFile, locale: &str) -> Result<usize, XcStr
         }
     }
 
-    let mut count = 0;
-    for entry in file.strings.values_mut() {
-        if !entry.should_translate {
-            continue;
+    // Prepare every shape before mutating, so unsupported entries cannot leave a partial locale.
+    let prepared: Vec<_> = file
+        .strings
+        .iter()
+        .filter(|(_, entry)| entry.should_translate)
+        .map(|(key, entry)| {
+            let source = entry
+                .localizations
+                .as_ref()
+                .and_then(|locs| locs.get(&file.source_language));
+            assessment::initialize_locale(source, locale).map(|node| (key.clone(), node))
+        })
+        .collect::<Result<_, _>>()?;
+    let count = prepared.len();
+    for (key, node) in prepared {
+        if let Some(entry) = file.strings.get_mut(&key) {
+            entry
+                .localizations
+                .get_or_insert_with(Default::default)
+                .insert(locale.into(), node);
         }
-        let locs = entry.localizations.get_or_insert_with(Default::default);
-        locs.insert(
-            locale.to_string(),
-            Localization {
-                string_unit: Some(StringUnit {
-                    state: TranslationState::New,
-                    value: String::new(),
-                }),
-                variations: None,
-                substitutions: None,
-            },
-        );
-        count += 1;
     }
 
     Ok(count)
@@ -128,6 +133,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -140,9 +146,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: state.clone(),
                         value: format!("value_{locale}"),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
         }
@@ -155,6 +163,7 @@ mod tests {
             } else {
                 Some(localizations)
             },
+            ..Default::default()
         }
     }
 
@@ -164,6 +173,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         }
     }
 
@@ -340,9 +350,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "val".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         nt_entry.localizations = Some(locs);

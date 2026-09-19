@@ -52,13 +52,26 @@ pub fn compute_diff(old: &XcStringsFile, new: &XcStringsFile) -> DiffReport {
 }
 
 fn get_source_text(entry: &StringEntry, source_lang: &str) -> String {
-    entry
+    let Some(node) = entry
         .localizations
         .as_ref()
         .and_then(|locs| locs.get(source_lang))
-        .and_then(|loc| loc.string_unit.as_ref())
-        .map(|su| su.value.clone())
-        .unwrap_or_default()
+    else {
+        return String::new();
+    };
+    if node.variations.is_none() && node.substitutions.is_none() {
+        return node
+            .string_unit
+            .as_ref()
+            .map_or_else(String::new, |unit| unit.value.clone());
+    }
+    // Text, branch identity and substitution arguments affect translation; editorial
+    // state and unrelated metadata do not constitute a source text change.
+    let leaves: Vec<_> = crate::model::xcstrings::paths::collect_leaves(node).leaves.into_iter().map(|leaf| {
+        let substitutions: Vec<_> = leaf.substitutions.iter().map(|context| (context.name, context.substitution.arg_num, context.substitution.format_specifier.as_deref())).collect();
+        serde_json::json!({"path":leaf.path,"value":leaf.unit.value,"substitutions":substitutions})
+    }).collect();
+    serde_json::to_string(&leaves).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -78,9 +91,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: TranslationState::Translated,
                         value: value.to_string(),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
             strings.insert(
@@ -90,6 +105,7 @@ mod tests {
                     should_translate: true,
                     comment: None,
                     localizations: Some(locs),
+                    ..Default::default()
                 },
             );
         }
@@ -97,6 +113,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -110,6 +127,7 @@ mod tests {
                     should_translate: true,
                     comment: None,
                     localizations: None,
+                    ..Default::default()
                 },
             );
         }
@@ -117,6 +135,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 

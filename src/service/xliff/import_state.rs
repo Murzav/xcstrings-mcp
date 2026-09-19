@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use crate::error::XcStringsError;
-use crate::model::translation::CompletedTranslation;
+use crate::model::xliff::{XliffDocument, XliffFile, XliffNote, XliffUnit};
 
+mod capture;
 mod extensions;
 mod grammar;
 mod helpers;
@@ -28,26 +29,26 @@ pub(super) enum CoreElement {
 }
 
 impl CoreElement {
-    pub(super) fn from_local_name(name: &[u8]) -> Option<Self> {
+    pub(super) fn from_local_name(name: &str) -> Option<Self> {
         match name {
-            b"xliff" => Some(Self::Xliff),
-            b"file" => Some(Self::File),
-            b"header" => Some(Self::Header),
-            b"body" => Some(Self::Body),
-            b"group" => Some(Self::Group),
-            b"trans-unit" => Some(Self::TransUnit),
-            b"source" => Some(Self::Source),
-            b"target" => Some(Self::Target),
-            b"seg-source" => Some(Self::SegSource),
-            b"alt-trans" => Some(Self::AltTrans),
-            b"bin-unit" => Some(Self::BinUnit),
-            b"context-group" | b"count-group" | b"note" => Some(Self::Metadata),
-            b"g" | b"x" | b"bx" | b"ex" | b"bpt" | b"ept" | b"sub" | b"it" | b"ph" | b"mrk" => {
+            "xliff" => Some(Self::Xliff),
+            "file" => Some(Self::File),
+            "header" => Some(Self::Header),
+            "body" => Some(Self::Body),
+            "group" => Some(Self::Group),
+            "trans-unit" => Some(Self::TransUnit),
+            "source" => Some(Self::Source),
+            "target" => Some(Self::Target),
+            "seg-source" => Some(Self::SegSource),
+            "alt-trans" => Some(Self::AltTrans),
+            "bin-unit" => Some(Self::BinUnit),
+            "context-group" | "count-group" | "note" => Some(Self::Metadata),
+            "g" | "x" | "bx" | "ex" | "bpt" | "ept" | "sub" | "it" | "ph" | "mrk" => {
                 Some(Self::Inline)
             }
-            b"skl" | b"external-file" | b"internal-file" | b"glossary" | b"reference"
-            | b"phase-group" | b"phase" | b"tool" | b"context" | b"count" | b"prop-group"
-            | b"prop" | b"bin-source" | b"bin-target" => Some(Self::Other),
+            "skl" | "external-file" | "internal-file" | "glossary" | "reference"
+            | "phase-group" | "phase" | "tool" | "context" | "count" | "prop-group" | "prop"
+            | "bin-source" | "bin-target" => Some(Self::Other),
             _ => None,
         }
     }
@@ -66,17 +67,17 @@ pub(super) enum ImportElementKind {
 }
 
 impl ImportElement {
-    pub(super) fn core(kind: CoreElement, name: &[u8]) -> Self {
+    pub(super) fn core(kind: CoreElement, name: &str) -> Self {
         Self {
             kind: ImportElementKind::Core(kind),
-            name: String::from_utf8_lossy(name).into_owned(),
+            name: name.to_owned(),
         }
     }
 
-    pub(super) fn extension(name: &[u8]) -> Self {
+    pub(super) fn extension(name: &str) -> Self {
         Self {
             kind: ImportElementKind::Extension,
-            name: String::from_utf8_lossy(name).into_owned(),
+            name: name.to_owned(),
         }
     }
 }
@@ -141,9 +142,12 @@ enum AltPhase {
 
 struct UnitData {
     id: String,
-    locale: String,
     phase: UnitPhase,
     target: Option<String>,
+    source: Option<String>,
+    state: Option<String>,
+    state_qualifier: Option<String>,
+    notes: Vec<XliffNote>,
 }
 
 enum FrameData {
@@ -152,7 +156,7 @@ enum FrameData {
         extension_needs_file: bool,
     },
     File {
-        locale: String,
+        file_index: usize,
         phase: FilePhase,
         unit_ids: HashSet<String>,
     },
@@ -199,8 +203,7 @@ struct Frame {
 pub(super) struct ImportState {
     stack: Vec<Frame>,
     target_locale: Option<String>,
-    translations: Vec<CompletedTranslation>,
-    document_unit_ids: HashSet<String>,
+    files: Vec<XliffFile>,
     root_file_count: Option<usize>,
     root_extension_needs_file: bool,
 }
@@ -356,30 +359,7 @@ impl ImportState {
         Ok(())
     }
 
-    pub(super) fn text(&mut self, text: &str) {
-        let capture_target = self.stack.iter().rev().find_map(|frame| match frame.data {
-            FrameData::Target { main_unit } => Some(main_unit),
-            FrameData::Source => Some(false),
-            _ => None,
-        });
-        if capture_target != Some(true) {
-            return;
-        }
-        if let Some(Frame {
-            data: FrameData::Unit(unit),
-            ..
-        }) = self
-            .stack
-            .iter_mut()
-            .rev()
-            .find(|frame| matches!(frame.data, FrameData::Unit(_)))
-            && let Some(target) = &mut unit.target
-        {
-            target.push_str(text);
-        }
-    }
-
-    pub(super) fn finish(self) -> Result<(String, Vec<CompletedTranslation>), XcStringsError> {
+    pub(super) fn finish(self) -> Result<XliffDocument, XcStringsError> {
         if !self.stack.is_empty() {
             return Err(parse_error(
                 "XLIFF structural stack is not closed".to_string(),
@@ -395,10 +375,10 @@ impl ImportState {
                 "extension elements at <xliff> level must be followed by <file>".to_string(),
             ));
         }
-        let locale = self.target_locale.ok_or_else(|| {
+        self.target_locale.ok_or_else(|| {
             parse_error("missing target-language attribute in <file> element".to_string())
         })?;
-        Ok((locale, self.translations))
+        Ok(XliffDocument { files: self.files })
     }
 
     fn start_seg_source(&mut self, element: ImportElement) -> Result<(), XcStringsError> {

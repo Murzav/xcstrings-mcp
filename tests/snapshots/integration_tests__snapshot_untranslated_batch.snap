@@ -1,6 +1,6 @@
 ---
 source: tests/integration_tests.rs
-assertion_line: 245
+assertion_line: 466
 expression: batch
 ---
 [
@@ -10,7 +10,17 @@ expression: batch
     "target_locale": "de",
     "format_specifiers": [],
     "has_plurals": false,
-    "has_substitutions": false
+    "has_substitutions": false,
+    "leaves": [
+      {
+        "path": [],
+        "source_text": "Hello",
+        "required": true,
+        "complete": false,
+        "substitutions": []
+      }
+    ],
+    "diagnostics": []
   },
   {
     "key": "welcome_message",
@@ -18,6 +28,16 @@ expression: batch
     "target_locale": "de",
     "format_specifiers": [],
     "has_plurals": false,
-    "has_substitutions": false
+    "has_substitutions": false,
+    "leaves": [
+      {
+        "path": [],
+        "source_text": "Welcome to the app",
+        "required": true,
+        "complete": false,
+        "substitutions": []
+      }
+    ],
+    "diagnostics": []
   }
 ]

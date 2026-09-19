@@ -1,4 +1,5 @@
 use super::*;
+use crate::model::xcstrings::XcStringsFile;
 use crate::service::parser;
 
 const FIXTURE: &str = include_str!("../../../tests/fixtures/simple.xcstrings");
@@ -155,7 +156,7 @@ fn import_missing_target_language_returns_error() {
 }
 
 #[test]
-fn import_skips_empty_targets() {
+fn legacy_import_rejects_empty_draft_instead_of_silently_dropping_it() {
     let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
 <xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
   <file source-language="en" target-language="de" original="test.xcstrings" datatype="plaintext">
@@ -172,11 +173,11 @@ fn import_skips_empty_targets() {
   </file>
 </xliff>"#;
 
-    let (locale, translations) = import_xliff(xliff).unwrap();
-    assert_eq!(locale, "de");
-    assert_eq!(translations.len(), 1);
-    assert_eq!(translations[0].key, "key2");
-    assert_eq!(translations[0].value, "Welt");
+    let error = import_xliff(xliff).unwrap_err();
+    assert!(
+        matches!(error, crate::error::XcStringsError::XliffParse(ref message)
+        if message == "legacy import_xliff cannot preserve target state for 'key1'; use parse_document and plan_import")
+    );
 }
 
 #[test]

@@ -1,0 +1,13 @@
+COMMAND: ['xcodebuild', '-importLocalizations', '-project', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/Oracle.xcodeproj', '-localizationPath', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/target-create/export/fr.xcloc/Localized Contents/fr.xliff']
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/Oracle.xcodeproj -localizationPath "/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/target-create/export/fr.xcloc/Localized Contents/fr.xliff"
+
+Localization Import started for Oracle project
+2026-09-19 23:26:58 Started import
+2026-09-19 23:26:58 Comparing
+2026-09-19 23:26:58 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+2026-09-19 23:26:58 --- WARNING: Ignoring overrides for top-level key 'target_only_substitution' in 'Localizable.xcstrings' because the source string 'target_only_substitution|==|substitutions.COUNT.plural.other' was not found in the project file. This usually indicates that the project string was modified at some point after the XLIFF was exported, and is thus out of sync with the XLIFF.
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the project (Key: "target_only_substitution|==|substitutions.COUNT.plural.other")
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the project (Key: "target_only_substitution|==|substitutions.COUNT.plural.one")
+2026-09-19 23:26:58 Writing
+2026-09-19 23:26:58 --- WARNING: Ignoring overrides for top-level key 'target_only_substitution' in 'Localizable.xcstrings' because the source string 'target_only_substitution|==|substitutions.COUNT.plural.other' was not found in the project file. This usually indicates that the project string was modified at some point after the XLIFF was exported, and is thus out of sync with the XLIFF.

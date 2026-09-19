@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="Localizable.xcstrings" source-language="en" target-language="fr" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="27.0" build-num="27A266a"/>
+    </header>
+    <body>
+      <trans-unit id="" xml:space="preserve">
+        <source>EN </source>
+        <target state="translated">FR </target>
+        <note>Oracle </note>
+      </trans-unit>
+      <trans-unit id="ambiguous|==|plural.one" xml:space="preserve">
+        <source>EN ambiguous|==|plural.one</source>
+        <target state="translated">FR ambiguous|==|plural.one</target>
+        <note>Oracle ambiguous|==|plural.one</note>
+      </trans-unit>
+      <trans-unit id="chained|==|device.iphone.plural.one" xml:space="preserve">
+        <source>EN chained phone %lld one</source>
+        <target state="translated">FR chained phone %lld one</target>
+        <note>Oracle chained</note>
+      </trans-unit>
+      <trans-unit id="chained|==|device.iphone.plural.other" xml:space="preserve">
+        <source>EN chained phone %lld many</source>
+        <target state="translated">FR chained phone %lld many</target>
+        <note>Oracle chained</note>
+      </trans-unit>
+      <trans-unit id="chained|==|device.other" xml:space="preserve">
+        <source>en %lld fallback</source>
+        <target state="translated">fr %lld fallback</target>
+        <note>Oracle chained</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.appletv" xml:space="preserve">
+        <source>EN device appletv</source>
+        <target state="translated">FR device appletv</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.applevision" xml:space="preserve">
+        <source>EN device applevision</source>
+        <target state="translated">FR device applevision</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.applewatch" xml:space="preserve">
+        <source>EN device applewatch</source>
+        <target state="translated">FR device applewatch</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.ipad" xml:space="preserve">
+        <source>EN device ipad</source>
+        <target state="translated">FR device ipad</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.iphone" xml:space="preserve">
+        <source>EN device iphone</source>
+        <target state="translated">FR device iphone</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.mac" xml:space="preserve">
+        <source>EN device mac</source>
+        <target state="translated">FR device mac</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="device|==|device.other" xml:space="preserve">
+        <source>EN device other</source>
+        <target state="translated">FR device other</target>
+        <note>Oracle device</note>
+      </trans-unit>
+      <trans-unit id="literal|==|text" xml:space="preserve">
+        <source>EN literal|==|text</source>
+        <target state="translated">FR literal|==|text</target>
+        <note>Oracle literal|==|text</note>
+      </trans-unit>
+      <trans-unit id="plural|==|plural.one" xml:space="preserve">
+        <source>EN plural %lld one</source>
+        <target state="translated">FR plural %lld one</target>
+        <note>Oracle plural</note>
+      </trans-unit>
+      <trans-unit id="plural|==|plural.other" xml:space="preserve">
+        <source>EN plural %lld many</source>
+        <target state="translated">FR plural %lld many</target>
+        <note>Oracle plural</note>
+      </trans-unit>
+      <trans-unit id="simple" xml:space="preserve">
+        <source>EN simple</source>
+        <target state="translated">FR simple</target>
+        <note>Oracle simple</note>
+      </trans-unit>
+      <trans-unit id="state_needs_review" xml:space="preserve">
+        <source>Review</source>
+        <target state="needs-review-l10n">Revoir</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="state_new" xml:space="preserve">
+        <source>New</source>
+        <target state="new">Nouveau</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="sub_DOT.NAME" xml:space="preserve">
+        <source>en %1$#@DOT.NAME@</source>
+        <target state="translated">fr %1$#@DOT.NAME@</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="sub_DOT.NAME|==|substitutions.@DOT.NAME@.plural.one" xml:space="preserve">
+        <source>en %lld single</source>
+        <target state="translated">fr %lld single</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="sub_DOT.NAME|==|substitutions.@DOT.NAME@.plural.other" xml:space="preserve">
+        <source>en %lld multiple</source>
+        <target state="translated">fr %lld multiple</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="sub_PIPE|==|NAME" xml:space="preserve">
+        <source>en %#@PIPE|==|NAME@</source>
+        <target state="translated">fr %1$#@PIPE|==|NAME@</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="substitution" xml:space="preserve">
+        <source>EN substitution %1$#@COUNT@</source>
+        <target state="translated">FR substitution %1$#@COUNT@</target>
+        <note>Oracle substitution</note>
+      </trans-unit>
+      <trans-unit id="substitution|==|substitutions.COUNT.plural.one" xml:space="preserve">
+        <source>EN substitution %lld one</source>
+        <target state="translated">FR substitution %lld one</target>
+        <note>Oracle substitution</note>
+      </trans-unit>
+      <trans-unit id="substitution|==|substitutions.COUNT.plural.other" xml:space="preserve">
+        <source>EN substitution %lld many</source>
+        <target state="translated">FR substitution %lld many</target>
+        <note>Oracle substitution</note>
+      </trans-unit>
+      <trans-unit id="target_only_device|==|device.iphone" xml:space="preserve">
+        <source>Tap</source>
+        <target state="translated">Toucher</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="target_only_device|==|device.other" xml:space="preserve">
+        <source>Tap</source>
+        <target state="translated">Cliquer</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="target_only_plural|==|plural.one" xml:space="preserve">
+        <source>%lld count</source>
+        <target state="translated">FR count %lld single</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="target_only_plural|==|plural.other" xml:space="preserve">
+        <source>%lld count</source>
+        <target state="translated">FR count %lld multiple</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="varied|==|key|==|plural.one" xml:space="preserve">
+        <source>EN varied|==|key %lld one</source>
+        <target state="translated">FR varied|==|key %lld one</target>
+        <note>Oracle varied|==|key</note>
+      </trans-unit>
+      <trans-unit id="varied|==|key|==|plural.other" xml:space="preserve">
+        <source>EN varied|==|key %lld many</source>
+        <target state="translated">FR varied|==|key %lld many</target>
+        <note>Oracle varied|==|key</note>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

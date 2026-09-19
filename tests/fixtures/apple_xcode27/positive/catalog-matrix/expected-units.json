@@ -1,0 +1,767 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "",
+        "source": "EN ",
+        "target": "FR ",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle "
+          }
+        ]
+      },
+      {
+        "id": "<>&\"quote",
+        "source": "source <>&\"quote",
+        "target": "target <>&\"quote",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "ambiguous|==|plural.one",
+        "source": "EN ambiguous|==|plural.one",
+        "target": "FR ambiguous|==|plural.one",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle ambiguous|==|plural.one"
+          }
+        ]
+      },
+      {
+        "id": "auto",
+        "source": "Generated",
+        "target": "Genere",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {
+              "from": "auto-generated"
+            },
+            "text": "Oracle generated note"
+          }
+        ]
+      },
+      {
+        "id": "chained|==|device.iphone.plural.one",
+        "source": "EN chained phone %lld one",
+        "target": "FR chained phone %lld one",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle chained"
+          }
+        ]
+      },
+      {
+        "id": "chained|==|device.iphone.plural.other",
+        "source": "EN chained phone %lld many",
+        "target": "FR chained phone %lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle chained"
+          }
+        ]
+      },
+      {
+        "id": "chained|==|device.other",
+        "source": "en %lld fallback",
+        "target": "fr %lld fallback",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle chained"
+          }
+        ]
+      },
+      {
+        "id": "clé漢字🙂",
+        "source": "source clé漢字🙂",
+        "target": "target clé漢字🙂",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.appletv",
+        "source": "EN device appletv",
+        "target": "FR device appletv",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.applevision",
+        "source": "EN device applevision",
+        "target": "FR device applevision",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.applewatch",
+        "source": "EN device applewatch",
+        "target": "FR device applewatch",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.ipad",
+        "source": "EN device ipad",
+        "target": "FR device ipad",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.iphone",
+        "source": "EN device iphone",
+        "target": "FR device iphone",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.mac",
+        "source": "EN device mac",
+        "target": "FR device mac",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "device|==|device.other",
+        "source": "EN device other",
+        "target": "FR device other",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle device"
+          }
+        ]
+      },
+      {
+        "id": "inline_text",
+        "source": "Label %@ %lld **bold** <b>literal</b>",
+        "target": "Etiquette %2$lld %1$@ **gras** <b>texte</b>",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "key\tTAB",
+        "source": "source key\tTAB",
+        "target": "target key\tTAB",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "key\nLF",
+        "source": "source key\nLF",
+        "target": "target key\nLF",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "key\rCR",
+        "source": "source key\rCR",
+        "target": "target key\rCR",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "literal|==|text",
+        "source": "EN literal|==|text",
+        "target": "FR literal|==|text",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle literal|==|text"
+          }
+        ]
+      },
+      {
+        "id": "machine_translated",
+        "source": "Machine source",
+        "target": "Machine cible",
+        "target_attributes": {
+          "state": "translated",
+          "state-qualifier": "leveraged-mt"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "multi",
+        "source": "Birds %1$#@BIRDS@ yards %2$#@YARDS@",
+        "target": "Yards %2$#@YARDS@ oiseaux %1$#@BIRDS@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "multi|==|substitutions.BIRDS.plural.one",
+        "source": "EN birds %1$lld single",
+        "target": "FR birds %1$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "multi|==|substitutions.BIRDS.plural.other",
+        "source": "EN birds %1$lld many",
+        "target": "FR birds %1$lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "multi|==|substitutions.YARDS.plural.one",
+        "source": "EN yards %2$lld single",
+        "target": "FR yards %2$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "multi|==|substitutions.YARDS.plural.other",
+        "source": "EN yards %2$lld many",
+        "target": "FR yards %2$lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_A..B",
+        "source": "en %1$#@A..B@",
+        "target": "fr %1$#@A..B@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_A..B|==|substitutions.@A..B@.plural.one",
+        "source": "en %1$lld single",
+        "target": "fr %1$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_A..B|==|substitutions.@A..B@.plural.other",
+        "source": "en %1$lld multiple",
+        "target": "fr %1$lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_é",
+        "source": "en %1$#@é@",
+        "target": "fr %1$#@é@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_é|==|substitutions.é.plural.one",
+        "source": "en %1$lld single",
+        "target": "fr %1$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "name_é|==|substitutions.é.plural.other",
+        "source": "en %1$lld multiple",
+        "target": "fr %1$lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "plural|==|plural.one",
+        "source": "EN plural %lld one",
+        "target": "FR plural %lld one",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle plural"
+          }
+        ]
+      },
+      {
+        "id": "plural|==|plural.other",
+        "source": "EN plural %lld many",
+        "target": "FR plural %lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle plural"
+          }
+        ]
+      },
+      {
+        "id": "simple",
+        "source": "EN simple",
+        "target": "FR simple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle simple"
+          }
+        ]
+      },
+      {
+        "id": "source_only_plural|==|plural.one",
+        "source": "Source one %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "source_only_plural|==|plural.other",
+        "source": "Source other %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "state_needs_review",
+        "source": "Review",
+        "target": "Revoir",
+        "target_attributes": {
+          "state": "needs-review-l10n"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "state_new",
+        "source": "New",
+        "target": "Nouveau",
+        "target_attributes": {
+          "state": "new"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "sub_DOT.NAME",
+        "source": "en %1$#@DOT.NAME@",
+        "target": "fr %1$#@DOT.NAME@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "sub_DOT.NAME|==|substitutions.@DOT.NAME@.plural.one",
+        "source": "en %lld single",
+        "target": "fr %lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "sub_DOT.NAME|==|substitutions.@DOT.NAME@.plural.other",
+        "source": "en %lld multiple",
+        "target": "fr %lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "substitution",
+        "source": "EN substitution %1$#@COUNT@",
+        "target": "FR substitution %1$#@COUNT@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle substitution"
+          }
+        ]
+      },
+      {
+        "id": "substitution|==|substitutions.COUNT.plural.one",
+        "source": "EN substitution %lld one",
+        "target": "FR substitution %lld one",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle substitution"
+          }
+        ]
+      },
+      {
+        "id": "substitution|==|substitutions.COUNT.plural.other",
+        "source": "EN substitution %lld many",
+        "target": "FR substitution %lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle substitution"
+          }
+        ]
+      },
+      {
+        "id": "target_only_device|==|device.iphone",
+        "source": "Tap",
+        "target": "Toucher",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_device|==|device.other",
+        "source": "Tap",
+        "target": "Cliquer",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_plural|==|plural.one",
+        "source": "%lld count",
+        "target": "FR count %lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_plural|==|plural.other",
+        "source": "%lld count",
+        "target": "FR count %lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_substitution",
+        "source": "%lld total",
+        "target": "Total %1$#@COUNT@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_substitution|==|substitutions.COUNT.plural.one",
+        "source": "target_only_substitution|==|substitutions.COUNT.plural.one",
+        "target": "fr %1$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_substitution|==|substitutions.COUNT.plural.other",
+        "source": "target_only_substitution|==|substitutions.COUNT.plural.other",
+        "target": "fr %1$lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "varied|==|key|==|plural.one",
+        "source": "EN varied|==|key %lld one",
+        "target": "FR varied|==|key %lld one",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle varied|==|key"
+          }
+        ]
+      },
+      {
+        "id": "varied|==|key|==|plural.other",
+        "source": "EN varied|==|key %lld many",
+        "target": "FR varied|==|key %lld many",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": "Oracle varied|==|key"
+          }
+        ]
+      }
+    ]
+  }
+]

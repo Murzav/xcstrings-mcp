@@ -1,0 +1,12 @@
+['xcodebuild', '-importLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/edited-input.xliff']
+EXIT: 0
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-other-id/edited-input.xliff
+
+Localization Import started for Oracle project
+2026-09-20 00:11:48 Started import
+2026-09-20 00:11:48 Comparing
+2026-09-20 00:11:48 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+2026-09-20 00:11:48 --- WARNING: WARNING: Top-level xcstrings key in XLIFF 'target_only_substitution': Unexpected case 'substitutions.COUNT.plural.many'.
+2026-09-20 00:11:48 Writing
+2026-09-20 00:11:48 --- WARNING: WARNING: Top-level xcstrings key in XLIFF 'target_only_substitution': Unexpected case 'substitutions.COUNT.plural.many'.

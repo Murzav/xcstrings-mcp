@@ -1,0 +1,12 @@
+COMMAND: ['xcodebuild', '-exportLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/missing-locale-uk/export', '-exportLanguage', 'uk']
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -exportLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/missing-locale-uk/export -exportLanguage uk
+
+Localization Export started for Oracle project
+2026-09-19 23:34:38 Started export
+2026-09-19 23:34:38 Extracting strings from code
+2026-09-19 23:34:38 Extracting strings from localizable files
+2026-09-19 23:34:38 Copying source language files
+2026-09-19 23:34:38 Exporting Localizable.xcstrings to uk.xliff...
+2026-09-19 23:34:38 Writing
+2026-09-19 23:34:38 An xcloc was created at /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/missing-locale-uk/export/uk.xcloc

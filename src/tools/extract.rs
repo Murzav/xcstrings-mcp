@@ -200,6 +200,8 @@ pub(crate) struct KeyTranslation {
     state: Option<TranslationState>,
     has_plurals: bool,
     has_device_variants: bool,
+    leaves: Vec<crate::model::translation::TranslationLeaf>,
+    diagnostics: Vec<crate::model::xcstrings::paths::LeafDiagnostic>,
 }
 
 /// Get all translations for a specific key across all locales.
@@ -228,15 +230,31 @@ pub(crate) async fn handle_get_key(
         for (locale, loc) in locs {
             let value = loc.string_unit.as_ref().map(|su| su.value.clone());
             let state = loc.string_unit.as_ref().map(|su| su.state.clone());
-            let has_plurals = loc.variations.as_ref().is_some_and(|v| v.plural.is_some());
-            let has_device_variants = loc.variations.as_ref().is_some_and(|v| v.device.is_some());
 
+            let assessment = crate::service::assessment::assess(
+                &params.key,
+                entry,
+                &file.source_language,
+                locale,
+            );
+            let has_plurals = assessment.leaves.iter().any(|leaf| {
+                leaf.path
+                    .iter()
+                    .any(|step| matches!(step, crate::model::xcstrings::paths::LeafStep::Plural(_)))
+            });
+            let has_device_variants = assessment.leaves.iter().any(|leaf| {
+                leaf.path
+                    .iter()
+                    .any(|step| matches!(step, crate::model::xcstrings::paths::LeafStep::Device(_)))
+            });
             translations.push(KeyTranslation {
                 locale: locale.clone(),
                 value,
                 state,
                 has_plurals,
                 has_device_variants,
+                leaves: assessment.leaves,
+                diagnostics: assessment.diagnostics,
             });
         }
     }

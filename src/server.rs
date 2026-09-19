@@ -7,7 +7,7 @@ use rmcp::{
         router::{prompt::PromptRouter, tool::ToolRouter},
         wrapper::Parameters,
     },
-    model::{ProtocolVersion, ServerCapabilities, ServerInfo},
+    model::{ProtocolVersion, ServerCapabilities, ServerConfig},
     prompt_handler, tool, tool_handler, tool_router,
 };
 use tokio::sync::Mutex;
@@ -99,7 +99,7 @@ impl XcStringsMcpServer {
     /// Get untranslated strings for a target locale with batching support.
     #[tool(
         name = "get_untranslated",
-        description = "Get untranslated strings for one or more target locales. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are excluded and diagnosed during validation. Returns batched results — repeat with offset += batch_size while has_more is true. For plural keys (has_plurals=true), follow up with get_plurals."
+        description = "Get untranslated strings for one or more target locales. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are excluded and diagnosed during validation. Returns batched results — repeat with offset += batch_size while has_more is true. Each key includes all recursive leaves with typed paths, current states, completeness and diagnostics. Plural completeness uses CLDR recommendations; draft states are incomplete, translated or machine_translated explicit blanks are ready."
     )]
     async fn get_untranslated(
         &self,
@@ -119,7 +119,7 @@ impl XcStringsMcpServer {
     /// merges into the file, and writes back atomically.
     #[tool(
         name = "submit_translations",
-        description = "Submit translations for validation and atomic writing. Definite Foundation format arguments must preserve position, conversion, length modifier (including integer j), flags, width, and precision; valid positional reordering is allowed, including next to unspaced Han, Hiragana, Katakana, or Hangul text. Invalid positional indices block. Named substitution forms require exact %arg tokens, rejecting longer Unicode words while permitting those unspaced-script adjacencies. Percent sequences that can also be prose are accepted only with machine-readable warnings[]. Use dry_run=true first. Check rejected[] for blocking failures and warnings[] for accepted ambiguities. Set continue_on_error=false to reject the entire batch on any blocking failure."
+        description = "Submit translations for validation and atomic writing. Definite Foundation format arguments must preserve position, conversion, length modifier (including integer j), flags, width, and precision; valid positional reordering is allowed, including next to unspaced Han, Hiragana, Katakana, or Hangul text. Invalid positional indices block. Named substitution forms require exact %arg tokens, rejecting longer Unicode words while permitting those unspaced-script adjacencies. Percent sequences that can also be prose are accepted only with machine-readable warnings[]. Use path=[] for the root or typed device/plural/substitution paths for individual leaves; do not combine path with plural_forms or substitution_name. Partial updates are valid; duplicate or overlapping destinations reject every involved request. accepted counts requests and accepted_destinations identifies written leaves. Explicit blanks are intentional. Use dry_run=true first. Check rejected[] for blocking failures and warnings[] for accepted ambiguities. Set continue_on_error=false to reject the entire batch on any blocking failure."
     )]
     async fn submit_translations(
         &self,
@@ -274,7 +274,7 @@ impl XcStringsMcpServer {
     /// Get keys requiring plural/device translation for a locale.
     #[tool(
         name = "get_plurals",
-        description = "Get keys needing plural or device-variant translation. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are diagnosed during validation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. Submit via submit_translations with plural_forms field."
+        description = "Get keys needing plural or device-variant translation. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are diagnosed during validation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. All substitutions and nested devices appear in leaves with typed paths and states. Submit individual leaves using path, or direct aggregate plural_forms where unambiguous; partial submissions need not complete every CLDR category."
     )]
     async fn get_plurals(
         &self,
@@ -395,7 +395,7 @@ impl XcStringsMcpServer {
     /// Export translations to XLIFF 1.2 format for external tools.
     #[tool(
         name = "export_xliff",
-        description = "Export simple String Catalog stringUnit entries to XLIFF 1.2 for external tools. Variation-only plural, device, and substitution entries are excluded because Apple variation-unit ID paths are not implemented. By default exports untranslated strings only."
+        description = "Export supported Apple String Catalog leaves to XLIFF 1.2, including plural, all seven device categories, substitutions, and supported chains. By default exports incomplete leaves; set untranslated_only=false for all. original sets the exact file scope and defaults to the catalog filename. exported_count counts trans-units, not catalog keys. Rejects unsafe shapes, ambiguous IDs, literal keys resembling valid variation IDs, and unsafe substitution names before writing. Xcode may lose newly introduced target-only substitutions; compare content after external import."
     )]
     async fn export_xliff(
         &self,
@@ -414,7 +414,7 @@ impl XcStringsMcpServer {
     /// Import translations from XLIFF 1.2 file.
     #[tool(
         name = "import_xliff",
-        description = "Import simple stringUnit translations from a structurally validated single-root XLIFF 1.2 document using one consistent mode: the XML-normalized official default/prefix-qualified namespace, or legacy fully unqualified input. Requires direct file children with non-empty matching target-language values, optional header before one body, recursive groups, one source before at most one target per trans-unit, and unique trans-unit/bin-unit IDs per file after XML attribute normalization. Empty trans-unit IDs from Xcode are accepted safely; Apple |==| variation-unit IDs, raw line-break/space IDs that normalize to the same value, and duplicate IDs that would collide while flattening multiple files are rejected before writes. Schema-positioned bound extensions are accepted; malformed parent/order/cardinality, mixed file locales or structural modes, unbound prefixes, malformed namespace references, and duplicate raw or expanded attributes are rejected before writes. Use submit_translations for plurals. Returns ambiguous percent-in-prose differences in warnings[]. Use dry_run=true to preview."
+        description = "Atomically import supported Apple XLIFF 1.2 translation leaves. Select exact original when multiple file scopes exist; skipped_scopes reports unselected files. Preserve draft new/needs-review text and state; translated + leveraged-mt maps to machine_translated. Missing target is a no-op; explicit empty target intentionally clears a leaf. Resolve empty keys and variation IDs in catalog context. accepted counts trans-units; accepted_destinations identifies original/key/locale/path/unit_id. Any rejected unit or stale conditional write prevents the whole selected import and leaves cache unchanged. Strict structure, namespace, duplicate ID, format, and state validation remains; XLIFF 2.x and opaque inline placeholders are unsupported. Use dry_run=true, inspect rejected/warnings, then apply."
     )]
     async fn import_xliff(
         &self,
@@ -571,7 +571,7 @@ impl XcStringsMcpServer {
     /// Get all translations for a specific key across all locales.
     #[tool(
         name = "get_key",
-        description = "Get all translations for a specific key across every locale. Returns source text, developer comment, translation state, and plural/device variant info. Use to inspect a single key in detail."
+        description = "Get all translations for a specific key across every locale. Returns source text, developer comment, and all locales with recursive leaves, typed paths, values, states, completeness and diagnostics. Use to inspect a single key in detail."
     )]
     async fn get_key(
         &self,
@@ -612,8 +612,8 @@ impl XcStringsMcpServer {
 #[tool_handler(router = self.tool_router)]
 #[prompt_handler(router = self.prompt_router)]
 impl ServerHandler for XcStringsMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_prompts()
@@ -628,12 +628,20 @@ impl ServerHandler for XcStringsMcpServer {
                  create_xcstrings for new files.\n\
                  \n\
                  TRANSLATE: get_untranslated → translate → submit_translations \
-                 (use dry_run=true first). For plurals: get_plurals → submit with plural_forms. \
+                 (use dry_run=true first). Inspect leaves and diagnostics; copy each leaf path \
+                 into its submission (path=[] explicitly selects the root). get_plurals covers \
+                 plural/device/substitution chains. Legacy plural_forms/substitution_name \
+                 require omitting path. Use continue_on_error=false for an atomic native batch. \
                  Use get_context for nearby keys, get_glossary for term consistency.\n\
                  \n\
                  REVIEW: get_coverage for statistics, validate_translations for blocking errors \
                  and non-blocking warnings (format arguments, ambiguous percent prose, missing plurals), get_stale for removed keys, \
                  get_diff for changes since last parse.\n\
+                 COMPLETENESS: every required leaf must be translated or machine_translated; \
+                 intentional empty text in those states is complete. Draft/missing leaves, \
+                 unsupported shapes, and unknown locales remain incomplete. CLDR 48.2.1 \
+                 recommendations are not Xcode's compiler minimum. Report diagnostics; \
+                 never delete unknown data or invent translations to force 100% coverage.\n\
                  \n\
                  MANAGE: list_locales, add_locale/remove_locale, \
                  add_keys/delete_keys/rename_key/get_key, search_keys, \
@@ -642,7 +650,12 @@ impl ServerHandler for XcStringsMcpServer {
                  Dry-run first, resolve conflicts, then apply with returned fingerprints.\n\
                  \n\
                  MIGRATE: import_strings for legacy .strings/.stringsdict → .xcstrings. \
-                 export_xliff/import_xliff for external translator tools (simple strings only).\n\
+                 export_xliff/import_xliff support Apple XLIFF 1.2 variations and exact original \
+                 scopes. Imports preserve draft states and explicit empty targets; missing \
+                 targets are no-ops. Any rejection prevents the entire selected import. \
+                 Inspect accepted_destinations: native accepted counts requests, XLIFF counts \
+                 trans-units. Unsafe Apple interoperability cases are rejected explicitly; \
+                 compare changed content after Xcode import.\n\
                  \n\
                  GLOSSARY: get_glossary/update_glossary — persists across sessions for \
                  term consistency.\n\

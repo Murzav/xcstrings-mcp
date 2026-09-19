@@ -1,0 +1,13 @@
+['xcodebuild', '-exportLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-own-id/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-own-id/reexport', '-exportLanguage', 'fr']
+EXIT: 0
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -exportLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-own-id/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-own-id/reexport -exportLanguage fr
+
+Localization Export started for Oracle project
+2026-09-20 00:11:47 Started export
+2026-09-20 00:11:47 Extracting strings from code
+2026-09-20 00:11:47 Extracting strings from localizable files
+2026-09-20 00:11:47 Copying source language files
+2026-09-20 00:11:47 Exporting Localizable.xcstrings to fr.xliff...
+2026-09-20 00:11:47 Writing
+2026-09-20 00:11:47 An xcloc was created at /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/changed-cases/many-own-id/reexport/fr.xcloc

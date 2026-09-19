@@ -1,152 +1,70 @@
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use xcstrings_mcp::io::FileStore;
 use xcstrings_mcp::io::fs::FsFileStore;
-use xcstrings_mcp::model::translation::{DetailedSubmitResult, SubmitResult, ValidationIssue};
-use xcstrings_mcp::service::{formatter, merger, parser, validator, xliff};
+use xcstrings_mcp::xliff_operation::{ImportResult, execute_import};
 
 use super::common::{EXIT_ERROR, EXIT_OK, EXIT_VALIDATION_ISSUES, handle_error, load_file};
 
-pub fn run(file: Option<PathBuf>, xliff_path: PathBuf, dry_run: bool, json: bool) -> ExitCode {
-    let (path, parsed) = match load_file(file) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-
-    let store = FsFileStore::new();
-
-    let xliff_content = match store.read(&xliff_path) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-
-    let (_locale, translations) = match xliff::import_xliff(&xliff_content) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-
-    if translations.is_empty() {
-        let result = SubmitResult {
-            accepted: 0,
-            accepted_keys: vec![],
-            rejected: vec![],
-            dry_run,
-        };
-        return print_result(&result, &[], &xliff_path, json);
-    }
-
-    // Validate translations
-    let validation = validator::validate_translations_detailed(&parsed, &translations);
-    let rejected = validation.rejected;
-    let warnings = validation.warnings;
-    let rejected_keys: HashSet<&str> = rejected.iter().map(|r| r.key.as_str()).collect();
-    let valid: Vec<_> = translations
-        .iter()
-        .filter(|t| !rejected_keys.contains(t.key.as_str()))
-        .cloned()
-        .collect();
-
-    if dry_run || valid.is_empty() {
-        let result = SubmitResult {
-            accepted: valid.len(),
-            accepted_keys: valid.iter().map(|t| t.key.clone()).collect(),
-            rejected,
-            dry_run,
-        };
-        return print_result(&result, &warnings, &xliff_path, json);
-    }
-
-    // Re-read file fresh (same pattern as MCP tool), merge, format, write
-    let raw = match store.read(&path) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-    let mut fresh_file = match parser::parse(&raw) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-
-    let merge_result = merger::merge_translations(&mut fresh_file, &valid);
-
-    let formatted = match formatter::format_xcstrings(&fresh_file) {
-        Ok(v) => v,
-        Err(e) => return handle_error(e),
-    };
-    if let Err(e) = store.write(&path, &formatted) {
-        return handle_error(e);
-    }
-
-    let mut all_rejected = rejected;
-    all_rejected.extend(merge_result.rejected);
-
-    let result = SubmitResult {
-        accepted: merge_result.accepted,
-        accepted_keys: merge_result.accepted_keys,
-        rejected: all_rejected,
-        dry_run: false,
-    };
-
-    print_result(&result, &warnings, &xliff_path, json)
-}
-
-fn print_result(
-    result: &SubmitResult,
-    warnings: &[ValidationIssue],
-    xliff_path: &std::path::Path,
+pub fn run(
+    file: Option<PathBuf>,
+    xliff_path: PathBuf,
+    original: Option<String>,
+    dry_run: bool,
     json: bool,
 ) -> ExitCode {
-    let has_rejected = !result.rejected.is_empty();
+    let (path, _) = match load_file(file) {
+        Ok(value) => value,
+        Err(error) => return handle_error(error),
+    };
+    let store = FsFileStore::new();
+    let xml = match store.read(&xliff_path) {
+        Ok(value) => value,
+        Err(error) => return handle_error(error),
+    };
+    match execute_import(&store, &path, &xml, original.as_deref(), dry_run) {
+        Ok(outcome) => print_result(&outcome.result, &xliff_path, json),
+        Err(error) => handle_error(error),
+    }
+}
 
+fn print_result(result: &ImportResult, xliff_path: &Path, json: bool) -> ExitCode {
     if json {
-        match serde_json::to_string_pretty(&DetailedSubmitResult {
-            result: SubmitResult {
-                accepted: result.accepted,
-                rejected: result.rejected.clone(),
-                dry_run: result.dry_run,
-                accepted_keys: result.accepted_keys.clone(),
-            },
-            warnings: warnings.to_vec(),
-        }) {
-            Ok(out) => println!("{out}"),
-            Err(e) => {
-                eprintln!("error: failed to serialize: {e}");
+        match serde_json::to_string_pretty(result) {
+            Ok(output) => println!("{output}"),
+            Err(error) => {
+                eprintln!("error: failed to serialize: {error}");
                 return ExitCode::from(EXIT_ERROR);
             }
         }
     } else {
-        let xliff_display = xliff_path.display();
-        if result.dry_run {
-            eprintln!("Dry run — import from {xliff_display}");
-            eprintln!("Would accept: {} translations", result.accepted);
-        } else {
-            eprintln!("Imported from {xliff_display}");
-            eprintln!("Accepted: {} translations", result.accepted);
+        let action = if result.dry_run { "Dry run" } else { "Import" };
+        eprintln!("{action} from {}", xliff_path.display());
+        eprintln!("Accepted: {} translation leaves", result.report.accepted);
+        eprintln!("Rejected: {}", result.report.rejected.len());
+        eprintln!("Written: {}", result.written);
+        for rejected in &result.report.rejected {
+            eprintln!(
+                "  unit {:?} [{}]: {}",
+                rejected.unit_id, rejected.code, rejected.message
+            );
         }
-
-        if has_rejected {
-            eprintln!("Rejected: {} translations", result.rejected.len());
-            for r in &result.rejected {
-                eprintln!("  key \"{}\": {}", r.key, r.reason);
-            }
+        for warning in &result.report.warnings {
+            eprintln!(
+                "  key {:?} [{}]: {}",
+                warning.key, warning.issue_type, warning.message
+            );
         }
-        if !warnings.is_empty() {
-            eprintln!("Warnings: {}", warnings.len());
-            for warning in warnings {
-                eprintln!(
-                    "  key \"{}\" [{}]: {}",
-                    warning.key, warning.issue_type, warning.message
-                );
-            }
+        for scope in &result.report.skipped_scopes {
+            eprintln!("Skipped file scope: {scope}");
         }
     }
-
-    if has_rejected {
-        ExitCode::from(EXIT_VALIDATION_ISSUES)
+    ExitCode::from(if result.report.rejected.is_empty() {
+        EXIT_OK
     } else {
-        ExitCode::from(EXIT_OK)
-    }
+        EXIT_VALIDATION_ISSUES
+    })
 }
 
 #[cfg(test)]
@@ -182,6 +100,7 @@ mod tests {
             value: "Something".to_string(),
             plural_forms: None,
             substitution_name: None,
+            path: None,
         }];
 
         let rejected = validator::validate_translations(&file, &translations);
@@ -200,6 +119,7 @@ mod tests {
             value: "Hallo".to_string(),
             plural_forms: None,
             substitution_name: None,
+            path: None,
         }];
 
         // Validate only (dry run path)

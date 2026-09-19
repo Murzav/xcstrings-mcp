@@ -48,6 +48,7 @@ async fn run_import(
         cache,
         write_lock,
         ImportXliffParams {
+            original: None,
             file_path: Some(CATALOG_PATH.to_string()),
             xliff_path: XLIFF_PATH.to_string(),
             dry_run,

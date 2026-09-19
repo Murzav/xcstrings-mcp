@@ -1,0 +1,97 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "exact-match",
+        "source": "source exact-match",
+        "target": "old exact-match",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "fuzzy-match",
+        "source": "source fuzzy-match",
+        "target": "old fuzzy-match",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "leveraged-mt",
+        "source": "source leveraged-mt",
+        "target": "old leveraged-mt",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "machine_translated",
+        "source": "Machine",
+        "target": "Machine fr",
+        "target_attributes": {
+          "state": "translated",
+          "state-qualifier": "leveraged-mt"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "x-apple-machine-translated",
+        "source": "source x-apple-machine-translated",
+        "target": "old x-apple-machine-translated",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "x-machine-translated",
+        "source": "source x-machine-translated",
+        "target": "old x-machine-translated",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

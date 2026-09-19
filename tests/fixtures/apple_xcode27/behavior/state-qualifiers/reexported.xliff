@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="Localizable.xcstrings" source-language="en" target-language="fr" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="27.0" build-num="27A266a"/>
+    </header>
+    <body>
+      <trans-unit id="exact-match" xml:space="preserve">
+        <source>source exact-match</source>
+        <target state="translated">changed exact-match</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="fuzzy-match" xml:space="preserve">
+        <source>source fuzzy-match</source>
+        <target state="translated">changed fuzzy-match</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="leveraged-mt" xml:space="preserve">
+        <source>source leveraged-mt</source>
+        <target state="translated" state-qualifier="leveraged-mt">changed leveraged-mt</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="machine_translated" xml:space="preserve">
+        <source>Machine</source>
+        <target state="translated" state-qualifier="leveraged-mt">Machine fr</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="x-apple-machine-translated" xml:space="preserve">
+        <source>source x-apple-machine-translated</source>
+        <target state="translated">changed x-apple-machine-translated</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="x-machine-translated" xml:space="preserve">
+        <source>source x-machine-translated</source>
+        <target state="translated">changed x-machine-translated</target>
+        <note/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

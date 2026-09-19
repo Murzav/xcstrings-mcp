@@ -1,0 +1,3 @@
+['xcrun', 'xcstringstool', 'compile', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/partial-substitution/leaf-only.xcstrings', '--output-directory', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/partial-substitution/leaf-only-compiled']
+1
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/partial-substitution/leaf-only.xcstrings: error: Missing required key 'stringUnit' inside 'strings' -> 'count' -> 'localizations' -> 'fr'

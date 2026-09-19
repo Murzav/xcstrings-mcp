@@ -1,0 +1,6 @@
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: error: Referencing undefined substitution 'AT' (fr: name_AT@NAME)
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: error: Plural case cannot be further varied (fr: plural_then_device|==|plural.one)
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: error: Referencing undefined substitution 'A.' (fr: name_A.@.B)
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: warning: Substitution 'AT@NAME' was never referenced. To reference, use %#@AT@NAME@ in some other string (fr: name_AT@NAME|==|substitutions.AT@NAME)
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: warning: Substitution '@BOUND@' was never referenced. To reference, use %#@@BOUND@@ in some other string (fr: name_@BOUND@|==|substitutions.@BOUND@)
+/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Localizable.xcstrings: warning: Substitution 'A.@.B' was never referenced. To reference, use %#@A.@.B@ in some other string (fr: name_A.@.B|==|substitutions.@A.@.B@)

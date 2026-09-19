@@ -22,6 +22,7 @@ async fn assert_rejected_without_write(contents: &str, expected: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: Some("/test/catalog.xcstrings".to_string()),
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,

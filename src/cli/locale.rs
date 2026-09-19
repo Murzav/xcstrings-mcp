@@ -117,6 +117,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -129,9 +130,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: state.clone(),
                         value: format!("value_{locale}"),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
         }
@@ -144,6 +147,7 @@ mod tests {
             } else {
                 Some(localizations)
             },
+            ..Default::default()
         }
     }
 

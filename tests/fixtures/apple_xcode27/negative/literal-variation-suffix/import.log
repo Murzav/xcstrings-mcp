@@ -1,0 +1,10 @@
+['xcodebuild', '-importLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/literal-delimiters/existing/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/literal-delimiters/existing/edited-input.xliff']
+EXIT: 0
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/literal-delimiters/existing/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/literal-delimiters/existing/edited-input.xliff
+
+Localization Import started for Oracle project
+2026-09-20 00:12:34 Started import
+2026-09-20 00:12:34 Comparing
+2026-09-20 00:12:34 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+2026-09-20 00:12:34 Writing

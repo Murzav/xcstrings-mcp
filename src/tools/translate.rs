@@ -4,12 +4,12 @@ use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
 use crate::io::FileStore;
-use crate::model::translation::{CompletedTranslation, RejectedTranslation, SubmitResult};
+use crate::model::translation::{CompletedTranslation, SubmitResult};
 use crate::service::{formatter, merger, parser, validator};
 use crate::tools::parse::CachedFile;
-use crate::tools::resolve_file;
 use crate::tools::submit_response;
 use crate::tools::{FileCache, mcp_log};
+use std::path::PathBuf;
 
 fn default_true() -> bool {
     true
@@ -38,184 +38,117 @@ pub(crate) async fn handle_submit_translations(
     write_lock: &Mutex<()>,
     params: SubmitTranslationsParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-
-    mcp_log(&format!(
-        "Validating {n} translations...",
-        n = params.translations.len()
-    ));
-
-    // Validate all translations against the file
+    let path = match &params.file_path {
+        Some(path) => PathBuf::from(path),
+        None => cache
+            .lock()
+            .await
+            .active_path()
+            .cloned()
+            .ok_or(XcStringsError::NoActiveFile)?,
+    };
+    if path.extension().and_then(|extension| extension.to_str()) != Some("xcstrings") {
+        return Err(XcStringsError::NotXcStrings { path });
+    }
+    let identity = store.file_identity(&path)?;
+    let _write_guard = write_lock.lock().await;
+    let expected = store.read_bytes(&identity)?;
+    let raw = std::str::from_utf8(&expected)
+        .map_err(|error| std::io::Error::new(std::io::ErrorKind::InvalidData, error))?;
+    let mut file = parser::parse(raw.strip_prefix('\u{feff}').unwrap_or(raw))?;
     let validation = validator::validate_translations_detailed(&file, &params.translations);
-    let rejected = validation.rejected;
-    let mut warnings = validation.warnings;
-
-    // If continue_on_error=false and any rejected, return ALL as rejected without writing
-    if !params.continue_on_error && !rejected.is_empty() {
-        let all_rejected: Vec<RejectedTranslation> = params
+    if !params.continue_on_error && !validation.rejected.is_empty() {
+        let rejected = params
             .translations
             .iter()
-            .map(|t| {
-                // Find the specific rejection reason, or mark as "batch rejected"
-                let reason = rejected
+            .enumerate()
+            .map(|(index, request)| {
+                validation
+                    .rejected_indices
                     .iter()
-                    .find(|r| r.key == t.key)
-                    .map(|r| r.reason.clone())
-                    .unwrap_or_else(|| "batch rejected due to other failures".into());
-                RejectedTranslation {
-                    key: t.key.clone(),
-                    reason,
-                }
+                    .position(|rejected| *rejected == index)
+                    .and_then(|position| validation.rejected.get(position))
+                    .cloned()
+                    .unwrap_or_else(|| {
+                        crate::service::submission::reject(
+                            request,
+                            "batch_rejected",
+                            "batch rejected due to other failures",
+                        )
+                    })
             })
             .collect();
-        let result = SubmitResult {
-            accepted: 0,
-            rejected: all_rejected,
-            dry_run: params.dry_run,
-            accepted_keys: Vec::new(),
-        };
-        return submit_response::to_value(result, warnings);
+        return submit_response::to_value(
+            SubmitResult {
+                rejected,
+                dry_run: params.dry_run,
+                ..Default::default()
+            },
+            validation.warnings,
+        );
     }
-
-    // Build set of rejected keys to filter them out
-    let rejected_keys: std::collections::HashSet<&str> =
-        rejected.iter().map(|r| r.key.as_str()).collect();
-
-    let accepted_translations: Vec<&CompletedTranslation> = params
+    let accepted: Vec<_> = params
         .translations
         .iter()
-        .filter(|t| !rejected_keys.contains(t.key.as_str()))
+        .enumerate()
+        .filter(|(index, _)| !validation.rejected_indices.contains(index))
+        .map(|(_, request)| request.clone())
         .collect();
-
-    let accepted_count = accepted_translations.len();
-
-    if params.dry_run {
-        let accepted_key_list: Vec<String> = accepted_translations
+    let mut result = merger::merge_translations(&mut file, &accepted);
+    result.rejected.extend(validation.rejected);
+    result.dry_run = params.dry_run;
+    if !params.continue_on_error && !result.rejected.is_empty() {
+        let rejected = params
+            .translations
             .iter()
-            .map(|t| t.key.clone())
-            .collect();
-        let result = SubmitResult {
-            accepted: accepted_count,
-            rejected: rejected
-                .into_iter()
-                .map(|r| RejectedTranslation {
-                    key: r.key,
-                    reason: r.reason,
-                })
-                .collect(),
-            dry_run: true,
-            accepted_keys: accepted_key_list,
-        };
-        return submit_response::to_value(result, warnings);
-    }
-
-    if accepted_count == 0 {
-        let result = SubmitResult {
-            accepted: 0,
-            rejected,
-            dry_run: false,
-            accepted_keys: Vec::new(),
-        };
-        return submit_response::to_value(result, warnings);
-    }
-
-    // Acquire write lock for safe concurrent access
-    let _write_guard = write_lock.lock().await;
-
-    // Re-read from disk to get latest state and re-validate against fresh file
-    let raw = store.read(&path)?;
-    let mut fresh_file = parser::parse(&raw)?;
-
-    // Re-validate against fresh file (it may have changed since initial validation)
-    let fresh_validation =
-        validator::validate_translations_detailed(&fresh_file, &params.translations);
-    let fresh_rejected = fresh_validation.rejected;
-    submit_response::extend_unique(&mut warnings, fresh_validation.warnings);
-
-    // If continue_on_error=false and fresh re-validation rejects anything, abort
-    if !params.continue_on_error && !fresh_rejected.is_empty() {
-        let mut all_rejected = rejected;
-        all_rejected.extend(fresh_rejected);
-        let all_keys: Vec<String> = params.translations.iter().map(|t| t.key.clone()).collect();
-        let all_rejected_out: Vec<RejectedTranslation> = all_keys
-            .into_iter()
-            .map(|key| {
-                let reason = all_rejected
-                    .iter()
-                    .find(|r| r.key == key)
-                    .map(|r| r.reason.clone())
-                    .unwrap_or_else(|| "batch rejected due to other failures".into());
-                RejectedTranslation { key, reason }
+            .map(|request| {
+                result.rejected.iter().find(|rejected| {
+                rejected.key == request.key
+                    && rejected.locale.as_deref() == Some(request.locale.as_str())
+                    && rejected.path == request.path
+            }).cloned().unwrap_or_else(|| crate::service::submission::reject(
+                request,
+                "batch_rejected",
+                "batch rejected because combined translations violate catalog constraints",
+            ))
             })
             .collect();
-        let result = SubmitResult {
-            accepted: 0,
-            rejected: all_rejected_out,
-            dry_run: false,
-            accepted_keys: Vec::new(),
-        };
-        return submit_response::to_value(result, warnings);
+        return submit_response::to_value(
+            SubmitResult {
+                rejected,
+                dry_run: params.dry_run,
+                ..Default::default()
+            },
+            validation.warnings,
+        );
     }
-
-    let fresh_rejected_keys: std::collections::HashSet<&str> =
-        fresh_rejected.iter().map(|r| r.key.as_str()).collect();
-
-    let owned: Vec<CompletedTranslation> = accepted_translations
-        .into_iter()
-        .filter(|t| !fresh_rejected_keys.contains(t.key.as_str()))
-        .cloned()
-        .collect();
-
-    if owned.is_empty() {
-        let mut all_rejected = rejected;
-        all_rejected.extend(fresh_rejected);
-        let result = SubmitResult {
-            accepted: 0,
-            rejected: all_rejected,
-            dry_run: false,
-            accepted_keys: Vec::new(),
-        };
-        return submit_response::to_value(result, warnings);
+    if !params.dry_run && result.accepted > 0 {
+        let formatted = formatter::format_xcstrings(&file)?;
+        store.write_if_matches(&identity, Some(&expected), &formatted)?;
+        match store.modified_time(&identity) {
+            Ok(modified) => cache.lock().await.insert(
+                identity,
+                CachedFile {
+                    path,
+                    content: file,
+                    modified,
+                },
+            ),
+            Err(error) => {
+                // The data write committed; discard stale cache state without reporting a false failure.
+                cache.lock().await.files.remove(&identity);
+                mcp_log(&format!(
+                    "Translations saved; cache invalidated because metadata could not be read: {error}"
+                ));
+            }
+        }
     }
-
-    let merge_result = merger::merge_translations(&mut fresh_file, &owned);
-
     mcp_log(&format!(
         "{} accepted, {} rejected",
-        merge_result.accepted,
-        rejected.len() + fresh_rejected.len() + merge_result.rejected.len()
+        result.accepted,
+        result.rejected.len()
     ));
-
-    // Format and write
-    let formatted = formatter::format_xcstrings(&fresh_file)?;
-    store.write(&path, &formatted)?;
-
-    // Update cache
-    let mtime = store.modified_time(&path)?;
-    let identity = store.file_identity(&path)?;
-    let mut guard = cache.lock().await;
-    guard.insert(
-        identity,
-        CachedFile {
-            path,
-            content: fresh_file,
-            modified: mtime,
-        },
-    );
-
-    // Combine all rejections (initial validation + fresh re-validation + merge)
-    let mut all_rejected = rejected;
-    all_rejected.extend(fresh_rejected);
-    all_rejected.extend(merge_result.rejected);
-
-    let result = SubmitResult {
-        accepted: merge_result.accepted,
-        rejected: all_rejected,
-        dry_run: false,
-        accepted_keys: merge_result.accepted_keys,
-    };
-
-    submit_response::to_value(result, warnings)
+    submit_response::to_value(result, validation.warnings)
 }
 
 #[cfg(test)]
@@ -246,6 +179,7 @@ mod tests {
                 value: "Willkommen in der App".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: true,
             continue_on_error: true,
@@ -283,6 +217,7 @@ mod tests {
                 value: "Willkommen in der App".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -320,6 +255,7 @@ mod tests {
                 value: "Hallo".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -370,6 +306,7 @@ mod tests {
                     value: "Hallo".to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 },
                 CompletedTranslation {
                     key: "farewell".to_string(),
@@ -377,6 +314,7 @@ mod tests {
                     value: "Tschuess".to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 },
             ],
             dry_run: false,
@@ -418,6 +356,7 @@ mod tests {
                     value: "Hallo".to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 },
                 CompletedTranslation {
                     key: "farewell".to_string(),
@@ -425,6 +364,7 @@ mod tests {
                     value: "Tschuess".to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 },
             ],
             dry_run: false,
@@ -476,6 +416,7 @@ mod tests {
                 value: "Willkommen in der App".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -489,3 +430,6 @@ mod tests {
         assert_eq!(accepted_keys[0], "welcome_message");
     }
 }
+
+#[cfg(test)]
+mod cas_tests;

@@ -52,7 +52,7 @@ fn run_import(catalog: &Path, input: &Path) -> std::process::Output {
 }
 
 #[test]
-fn cli_export_excludes_variation_only_entries_from_file_and_count() {
+fn cli_export_includes_every_plural_leaf_and_required_category() {
     let temp = TempDir::new().unwrap();
     let catalog =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/with_plurals.xcstrings");
@@ -74,17 +74,36 @@ fn cli_export_excludes_variation_only_entries_from_file_and_count() {
 
     assert_eq!(output.status.code(), Some(0));
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(report["exported_count"], 1);
+    assert_eq!(report["exported_count"], 13);
     assert!(output.stderr.is_empty());
-    let xliff = fs::read_to_string(output_path).unwrap();
-    assert!(xliff.contains(r#"<trans-unit id="simple_key">"#));
-    assert!(!xliff.contains(r#"<trans-unit id="days_remaining">"#));
-    assert!(!xliff.contains(r#"<trans-unit id="items_count">"#));
-    assert!(!xliff.contains(r#"<trans-unit id="photos_count">"#));
+    let xml = fs::read_to_string(output_path).unwrap();
+    let doc = xcstrings_mcp::service::xliff::parse_document(&xml).unwrap();
+    assert_eq!(
+        doc.files[0]
+            .units
+            .iter()
+            .map(|u| u.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "days_remaining|==|plural.few",
+            "days_remaining|==|plural.many",
+            "days_remaining|==|plural.one",
+            "days_remaining|==|plural.other",
+            "items_count|==|plural.few",
+            "items_count|==|plural.many",
+            "items_count|==|plural.one",
+            "items_count|==|plural.other",
+            "photos_count|==|plural.few",
+            "photos_count|==|plural.many",
+            "photos_count|==|plural.one",
+            "photos_count|==|plural.other",
+            "simple_key"
+        ]
+    );
 }
 
 #[test]
-fn cli_accepts_real_xcode_empty_id_empty_target_without_write() {
+fn cli_rejects_real_xcode_empty_id_when_catalog_key_is_absent() {
     let temp = TempDir::new().unwrap();
     let catalog = simple_catalog(&temp);
     let input =
@@ -93,11 +112,9 @@ fn cli_accepts_real_xcode_empty_id_empty_target_without_write() {
 
     let output = run_import(&catalog, &input);
 
-    assert_eq!(output.status.code(), Some(0));
-    assert_eq!(
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
-        serde_json::json!({"accepted": 0, "rejected": [], "dry_run": false})
-    );
+    assert_eq!(output.status.code(), Some(2));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_rejected(&report, "unknown_key", "", "no catalog destination for ''");
     assert!(output.stderr.is_empty());
     assert_eq!(fs::read(&catalog).unwrap(), before);
 }
@@ -119,14 +136,8 @@ fn cli_rejects_nonempty_empty_id_when_catalog_has_no_empty_key_without_write() {
     let output = run_import(&catalog, &input);
 
     assert_eq!(output.status.code(), Some(2));
-    assert_eq!(
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
-        serde_json::json!({
-            "accepted": 0,
-            "rejected": [{"key": "", "reason": "key not found in file"}],
-            "dry_run": false
-        })
-    );
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_rejected(&report, "unknown_key", "", "no catalog destination for ''");
     assert!(output.stderr.is_empty());
     assert_eq!(fs::read(&catalog).unwrap(), before);
 }
@@ -148,14 +159,14 @@ fn cli_writes_nonempty_empty_id_only_when_catalog_has_exact_empty_key() {
     let output = run_import(&catalog, &input);
 
     assert_eq!(output.status.code(), Some(0));
+    let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["accepted"], 1);
+    assert_eq!(report["written"], true);
+    assert_eq!(report["accepted_keys"], serde_json::json!([""]));
+    assert_eq!(report["rejected"], serde_json::json!([]));
     assert_eq!(
-        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap(),
-        serde_json::json!({
-            "accepted": 1,
-            "accepted_keys": [""],
-            "rejected": [],
-            "dry_run": false
-        })
+        report["accepted_destinations"],
+        serde_json::json!([{"original":"","key":"","locale":"de","path":[],"unit_id":""}])
     );
     assert!(output.stderr.is_empty());
     let parsed = parser::parse(&fs::read_to_string(&catalog).unwrap()).unwrap();
@@ -186,9 +197,11 @@ fn assert_parse_failure_without_write(contents: &str, expected: &str) {
 
 #[test]
 fn cli_rejects_variation_id_without_write() {
-    assert_parse_failure_without_write(
+    assert_semantic_failure_without_write(
         r#"<file target-language="uk"><body><trans-unit id="days_remaining|==|plural.one"><source>%lld day</source><target>%lld day left</target></trans-unit></body></file>"#,
-        "Apple XLIFF variation unit id 'days_remaining|==|plural.one' is unsupported; import simple stringUnit ids only",
+        "unknown_key",
+        "days_remaining|==|plural.one",
+        "no catalog destination for 'days_remaining|==|plural.one'",
     );
 }
 
@@ -205,9 +218,39 @@ fn cli_rejects_duplicate_id_in_one_file_without_write() {
 
 #[test]
 fn cli_rejects_duplicate_id_across_files_without_write() {
-    assert_parse_failure_without_write(
+    assert_semantic_failure_without_write(
         r#"<file target-language="de"><body><trans-unit id="greeting"><source>Hello</source><target>Hallo</target></trans-unit></body></file>
 <file target-language="de"><body><trans-unit id="greeting"><source>Hello again</source><target>Guten Tag</target></trans-unit></body></file>"#,
-        "XLIFF unit id 'greeting' is repeated across <file> elements and cannot be flattened safely",
+        "duplicate_destination",
+        "greeting",
+        "multiple units address the same catalog leaf",
     );
+}
+
+fn assert_rejected(result: &serde_json::Value, code: &str, id: &str, message: &str) {
+    assert_eq!(result["accepted"], 0);
+    assert_eq!(result["accepted_destinations"], serde_json::json!([]));
+    assert_eq!(result["written"], false);
+    assert_eq!(result["rejected"].as_array().unwrap().len(), 1);
+    assert_eq!(result["rejected"][0]["code"], code);
+    assert_eq!(result["rejected"][0]["unit_id"], id);
+    assert_eq!(result["rejected"][0]["message"], message);
+}
+
+fn assert_semantic_failure_without_write(contents: &str, code: &str, id: &str, message: &str) {
+    let temp = TempDir::new().unwrap();
+    let catalog = simple_catalog(&temp);
+    let input = temp.path().join("invalid.xliff");
+    fs::write(&input, document(contents)).unwrap();
+    let before = fs::read(&catalog).unwrap();
+    let output = run_import(&catalog, &input);
+    assert_eq!(output.status.code(), Some(2));
+    assert_rejected(
+        &serde_json::from_slice(&output.stdout).unwrap(),
+        code,
+        id,
+        message,
+    );
+    assert!(output.stderr.is_empty());
+    assert_eq!(fs::read(&catalog).unwrap(), before);
 }

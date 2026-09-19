@@ -75,7 +75,13 @@ fn cli_cdata_dry_run_preserves_full_value_without_write() {
         serde_json::json!({
             "accepted": 1,
             "accepted_keys": ["greeting"],
+            "accepted_destinations": [{"original": "", "key": "greeting", "locale": "de", "path": [], "unit_id": "greeting"}],
             "rejected": [],
+            "skipped_scopes": [],
+            "missing_targets": 0,
+            "locale": "de",
+            "warnings": [],
+            "written": false,
             "dry_run": true
         })
     );
@@ -98,7 +104,13 @@ fn cli_cdata_apply_writes_full_value() {
         serde_json::json!({
             "accepted": 1,
             "accepted_keys": ["greeting"],
+            "accepted_destinations": [{"original": "", "key": "greeting", "locale": "de", "path": [], "unit_id": "greeting"}],
             "rejected": [],
+            "skipped_scopes": [],
+            "missing_targets": 0,
+            "locale": "de",
+            "warnings": [],
+            "written": true,
             "dry_run": false
         })
     );

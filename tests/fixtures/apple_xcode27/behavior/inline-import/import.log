@@ -1,0 +1,9 @@
+COMMAND: ['xcodebuild', '-importLocalizations', '-project', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/Oracle.xcodeproj', '-localizationPath', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/inline-import/export/fr.xcloc/Localized Contents/fr.xliff']
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/Oracle.xcodeproj -localizationPath "/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/inline-import/export/fr.xcloc/Localized Contents/fr.xliff"
+
+Localization Import started for Oracle project
+2026-09-19 23:27:03 Started import
+2026-09-19 23:27:03 Comparing
+2026-09-19 23:27:03 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+2026-09-19 23:27:03 Writing

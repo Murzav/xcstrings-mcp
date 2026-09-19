@@ -85,6 +85,7 @@ mod tests {
                 format_specifiers: vec![],
                 has_plurals: false,
                 has_substitutions: false,
+                ..Default::default()
             },
             TranslationUnit {
                 key: "deprecated.setting".to_string(),
@@ -94,6 +95,7 @@ mod tests {
                 format_specifiers: vec![],
                 has_plurals: false,
                 has_substitutions: false,
+                ..Default::default()
             },
         ]
     }

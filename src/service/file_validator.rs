@@ -1,203 +1,59 @@
-use std::collections::{BTreeMap, BTreeSet};
-
-use crate::model::plural::required_plural_forms;
+use super::{assessment, validator};
 use crate::model::translation::{CompletedTranslation, ValidationIssue, ValidationReport};
-use crate::model::xcstrings::{Localization, TranslationState, XcStringsFile};
-use crate::service::validator;
+use crate::model::xcstrings::{XcStringsFile, paths::LeafStep};
+use std::collections::BTreeSet;
 
-/// Validate all translations in a file for a specific locale (or all locales).
+/// Validate all known leaves, retaining precise scope in every diagnostic.
 pub fn validate_file(file: &XcStringsFile, locale: Option<&str>) -> Vec<ValidationReport> {
-    let locales_to_validate: Vec<String> = if let Some(l) = locale {
-        vec![l.to_string()]
-    } else {
-        let mut all_locales = BTreeSet::new();
-        for entry in file.strings.values() {
-            if let Some(locs) = &entry.localizations {
-                for loc_key in locs.keys() {
-                    if loc_key != &file.source_language {
-                        all_locales.insert(loc_key.clone());
-                    }
-                }
-            }
-        }
-        all_locales.into_iter().collect()
-    };
-
-    let mut reports = Vec::with_capacity(locales_to_validate.len());
-
-    for locale in &locales_to_validate {
-        let mut errors = Vec::new();
-        let mut warnings = Vec::new();
-
+    let locales: BTreeSet<String> = locale
+        .map(|locale| std::iter::once(locale.into()).collect())
+        .unwrap_or_else(|| {
+            file.strings
+                .values()
+                .filter_map(|entry| entry.localizations.as_ref())
+                .flat_map(|locs| locs.keys())
+                .filter(|locale| *locale != &file.source_language)
+                .cloned()
+                .collect()
+        });
+    locales.into_iter().map(|locale| {
+        let mut report = ValidationReport { locale: locale.clone(), errors: Vec::new(), warnings: Vec::new() };
         for (key, entry) in &file.strings {
-            if !entry.should_translate {
-                continue;
+            if !entry.should_translate || !entry.localizations.as_ref().is_some_and(|locs| locs.contains_key(&locale)) { continue; }
+            let assessment = assessment::assess(key, entry, &file.source_language, &locale);
+            for diagnostic in assessment.diagnostics {
+                let code = serde_json::to_value(diagnostic.code).ok().and_then(|value| value.as_str().map(str::to_owned)).unwrap_or_else(|| "invalid_shape".into());
+                report.errors.push(ValidationIssue { key: key.clone(), issue_type: code, message: format!("{} (path: {})", diagnostic.detail, serde_json::to_string(&diagnostic.path).unwrap_or_default()) });
             }
-
-            let source_text = entry
-                .localizations
-                .as_ref()
-                .and_then(|locs| locs.get(&file.source_language))
-                .and_then(|loc| loc.string_unit.as_ref())
-                .map(|su| su.value.as_str());
-
-            let target_loc = entry
-                .localizations
-                .as_ref()
-                .and_then(|locs| locs.get(locale));
-
-            let target_loc = match target_loc {
-                Some(loc) => loc,
-                None => continue,
-            };
-
-            let target_su = target_loc.string_unit.as_ref();
-            let target_value = target_su.map(|su| su.value.as_str());
-
-            // Error: empty translation (only for state=Translated, not for New/pending)
-            let is_translated_state =
-                target_su.is_some_and(|su| su.state == TranslationState::Translated);
-            if is_translated_state
-                && target_value.is_some_and(|v| v.is_empty())
-                && target_loc.variations.is_none()
-            {
-                errors.push(ValidationIssue {
-                    key: key.clone(),
-                    issue_type: "empty_translation".into(),
-                    message: "empty translation value".into(),
-                });
-            }
-
-            for translation in translations_from_localization(key, locale, target_loc) {
-                let format_report = validator::validate_translation_formats(file, &translation);
-                errors.extend(format_report.format_errors);
-                warnings.extend(format_report.warnings);
-            }
-
-            // Missing plural forms
-            if let Some(variations) = &target_loc.variations
-                && let Some(plural) = &variations.plural
-            {
-                let required = required_plural_forms(locale);
-                for req in &required {
-                    let form_name = serde_json::to_string(req)
-                        .unwrap_or_else(|_| "\"unknown\"".to_string())
-                        .trim_matches('"')
-                        .to_string();
-                    if !plural.contains_key(&form_name) {
-                        errors.push(ValidationIssue {
-                            key: key.clone(),
-                            issue_type: "missing_plural_form".into(),
-                            message: format!("missing required plural form: {form_name}"),
-                        });
-                    }
+            for leaf in assessment.leaves {
+                let path = serde_json::to_string(&leaf.path).unwrap_or_default();
+                let Some(value) = leaf.value else {
+                    let (code, message) = if let Some(LeafStep::Plural(category)) = leaf.path.last() { ("missing_plural_form", format!("missing required plural form: {category}")) } else { ("missing_destination", "missing required translation destination".into()) };
+                    report.errors.push(ValidationIssue { key: key.clone(), issue_type: code.into(), message: format!("{message} (path: {path})") });
+                    continue;
+                };
+                let request = CompletedTranslation { key: key.clone(), locale: locale.clone(), value: value.clone(), path: Some(leaf.path), ..Default::default() };
+                let formats = validator::validate_translation_formats(file, &request);
+                report.errors.extend(formats.format_errors);
+                report.warnings.extend(formats.warnings);
+                if value.is_empty() { continue; }
+                if value == leaf.source_text && locale != file.source_language {
+                    report.warnings.push(ValidationIssue { key: key.clone(), issue_type: "identical_to_source".into(), message: format!("translation is identical to source text (path: {path})") });
                 }
-            }
-
-            // Warning: identical to source
-            if let (Some(src), Some(tgt)) = (source_text, target_value) {
-                if tgt == src && locale != &file.source_language {
-                    warnings.push(ValidationIssue {
-                        key: key.clone(),
-                        issue_type: "identical_to_source".into(),
-                        message: "translation is identical to source text".into(),
-                    });
-                }
-
-                // Warning: suspicious length (char-based to handle CJK correctly)
-                let src_chars = src.chars().count();
-                let tgt_chars = tgt.chars().count();
-                if src_chars > 5 {
-                    let max_chars = src_chars * 3;
-                    let min_chars = ((src_chars as f64) * 0.3).max(1.0) as usize;
-                    if tgt_chars > max_chars || tgt_chars < min_chars {
-                        warnings.push(ValidationIssue {
-                            key: key.clone(),
-                            issue_type: "suspicious_length".into(),
-                            message: format!(
-                                "translation length {tgt_chars} chars is suspicious (source length {src_chars} chars)",
-                            ),
-                        });
-                    }
+                let source_len = leaf.source_text.chars().count();
+                let target_len = value.chars().count();
+                if source_len > 5 && (target_len > source_len * 3 || target_len < ((source_len as f64 * 0.3).max(1.0) as usize)) {
+                    report.warnings.push(ValidationIssue { key: key.clone(), issue_type: "suspicious_length".into(), message: format!("translation length {target_len} chars is suspicious (source length {source_len} chars, path: {path})") });
                 }
             }
         }
-
-        reports.push(ValidationReport {
-            locale: locale.clone(),
-            errors,
-            warnings,
-        });
-    }
-
-    reports
-}
-
-fn translations_from_localization(
-    key: &str,
-    locale: &str,
-    localization: &Localization,
-) -> Vec<CompletedTranslation> {
-    let mut translations = Vec::new();
-    if let Some(unit) = &localization.string_unit {
-        translations.push(CompletedTranslation {
-            key: key.to_string(),
-            locale: locale.to_string(),
-            value: unit.value.clone(),
-            plural_forms: None,
-            substitution_name: None,
-        });
-    }
-    if let Some(plural) = localization
-        .variations
-        .as_ref()
-        .and_then(|variations| variations.plural.as_ref())
-    {
-        translations.push(CompletedTranslation {
-            key: key.to_string(),
-            locale: locale.to_string(),
-            value: String::new(),
-            plural_forms: Some(
-                plural
-                    .iter()
-                    .map(|(form, value)| (form.clone(), value.string_unit.value.clone()))
-                    .collect(),
-            ),
-            substitution_name: None,
-        });
-    }
-    if let Some(substitutions) = &localization.substitutions {
-        for (name, substitution) in substitutions {
-            let Some(forms) = substitution_forms(substitution) else {
-                continue;
-            };
-            translations.push(CompletedTranslation {
-                key: key.to_string(),
-                locale: locale.to_string(),
-                value: String::new(),
-                plural_forms: Some(forms),
-                substitution_name: Some(name.clone()),
-            });
-        }
-    }
-    translations
-}
-
-fn substitution_forms(substitution: &serde_json::Value) -> Option<BTreeMap<String, String>> {
-    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
-    Some(
-        plural
-            .iter()
-            .filter_map(|(form, value)| {
-                let value = value.get("stringUnit")?.get("value")?.as_str()?;
-                Some((form.clone(), value.to_string()))
-            })
-            .collect(),
-    )
+        report
+    }).collect()
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::model::xcstrings::TranslationState;
     use indexmap::IndexMap;
 
     use super::*;
@@ -211,6 +67,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -222,9 +79,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -233,9 +92,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: translation.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -243,6 +104,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -336,9 +198,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Hello".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -347,9 +211,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Hallo".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -358,9 +224,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Привіт".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         let entry = StringEntry {
@@ -368,6 +236,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         };
         let file = make_file(vec![("greeting", entry)]);
 

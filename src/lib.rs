@@ -5,6 +5,7 @@ pub(crate) mod prompts;
 pub mod server;
 pub mod service;
 pub(crate) mod tools;
+pub mod xliff_operation;
 
 pub use error::XcStringsError;
 pub use io::FileStore;
