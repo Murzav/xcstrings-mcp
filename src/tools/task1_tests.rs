@@ -98,6 +98,7 @@ async fn assert_mcp_xliff_rejected_without_write(xliff: &str, expected_error: &s
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -139,6 +140,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: true,
@@ -151,7 +153,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
     assert_eq!(dry_run["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(dry_run["rejected"], serde_json::json!([]));
     assert_eq!(dry_run["dry_run"], true);
-    assert!(dry_run["warnings"].is_null());
+    assert_eq!(dry_run["warnings"], serde_json::json!([]));
     assert_eq!(
         store
             .get_content(Path::new("/test/file.xcstrings"))
@@ -164,6 +166,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -187,7 +190,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
     assert_eq!(applied["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(applied["rejected"], serde_json::json!([]));
     assert_eq!(applied["dry_run"], false);
-    assert!(applied["warnings"].is_null());
+    assert_eq!(applied["warnings"], serde_json::json!([]));
     assert_eq!(value, expected_value);
 }
 
@@ -216,6 +219,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: true,
@@ -228,7 +232,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
     assert_eq!(dry_run["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(dry_run["rejected"], serde_json::json!([]));
     assert_eq!(dry_run["dry_run"], true);
-    assert!(dry_run["warnings"].is_null());
+    assert_eq!(dry_run["warnings"], serde_json::json!([]));
     assert_eq!(
         store
             .get_content(Path::new("/test/file.xcstrings"))
@@ -241,6 +245,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -264,7 +269,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
     assert_eq!(applied["accepted_keys"], serde_json::json!(["greeting"]));
     assert_eq!(applied["rejected"], serde_json::json!([]));
     assert_eq!(applied["dry_run"], false);
-    assert!(applied["warnings"].is_null());
+    assert_eq!(applied["warnings"], serde_json::json!([]));
     assert_eq!(value, "Hallo");
 }
 
@@ -296,6 +301,7 @@ async fn mcp_xliff_import_rejects_wrong_namespace_without_writing() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -341,6 +347,7 @@ async fn mcp_xliff_import_rejects_unqualified_child_in_official_document_without
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -386,6 +393,7 @@ async fn mcp_xliff_import_rejects_qualified_child_in_legacy_document_without_wri
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -431,6 +439,7 @@ async fn mcp_xliff_import_rejects_duplicate_namespace_without_writing() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: false,
@@ -611,6 +620,7 @@ async fn submit_returns_machine_readable_ambiguous_warning() {
                 value: "100% lokaler Speicher".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: true,
             continue_on_error: true,
@@ -658,6 +668,7 @@ async fn submit_handler_applies_compatible_repeated_positions() {
                 value: "%1$@ erneut: %2$d; %1$@".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -721,6 +732,7 @@ async fn submit_handler_rejects_missing_repeated_occurrence_without_writing() {
                 value: "%1$@ erneut: %2$d".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -777,6 +789,7 @@ async fn submit_handler_applies_apple_unsigned_z_and_t_aliases() {
                 value: "%1$tu / %1$zu".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -837,6 +850,7 @@ async fn submit_handler_rejects_signed_unsigned_z_t_collision_without_writing() 
                 value: "%1$zu / %1$td".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: false,
             continue_on_error: true,
@@ -888,6 +902,7 @@ async fn mcp_xliff_import_returns_same_ambiguous_warning() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: true,
@@ -940,6 +955,7 @@ async fn submit_and_mcp_xliff_block_same_definite_modifier_mismatch() {
                 value: "%Ld Tage".to_string(),
                 plural_forms: None,
                 substitution_name: None,
+                ..Default::default()
             }],
             dry_run: true,
             continue_on_error: true,
@@ -952,6 +968,7 @@ async fn submit_and_mcp_xliff_block_same_definite_modifier_mismatch() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
             dry_run: true,
@@ -960,17 +977,27 @@ async fn submit_and_mcp_xliff_block_same_definite_modifier_mismatch() {
     .await
     .unwrap();
 
-    for result in [&submitted, &imported] {
-        assert_eq!(result["accepted"], 0);
-        assert_eq!(result["rejected"].as_array().unwrap().len(), 1);
-        assert!(
-            result["rejected"][0]["reason"]
-                .as_str()
-                .unwrap()
-                .contains("invalid format sequence %Ld")
-        );
-        assert!(result["warnings"].is_null());
-    }
+    assert_eq!(submitted["accepted"], 0);
+    assert_eq!(submitted["rejected"].as_array().unwrap().len(), 1);
+    assert!(
+        submitted["rejected"][0]["reason"]
+            .as_str()
+            .unwrap()
+            .contains("invalid format sequence %Ld")
+    );
+    assert!(submitted["warnings"].is_null());
+    assert_eq!(imported["accepted"], 0);
+    assert_eq!(imported["rejected"].as_array().unwrap().len(), 1);
+    assert_eq!(imported["rejected"][0]["code"], "format_mismatch");
+    assert_eq!(imported["rejected"][0]["unit_id"], "days");
+    assert!(
+        imported["rejected"][0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("invalid format sequence %Ld")
+    );
+    assert_eq!(imported["warnings"], serde_json::json!([]));
+    assert_eq!(imported["written"], false);
 }
 
 #[tokio::test]
@@ -1005,6 +1032,7 @@ async fn submit_blocks_non_exact_substitution_placeholder_tokens() {
                         ("other".to_string(), target.to_string()),
                     ])),
                     substitution_name: Some("BIRDS".to_string()),
+                    ..Default::default()
                 }],
                 dry_run: true,
                 continue_on_error: true,
@@ -1058,6 +1086,7 @@ async fn submit_accepts_supported_unspaced_script_adjacency() {
                     ("other".to_string(), "%arg𰀀".to_string()),
                 ])),
                 substitution_name: Some("BIRDS".to_string()),
+                ..Default::default()
             }],
             dry_run: true,
             continue_on_error: true,
@@ -1100,6 +1129,7 @@ async fn submit_preserves_format_arguments_next_to_supported_unspaced_scripts() 
                     value: target.to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 }],
                 dry_run: true,
                 continue_on_error: true,
@@ -1129,6 +1159,7 @@ async fn submit_preserves_format_arguments_next_to_supported_unspaced_scripts() 
                     value: target.to_string(),
                     plural_forms: None,
                     substitution_name: None,
+                    ..Default::default()
                 }],
                 dry_run: true,
                 continue_on_error: true,
@@ -1163,6 +1194,7 @@ async fn submit_matches_all_240_modifier_oracle_cases() {
             value: format!("{token} Artikel"),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         });
         valid_keys.push(key);
     }
@@ -1175,6 +1207,7 @@ async fn submit_matches_all_240_modifier_oracle_cases() {
             value: format!("{token} Artikel"),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         });
         invalid_cases.push((key, *token));
     }

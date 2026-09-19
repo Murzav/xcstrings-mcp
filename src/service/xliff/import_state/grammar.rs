@@ -17,13 +17,6 @@ impl ImportState {
                 "attribute target-language on <file> must not be empty".to_string(),
             ));
         }
-        if let Some(expected) = &self.target_locale
-            && expected != &locale
-        {
-            return Err(parse_error(format!(
-                "multiple <file> elements use different target-language values: '{expected}' and '{locale}'"
-            )));
-        }
         self.target_locale.get_or_insert_with(|| locale.clone());
         if let Some(Frame {
             data:
@@ -37,10 +30,15 @@ impl ImportState {
             *file_count += 1;
             *extension_needs_file = false;
         }
+        let file_index = self.files.len();
+        self.files.push(XliffFile {
+            target_language: locale.clone(),
+            ..XliffFile::default()
+        });
         self.stack.push(Frame {
             element,
             data: FrameData::File {
-                locale,
+                file_index,
                 phase: FilePhase::Start,
                 unit_ids: HashSet::new(),
             },
@@ -142,20 +140,17 @@ impl ImportState {
         let id = id.ok_or_else(|| {
             parse_error("missing id attribute in <trans-unit> element".to_string())
         })?;
-        if id.contains("|==|") {
-            return Err(parse_error(format!(
-                "Apple XLIFF variation unit id '{id}' is unsupported; import simple stringUnit ids only"
-            )));
-        }
         self.register_unit_id(&id)?;
-        let locale = self.enclosing_file_locale()?.to_string();
         self.push(
             element,
             FrameData::Unit(UnitData {
                 id,
-                locale,
                 phase: UnitPhase::NeedSource,
                 target: None,
+                source: None,
+                state: None,
+                state_qualifier: None,
+                notes: Vec::new(),
             }),
         );
         Ok(())
@@ -183,6 +178,7 @@ impl ImportState {
             ));
         }
         unit.phase = UnitPhase::AfterSource;
+        unit.source = Some(String::new());
         self.push(element, FrameData::Source);
         Ok(())
     }
@@ -213,6 +209,12 @@ impl ImportState {
             ));
         }
         match unit.phase {
+            UnitPhase::NeedSource if super::super::apple_id::is_plural_unit_id(&unit.id) => {
+                // Xcode reexports newly added plural cases without a source. The
+                // catalog-aware planner must still prove an existing destination.
+                unit.phase = UnitPhase::AfterTarget;
+                unit.target = Some(String::new());
+            }
             UnitPhase::NeedSource => {
                 return Err(parse_error(
                     "element <target> must follow <source> inside <trans-unit>".to_string(),

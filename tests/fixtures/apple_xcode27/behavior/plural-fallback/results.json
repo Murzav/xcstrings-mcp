@@ -1,0 +1,11 @@
+{
+  "compile": 0,
+  "export": 0,
+  "import": 0,
+  "semantic_equal": false,
+  "changed_keys": [
+    "only_other"
+  ],
+  "after_compile": 0,
+  "reexport": 0
+}

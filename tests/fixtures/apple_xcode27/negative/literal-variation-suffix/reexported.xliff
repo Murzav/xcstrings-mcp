@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="Localizable.xcstrings" source-language="en" target-language="fr" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="27.0" build-num="27A266a"/>
+    </header>
+    <body>
+      <trans-unit id="a|==|b|==|plural.one" xml:space="preserve">
+        <source>EN a|==|b|==|plural.one</source>
+        <target state="translated">FR a|==|b|==|plural.one</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="plain|==|device.iphone" xml:space="preserve">
+        <source>EN plain|==|device.iphone</source>
+        <target state="translated">FR plain|==|device.iphone</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="plain|==|plural.one" xml:space="preserve">
+        <source>EN plain|==|plural.one</source>
+        <target state="translated">FR plain|==|plural.one</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="plain|==|substitutions.COUNT.plural.one" xml:space="preserve">
+        <source>EN plain|==|substitutions.COUNT.plural.one</source>
+        <target state="translated">FR plain|==|substitutions.COUNT.plural.one</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="plain|==|unknown.x" xml:space="preserve">
+        <source>EN plain|==|unknown.x</source>
+        <target state="translated">FR plain|==|unknown.x CHANGED</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="plain|==|word" xml:space="preserve">
+        <source>EN plain|==|word</source>
+        <target state="translated">FR plain|==|word CHANGED</target>
+        <note/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

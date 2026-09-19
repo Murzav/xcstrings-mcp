@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::model::translation::{CoverageReport, LocaleCoverage};
 use crate::model::xcstrings::XcStringsFile;
-use crate::service::is_translated_for;
+use crate::service::assessment;
 
 /// Calculate per-locale coverage for the entire file.
 pub fn get_coverage(file: &XcStringsFile) -> CoverageReport {
@@ -41,7 +41,7 @@ fn locale_coverage(
         .strings
         .values()
         .filter(|e| e.should_translate)
-        .filter(|e| is_translated_for(e, locale))
+        .filter(|e| assessment::assess("", e, &file.source_language, locale).complete())
         .count();
 
     let percentage = if translatable_keys == 0 {
@@ -236,7 +236,7 @@ mod tests {
     }
 
     #[test]
-    fn variations_treated_as_translated() {
+    fn empty_variations_are_incomplete() {
         let mut strings = IndexMap::new();
         let mut localizations = IndexMap::new();
         localizations.insert(
@@ -266,6 +266,6 @@ mod tests {
         let report = get_coverage(&file);
 
         let de = report.locales.iter().find(|l| l.locale == "de").unwrap();
-        assert_eq!(de.translated, 1);
+        assert_eq!(de.translated, 0);
     }
 }

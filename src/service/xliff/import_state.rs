@@ -1,8 +1,9 @@
 use std::collections::HashSet;
 
 use crate::error::XcStringsError;
-use crate::model::translation::CompletedTranslation;
+use crate::model::xliff::{XliffDocument, XliffFile, XliffNote, XliffUnit};
 
+mod capture;
 mod extensions;
 mod grammar;
 mod helpers;
@@ -141,9 +142,12 @@ enum AltPhase {
 
 struct UnitData {
     id: String,
-    locale: String,
     phase: UnitPhase,
     target: Option<String>,
+    source: Option<String>,
+    state: Option<String>,
+    state_qualifier: Option<String>,
+    notes: Vec<XliffNote>,
 }
 
 enum FrameData {
@@ -152,7 +156,7 @@ enum FrameData {
         extension_needs_file: bool,
     },
     File {
-        locale: String,
+        file_index: usize,
         phase: FilePhase,
         unit_ids: HashSet<String>,
     },
@@ -199,8 +203,7 @@ struct Frame {
 pub(super) struct ImportState {
     stack: Vec<Frame>,
     target_locale: Option<String>,
-    translations: Vec<CompletedTranslation>,
-    document_unit_ids: HashSet<String>,
+    files: Vec<XliffFile>,
     root_file_count: Option<usize>,
     root_extension_needs_file: bool,
 }
@@ -356,30 +359,7 @@ impl ImportState {
         Ok(())
     }
 
-    pub(super) fn text(&mut self, text: &str) {
-        let capture_target = self.stack.iter().rev().find_map(|frame| match frame.data {
-            FrameData::Target { main_unit } => Some(main_unit),
-            FrameData::Source => Some(false),
-            _ => None,
-        });
-        if capture_target != Some(true) {
-            return;
-        }
-        if let Some(Frame {
-            data: FrameData::Unit(unit),
-            ..
-        }) = self
-            .stack
-            .iter_mut()
-            .rev()
-            .find(|frame| matches!(frame.data, FrameData::Unit(_)))
-            && let Some(target) = &mut unit.target
-        {
-            target.push_str(text);
-        }
-    }
-
-    pub(super) fn finish(self) -> Result<(String, Vec<CompletedTranslation>), XcStringsError> {
+    pub(super) fn finish(self) -> Result<XliffDocument, XcStringsError> {
         if !self.stack.is_empty() {
             return Err(parse_error(
                 "XLIFF structural stack is not closed".to_string(),
@@ -395,10 +375,10 @@ impl ImportState {
                 "extension elements at <xliff> level must be followed by <file>".to_string(),
             ));
         }
-        let locale = self.target_locale.ok_or_else(|| {
+        self.target_locale.ok_or_else(|| {
             parse_error("missing target-language attribute in <file> element".to_string())
         })?;
-        Ok((locale, self.translations))
+        Ok(XliffDocument { files: self.files })
     }
 
     fn start_seg_source(&mut self, element: ImportElement) -> Result<(), XcStringsError> {

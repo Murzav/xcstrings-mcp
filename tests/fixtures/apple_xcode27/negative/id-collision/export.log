@@ -1,0 +1,10 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -exportLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/extended-export -exportLanguage fr
+
+Localization Export started for Oracle project
+2026-09-19 23:19:43 Started export
+2026-09-19 23:19:43 Extracting strings from code
+2026-09-19 23:19:43 Extracting strings from localizable files
+2026-09-19 23:19:43 Copying source language files
+2026-09-19 23:19:44 Exporting Localizable.xcstrings to fr.xliff...
+Swift/arm64e-apple-macos.private.swiftinterface:16369: Fatal error: Duplicate values for key: 'ambiguous|==|plural.one'

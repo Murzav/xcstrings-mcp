@@ -1,0 +1,15 @@
+{
+  "compile": 0,
+  "export": 0,
+  "import": 0,
+  "semantic_equal": false,
+  "changed_keys": [
+    "x-apple-machine-translated",
+    "x-machine-translated",
+    "fuzzy-match",
+    "exact-match",
+    "leveraged-mt"
+  ],
+  "after_compile": 0,
+  "reexport": 0
+}

@@ -1,130 +1,41 @@
-use crate::model::translation::{CompletedTranslation, RejectedTranslation, SubmitResult};
-use crate::model::xcstrings::{
-    Localization, OrderedMap, TranslationState, Variations, XcStringsFile,
-};
+use super::submission;
+use crate::model::translation::{CompletedTranslation, SubmitResult};
+use crate::model::xcstrings::XcStringsFile;
 
-/// Merge a batch of validated translations into the file model.
-/// Returns count of accepted + any rejected during merge.
+/// Merge prevalidated requests with destination-level overlap checks.
 pub fn merge_translations(
     file: &mut XcStringsFile,
     translations: &[CompletedTranslation],
 ) -> SubmitResult {
-    let mut accepted = 0;
-    let mut accepted_keys = Vec::new();
-    let mut rejected = Vec::new();
-
-    for translation in translations {
-        let entry = match file.strings.get_mut(&translation.key) {
-            Some(e) => e,
-            None => {
-                rejected.push(RejectedTranslation {
-                    key: translation.key.clone(),
-                    reason: "key not found".into(),
-                });
-                continue;
+    let (plans, rejected) = submission::prepare(file, translations);
+    let mut result = SubmitResult {
+        rejected: rejected.into_iter().flatten().collect(),
+        ..Default::default()
+    };
+    for plan in plans {
+        match submission::mutation::apply(file, &plan.leaves) {
+            Ok(()) => {
+                result.accepted += 1;
+                result
+                    .accepted_keys
+                    .push(translations[plan.index].key.clone());
+                result
+                    .accepted_destinations
+                    .extend(plan.leaves.into_iter().map(|(destination, _)| destination));
             }
-        };
-
-        // Pre-extract source substitution template before mutable borrow
-        let source_sub_template = translation.substitution_name.as_ref().and_then(|sub_name| {
-            entry
-                .localizations
-                .as_ref()
-                .and_then(|locs| locs.get(&file.source_language))
-                .and_then(|loc| loc.substitutions.as_ref())
-                .and_then(|src_subs| src_subs.get(sub_name))
-                .cloned()
-        });
-
-        let localizations = entry.localizations.get_or_insert_with(OrderedMap::new);
-
-        if let Some(plural_forms) = &translation.plural_forms {
-            if let Some(sub_name) = &translation.substitution_name {
-                // Write plural forms into the substitution's variations
-                let localization = localizations
-                    .entry(translation.locale.clone())
-                    .or_insert_with(|| Localization {
-                        string_unit: None,
-                        variations: None,
-                        substitutions: None,
-                        ..Default::default()
-                    });
-
-                let subs = localization
-                    .substitutions
-                    .get_or_insert_with(OrderedMap::new);
-                let substitution = subs.entry(sub_name.clone()).or_insert_with(|| {
-                    let mut template = source_sub_template.unwrap_or_default();
-                    if let Some(plural) =
-                        template.variations.as_mut().and_then(|v| v.plural.as_mut())
-                    {
-                        plural.retain(|form, _| plural_forms.contains_key(form));
-                    }
-                    template
-                });
-                let variations = substitution
-                    .variations
-                    .get_or_insert_with(Variations::default);
-                let plural_map = variations.plural.get_or_insert_with(OrderedMap::new);
-                for (form, value) in plural_forms {
-                    plural_map
-                        .entry(form.clone())
-                        .or_default()
-                        .set_translation(TranslationState::Translated, value);
-                }
-            } else {
-                // Write plural forms to localization.variations.plural
-                let localization = localizations
-                    .entry(translation.locale.clone())
-                    .or_insert_with(|| Localization {
-                        string_unit: None,
-                        variations: None,
-                        substitutions: None,
-                        ..Default::default()
-                    });
-
-                let variations = localization.variations.get_or_insert(Variations {
-                    plural: None,
-                    device: None,
-                    ..Default::default()
-                });
-
-                let plural_map = variations.plural.get_or_insert_with(OrderedMap::new);
-
-                for (form, value) in plural_forms {
-                    plural_map
-                        .entry(form.clone())
-                        .or_default()
-                        .set_translation(TranslationState::Translated, value);
-                }
-            }
-        } else {
-            let localization = localizations
-                .entry(translation.locale.clone())
-                .or_insert_with(|| Localization {
-                    string_unit: None,
-                    variations: None,
-                    substitutions: None,
-                    ..Default::default()
-                });
-
-            localization.set_translation(TranslationState::Translated, &translation.value);
+            Err(reason) => result.rejected.push(submission::reject(
+                &translations[plan.index],
+                "invalid_path",
+                reason,
+            )),
         }
-
-        accepted_keys.push(translation.key.clone());
-        accepted += 1;
     }
-
-    SubmitResult {
-        accepted,
-        rejected,
-        dry_run: false,
-        accepted_keys,
-    }
+    result
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::model::xcstrings::{Localization, OrderedMap, TranslationState};
     use std::collections::BTreeMap;
 
     use indexmap::IndexMap;
@@ -186,6 +97,7 @@ mod tests {
             value: value.to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         }
     }
 
@@ -252,6 +164,7 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: None,
+            ..Default::default()
         }];
 
         let result = merge_translations(&mut file, &translations);
@@ -370,6 +283,7 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: Some("BIRDS".to_string()),
+            ..Default::default()
         }];
 
         let result = merge_translations(&mut file, &translations);
@@ -402,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_substitution_plurals() {
+    fn substitution_creation_without_metadata_preserves_catalog() {
         let mut file = make_file(vec![("bird_sighting", empty_entry())]);
         let mut plural_forms = BTreeMap::new();
         plural_forms.insert("one".to_string(), "%arg Vogel".to_string());
@@ -414,21 +328,16 @@ mod tests {
             value: String::new(),
             plural_forms: Some(plural_forms),
             substitution_name: Some("BIRDS".to_string()),
+            ..Default::default()
         }];
 
+        let before = serde_json::to_string(&file).unwrap();
         let result = merge_translations(&mut file, &translations);
-        assert_eq!(result.accepted, 1);
-
-        let locs = file.strings["bird_sighting"]
-            .localizations
-            .as_ref()
-            .unwrap();
-        let de = &locs["de"];
-        let subs = de.substitutions.as_ref().unwrap();
-        let birds_sub = serde_json::to_value(&subs["BIRDS"]).unwrap();
-        let birds_one = birds_sub["variations"]["plural"]["one"]["stringUnit"]["value"]
-            .as_str()
-            .unwrap();
-        assert_eq!(birds_one, "%arg Vogel");
+        assert_eq!(result.accepted, 0);
+        assert_eq!(
+            result.rejected[0].reason,
+            "missing substitution metadata for 'BIRDS'"
+        );
+        assert_eq!(serde_json::to_string(&file).unwrap(), before);
     }
 }

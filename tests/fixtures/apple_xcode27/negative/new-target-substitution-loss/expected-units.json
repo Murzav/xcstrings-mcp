@@ -1,0 +1,54 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "target_only_substitution",
+        "source": "%lld total",
+        "target": "Total %1$#@COUNT@",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_substitution|==|substitutions.COUNT.plural.one",
+        "source": "target_only_substitution|==|substitutions.COUNT.plural.one",
+        "target": "fr %1$lld single",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "target_only_substitution|==|substitutions.COUNT.plural.other",
+        "source": "target_only_substitution|==|substitutions.COUNT.plural.other",
+        "target": "fr %1$lld multiple",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

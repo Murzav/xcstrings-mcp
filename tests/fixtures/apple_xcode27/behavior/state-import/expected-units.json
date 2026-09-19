@@ -1,0 +1,166 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "empty",
+        "source": "source empty",
+        "target": "old empty",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "final",
+        "source": "source final",
+        "target": "old final",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "missing",
+        "source": "source missing",
+        "target": "old missing",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "needs-review-l10n",
+        "source": "source needs-review-l10n",
+        "target": "old needs-review-l10n",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "needs-review-translation",
+        "source": "source needs-review-translation",
+        "target": "old needs-review-translation",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "new",
+        "source": "source new",
+        "target": "old new",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "no-state",
+        "source": "source no-state",
+        "target": "old no-state",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "qualifier",
+        "source": "source qualifier",
+        "target": "old qualifier",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "signed-off",
+        "source": "source signed-off",
+        "target": "old signed-off",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "translated",
+        "source": "source translated",
+        "target": "old translated",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "unknown",
+        "source": "source unknown",
+        "target": "old unknown",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

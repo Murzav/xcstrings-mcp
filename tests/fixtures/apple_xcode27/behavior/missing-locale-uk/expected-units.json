@@ -1,0 +1,60 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "uk",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "fallback|==|plural.few",
+        "source": "other source %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "fallback|==|plural.many",
+        "source": "other source %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "fallback|==|plural.one",
+        "source": "one source %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "fallback|==|plural.other",
+        "source": "other source %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

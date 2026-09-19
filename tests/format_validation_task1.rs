@@ -68,6 +68,7 @@ fn translation(key: &str, value: &str) -> CompletedTranslation {
         value: value.to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }
 }
 
@@ -917,6 +918,7 @@ fn shared_source_resolver_handles_key_fallback_and_matching_plural_forms() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: None,
+        ..Default::default()
     };
     let detailed = validator::validate_translations_detailed(&plural_file, &[plural]);
     assert!(detailed.rejected.is_empty(), "{:?}", detailed.rejected);
@@ -972,6 +974,7 @@ fn submit_and_file_validation_have_plural_classification_parity() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: None,
+        ..Default::default()
     };
 
     let submit = validator::validate_translations_detailed(&file, &[submitted]);
@@ -1018,6 +1021,7 @@ fn shared_source_resolver_validates_substitution_placeholders() {
         value: String::new(),
         plural_forms: Some(forms),
         substitution_name: Some("BIRDS".to_string()),
+        ..Default::default()
     };
     let detailed = validator::validate_translations_detailed(&file, &[submitted]);
     assert!(
@@ -1232,7 +1236,10 @@ fn substitution_entry_with_target(one: &str, other: &str) -> StringEntry {
     entry.localizations.as_mut().unwrap().insert(
         "de".to_string(),
         Localization {
-            string_unit: None,
+            string_unit: Some(StringUnit::new(
+                TranslationState::Translated,
+                "Ich sah %#@BIRDS@",
+            )),
             variations: None,
             substitutions: Some(IndexMap::from([(
                 "BIRDS".to_string(),
@@ -1267,5 +1274,6 @@ fn substitution_translation(one: &str, other: &str) -> CompletedTranslation {
             ("other".to_string(), other.to_string()),
         ])),
         substitution_name: Some("BIRDS".to_string()),
+        ..Default::default()
     }
 }

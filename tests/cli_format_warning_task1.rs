@@ -80,12 +80,14 @@ fn cli_xliff_import_blocks_definite_modifier_mismatch() {
     assert_eq!(json["accepted"], 0);
     assert_eq!(json["rejected"].as_array().unwrap().len(), 1);
     assert!(
-        json["rejected"][0]["reason"]
+        json["rejected"][0]["message"]
             .as_str()
             .unwrap()
             .contains("invalid format sequence %Ld")
     );
-    assert!(json["warnings"].is_null());
+    assert_eq!(json["rejected"][0]["code"], "format_mismatch");
+    assert_eq!(json["written"], false);
+    assert_eq!(json["warnings"], serde_json::json!([]));
 }
 
 fn prose_catalog() -> String {

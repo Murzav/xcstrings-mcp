@@ -36,6 +36,9 @@ pub enum LeafDiagnosticCode {
     EmptyAxis,
     EmptyLocalization,
     MissingSubstitutionMetadata,
+    UnknownLocale,
+    InvalidShape,
+    InvalidSubstitutionMetadata,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -77,6 +80,14 @@ fn visit_localization<'a>(
     substitutions: &mut Vec<SubstitutionContext<'a>>,
     result: &mut LeafTraversal<'a>,
 ) {
+    if node.string_unit.is_some() && node.variations.is_some() {
+        diagnostic(
+            result,
+            path,
+            LeafDiagnosticCode::InvalidShape,
+            "stringUnit and variations cannot coexist safely",
+        );
+    }
     if let Some(unit) = &node.string_unit {
         result.leaves.push(CatalogLeaf {
             path: path.clone(),
@@ -111,6 +122,20 @@ fn visit_localization<'a>(
                     "substitution needs argNum and formatSpecifier",
                 );
             }
+            if substitution.arg_num.is_some()
+                && substitution
+                    .format_specifier
+                    .as_ref()
+                    .is_some_and(|value| !value.is_empty())
+                && let Err(detail) = substitution.validate_metadata()
+            {
+                diagnostic(
+                    result,
+                    path,
+                    LeafDiagnosticCode::InvalidSubstitutionMetadata,
+                    detail,
+                );
+            }
             substitutions.push(SubstitutionContext { name, substitution });
             if let Some(variations) = &substitution.variations {
                 visit_variations(variations, path, substitutions, result);
@@ -142,6 +167,14 @@ fn visit_variations<'a>(
     substitutions: &mut Vec<SubstitutionContext<'a>>,
     result: &mut LeafTraversal<'a>,
 ) {
+    if variations.plural.is_some() && variations.device.is_some() {
+        diagnostic(
+            result,
+            path,
+            LeafDiagnosticCode::InvalidShape,
+            "plural and device axes cannot coexist safely",
+        );
+    }
     for name in variations.extra.keys() {
         diagnostic(
             result,
@@ -274,4 +307,42 @@ fn find_variation_leaf_mut<'a>(
         LeafStep::Substitution(_) => return None,
     };
     find_leaf_mut(node, rest)
+}
+
+/// Supported native catalog branch ordering, independent of XLIFF ID restrictions.
+pub fn validate_supported_path(path: &[LeafStep]) -> Result<(), String> {
+    for (i, step) in path.iter().enumerate() {
+        match step {
+            LeafStep::Device(device) => {
+                if matches!(device, DeviceCategory::Unknown(_)) {
+                    return Err("unknown device category".into());
+                }
+                if i != 0 || (*device == DeviceCategory::Other && i + 1 != path.len()) {
+                    return Err(
+                        "device variation order is not supported by the Apple compiler".into(),
+                    );
+                }
+            }
+            LeafStep::Plural(category) => {
+                if !matches!(
+                    category.as_str(),
+                    "zero" | "one" | "two" | "few" | "many" | "other"
+                ) {
+                    return Err(format!("unknown plural category '{category}'"));
+                }
+                if i + 1 != path.len() {
+                    return Err("plural case cannot be further varied".into());
+                }
+            }
+            LeafStep::Substitution(name) => {
+                if name.is_empty()
+                    || i != 0
+                    || !matches!(path.get(i + 1), Some(LeafStep::Plural(_)))
+                {
+                    return Err("substitution must end in a plural case".into());
+                }
+            }
+        }
+    }
+    Ok(())
 }

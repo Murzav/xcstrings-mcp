@@ -1,0 +1,2 @@
+['xcrun', 'xcstringstool', 'compile', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/device-substitution-placement/root-de/Localizable.xcstrings', '--output-directory', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/device-substitution-placement/root-de/compiled-after']
+EXIT:0

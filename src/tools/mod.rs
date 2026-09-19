@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod cache_alias_tests;
 pub(crate) mod coverage;
 pub(crate) mod create;
 pub(crate) mod diff;
@@ -150,10 +152,11 @@ pub(crate) async fn resolve_file(
         let guard = cache.lock().await;
         let cached = guard.active_cached().ok_or(XcStringsError::NoActiveFile)?;
 
-        // Validate mtime — re-read if file changed externally
-        if let Ok(current_mtime) = store.modified_time(&cached.path)
-            && current_mtime != cached.modified
-        {
+        // An alias can point to a different catalog with the same timestamp.
+        // Neither identity nor metadata failures may authorize stale cache reuse.
+        let identity = store.file_identity(&cached.path)?;
+        let current_mtime = store.modified_time(&cached.path)?;
+        if guard.active.as_ref() != Some(&identity) || current_mtime != cached.modified {
             let path = cached.path.clone();
             drop(guard);
             let raw = store.read(&path)?;
@@ -251,6 +254,33 @@ pub(crate) mod test_helpers {
                 .lock()
                 .unwrap()
                 .insert(path.to_path_buf(), (content.to_string(), SystemTime::now()));
+            Ok(())
+        }
+
+        fn write_if_matches(
+            &self,
+            path: &Path,
+            expected: Option<&[u8]>,
+            content: &str,
+        ) -> Result<(), XcStringsError> {
+            let mut binary = self.binary_files.lock().unwrap();
+            let mut files = self.files.lock().unwrap();
+            let actual = binary
+                .get(path)
+                .map(|(bytes, _)| bytes.as_slice())
+                .or_else(|| files.get(path).map(|(text, _)| text.as_bytes()));
+            if actual != expected {
+                return Err(XcStringsError::ConditionalWriteConflict {
+                    path: path.to_path_buf(),
+                    expected_exists: expected.is_some(),
+                    actual_exists: actual.is_some(),
+                });
+            }
+            binary.remove(path);
+            files.insert(
+                path.to_path_buf(),
+                (content.to_owned(), SystemTime::UNIX_EPOCH),
+            );
             Ok(())
         }
 

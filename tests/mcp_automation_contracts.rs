@@ -226,7 +226,7 @@ fn shipped_skill_examples_match_live_tool_schemas() {
     let skill = include_str!("../skills/xcstrings-mcp/SKILL.md");
     let (count, violations) = validate_skill_examples(skill, &schemas);
 
-    assert_eq!(count, 74, "shipped MCP invocation coverage changed");
+    assert_eq!(count, 75, "shipped MCP invocation coverage changed");
     assert!(
         violations.is_empty(),
         "skill examples drifted from live tools/list schemas:\n{}",

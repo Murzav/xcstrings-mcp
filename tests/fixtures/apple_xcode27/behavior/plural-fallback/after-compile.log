@@ -1,0 +1,1 @@
+COMMAND: ['xcrun', 'xcstringstool', 'compile', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/Localizable.xcstrings', '--output-directory', '/private/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/shape-boundaries/compiled-after']

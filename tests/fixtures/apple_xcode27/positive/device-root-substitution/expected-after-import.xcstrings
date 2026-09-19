@@ -1,0 +1,91 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "k" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "de" : {
+          "substitutions" : {
+            "COUNT" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "DE %arg item CHANGED"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "DE %arg items CHANGED"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "variations" : {
+            "device" : {
+              "iphone" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "DE %#@COUNT@ phone CHANGED"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "DE %lld other CHANGED"
+                }
+              }
+            }
+          }
+        },
+        "en" : {
+          "substitutions" : {
+            "COUNT" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg item"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg items"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "variations" : {
+            "device" : {
+              "iphone" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%#@COUNT@ phone"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld other"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

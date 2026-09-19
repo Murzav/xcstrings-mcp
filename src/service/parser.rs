@@ -41,13 +41,26 @@ pub fn summarize(file: &XcStringsFile) -> FileSummary {
             continue;
         }
         if let Some(localizations) = &entry.localizations {
-            for localization in localizations.values() {
-                let state_name = if let Some(su) = &localization.string_unit {
-                    state_to_string(&su.state)
-                } else if localization.variations.is_some() {
-                    "translated".to_string()
+            for (locale, localization) in localizations {
+                let assessment =
+                    super::assessment::assess("", entry, &file.source_language, locale);
+                let state_name = if assessment.complete() {
+                    if assessment.leaves.iter().all(|leaf| {
+                        leaf.state
+                            == Some(crate::model::xcstrings::TranslationState::MachineTranslated)
+                    }) {
+                        "machine_translated".into()
+                    } else {
+                        "translated".into()
+                    }
+                } else if assessment.leaves.len() == 1 && assessment.diagnostics.is_empty() {
+                    localization
+                        .string_unit
+                        .as_ref()
+                        .filter(|unit| !super::assessment::ready(&unit.state))
+                        .map_or_else(|| "new".into(), |unit| state_to_string(&unit.state))
                 } else {
-                    "new".to_string()
+                    "new".into()
                 };
                 *keys_by_state.entry(state_name).or_insert(0usize) += 1;
             }

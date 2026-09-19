@@ -10,15 +10,3 @@ pub(crate) fn to_value(
         warnings,
     })?)
 }
-
-pub(crate) fn extend_unique(warnings: &mut Vec<ValidationIssue>, additional: Vec<ValidationIssue>) {
-    for warning in additional {
-        if !warnings.iter().any(|existing| {
-            existing.key == warning.key
-                && existing.issue_type == warning.issue_type
-                && existing.message == warning.message
-        }) {
-            warnings.push(warning);
-        }
-    }
-}

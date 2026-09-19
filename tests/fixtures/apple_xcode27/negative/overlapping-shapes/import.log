@@ -1,0 +1,16 @@
+['xcodebuild', '-importLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/edited-input.xliff']
+EXIT: 0
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/Oracle.xcodeproj -localizationPath /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/edited-input.xliff
+
+Localization Import started for Oracle project
+2026-09-20 00:15:31 Started import
+2026-09-20 00:15:31 Comparing
+2026-09-20 00:15:31 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+2026-09-20 00:15:31 --- WARNING: Ignoring overrides for top-level key 'plural_and_device' in 'Localizable.xcstrings' because the source string '%lld device' was not found in the project file. This usually indicates that the project string was modified at some point after the XLIFF was exported, and is thus out of sync with the XLIFF.
+2026-09-20 00:15:31 Writing
+2026-09-20 00:15:31 --- WARNING: Ignoring overrides for top-level key 'plural_and_device' in 'Localizable.xcstrings' because the source string '%lld device' was not found in the project file. This usually indicates that the project string was modified at some point after the XLIFF was exported, and is thus out of sync with the XLIFF.
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the XLIFF (Key: "plural_and_device|==|plural.one")
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the project (Key: "plural_and_device|==|device.other")
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the project (Key: "plural_and_device|==|device.iphone")
+--- xcodebuild: WARNING: Localizable.xcstrings: Key not found in the XLIFF (Key: "plural_and_device|==|plural.other")

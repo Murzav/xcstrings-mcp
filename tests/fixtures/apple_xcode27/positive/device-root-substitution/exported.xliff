@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="Localizable.xcstrings" source-language="en" target-language="de" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="27.0" build-num="27A266a"/>
+    </header>
+    <body>
+      <trans-unit id="k|==|device.iphone" xml:space="preserve">
+        <source>%1$#@COUNT@ phone</source>
+        <target state="translated">DE %1$#@COUNT@ phone</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="k|==|device.other" xml:space="preserve">
+        <source>%lld other</source>
+        <target state="translated">DE %lld other</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="k|==|substitutions.COUNT.plural.one" xml:space="preserve">
+        <source>%1$lld item</source>
+        <target state="translated">DE %1$lld item</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="k|==|substitutions.COUNT.plural.other" xml:space="preserve">
+        <source>%1$lld items</source>
+        <target state="translated">DE %1$lld items</target>
+        <note/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

@@ -110,6 +110,7 @@ mod tests {
                 format_specifiers: vec![],
                 has_plurals: false,
                 has_substitutions: false,
+                ..Default::default()
             },
             TranslationUnit {
                 key: "dialog.cancel_button".to_string(),
@@ -119,6 +120,7 @@ mod tests {
                 format_specifiers: vec![],
                 has_plurals: false,
                 has_substitutions: false,
+                ..Default::default()
             },
         ]
     }

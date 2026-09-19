@@ -9,13 +9,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 - Recursive String Catalog representation for device, plural, substitution, and chained variation leaves, including Apple Vision and machine-translated states.
 - Pinned CLDR 48.2.1 cardinal categories for 224 locales; malformed or unknown locale identifiers no longer receive invented plural rules.
+- Apple XLIFF import/export for plural, device, named substitution, and supported chained variation leaves, with exact `original` file-scope selection for multi-catalog documents. ([#26](https://github.com/Murzav/xcstrings-mcp/pull/26))
+- Typed leaf paths in native translation requests and read results, so nested variants and multiple substitutions can be translated independently without replacing their siblings.
+- Reproducible acceptance runners for every advertised MCP tool on the golden fixtures and changed-translation roundtrips through the actual Xcode compiler, importer, and exporter.
 
 ### Changed
-- Refresh direct and transitive dependencies to their latest resolvable stable versions, including rmcp 3.4, quick-xml 0.42, and jsonschema 0.56, while retaining the existing CLI and MCP behavior.
+- Refresh direct and transitive dependencies to their latest resolvable stable versions, including rmcp 3.4, quick-xml 0.42, and jsonschema 0.56. Rust 1.88 remains the minimum supported compiler.
 - **BREAKING (Rust library API):** catalog maps preserve insertion order, plural/device branches contain recursive `Localization` nodes, and substitutions use typed metadata. Struct literals now need `..Default::default()` for preservation metadata; use `Localization::with_unit`, `StringUnit::new`, and `OrderedMap` when constructing catalogs. Mutate existing string units with `set_translation` to retain unknown fields.
+- **BREAKING (plural API):** replace `required_plural_forms(locale)` with fallible `plural_categories(locale)` and handle malformed or unsupported locale errors explicitly instead of relying on an English fallback.
+- **BREAKING (legacy Rust XLIFF adapter):** `import_xliff` now rejects states and multiple file scopes its flat return type cannot preserve, and retains explicit blank ready targets. Use `parse_document` plus `plan_import`, or `xliff_operation::execute_import`, for draft states and complete catalog-aware imports.
+- **BREAKING (XLIFF import contract):** a rejected unit now prevents the entire selected file scope from being written. Reports expose concrete `accepted_destinations`, scoped diagnostics, missing targets, and write status. XML counts are translation leaves; native submission counts remain accepted input requests. Clients consuming import reports must handle the new diagnostic shape and retry a corrected batch.
+- Coverage, extraction, validation, search, and diff inspect recursive leaves. Drafts (`new` and `needs_review`) retain their text and state but do not count as complete; intentional blank ready translations do. CLDR completion requirements are reported separately from Xcode compilation validity.
+- XLIFF imports preserve draft text and status even though Xcode itself skips draft targets. Missing targets leave existing translations unchanged; explicit empty targets clear their addressed leaf.
 
 ### Fixed
 - Catalog edits preserve unknown properties at every level, original property order, explicit defaults, and null values. Duplicate JSON members are rejected instead of silently overwritten.
+- Ambiguous Apple unit identities and shapes proven to lose data in Xcode fail explicitly before export or mutation. Literal keys ending in a recognized Apple variation path remain editable natively, but XLIFF export refuses them because Xcode ignores their updates. Ordinary delimiter-containing keys remain supported.
+- Imported XML is applied against fresh catalog bytes with a conditional atomic write; rejected imports and dry runs leave files and the active MCP cache unchanged. Export destinations cannot alias a catalog file.
+- Native submissions also compare freshly read bytes before writing, and all-or-nothing batches reject conflicts that arise only when their edits are combined. Retargeting a cached symlink refreshes its identity even when the modification time is unchanged.
+- Substitution argument validation resolves source and target metadata independently, preventing same-name substitutions from hiding incompatible argument types.
+- Recursive catalog merges retain unknown metadata and resolve each known variant independently while treating each string unit as an atomic value/state pair.
 - XLIFF export preserves carriage returns, line feeds, and tabs in keys and carriage returns in translation text across XML roundtrips.
 - Release builds now reject tags that do not match the package version before publishing artifacts, and use the reviewed dependency lockfile for builds and publication.
 

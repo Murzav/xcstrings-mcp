@@ -1,0 +1,2 @@
+['xcrun', 'xcstringstool', 'compile', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/Localizable.xcstrings', '--output-directory', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/phase-b/overlap-roundtrip/existing/compiled']
+EXIT: 0

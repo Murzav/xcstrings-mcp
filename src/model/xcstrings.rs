@@ -222,3 +222,34 @@ mod tests {
         assert_eq!(uk.value, "Привіт");
     }
 }
+
+pub mod references;
+
+impl Substitution {
+    /// Validate the argument identity and primitive format type shared by all leaves.
+    pub fn validate_metadata(&self) -> Result<(u32, &str), String> {
+        let position = self
+            .arg_num
+            .filter(|n| *n > 0)
+            .ok_or("missing or invalid substitution argNum")?;
+        let specifier = self
+            .format_specifier
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .ok_or("missing substitution formatSpecifier")?;
+        let analysis = crate::model::specifier::analyze_format(&format!("%{specifier}"));
+        if analysis.arguments.len() != 1
+            || !analysis.problems.is_empty()
+            || analysis.arguments.first().is_none_or(|argument| {
+                format!(
+                    "{}{}",
+                    argument.length_modifier.as_deref().unwrap_or(""),
+                    argument.conversion
+                ) != specifier
+            })
+        {
+            return Err("unsupported substitution formatSpecifier".into());
+        }
+        Ok((position, specifier))
+    }
+}

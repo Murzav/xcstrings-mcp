@@ -18,15 +18,7 @@ impl ImportState {
                 "duplicate XLIFF unit id '{id}' inside <file>"
             )));
         }
-        if self.document_unit_ids.contains(id) {
-            return Err(parse_error(format!(
-                "XLIFF unit id '{id}' is repeated across <file> elements and cannot be flattened safely"
-            )));
-        }
-
-        // Both indexes outlive the current unit frame, so each owns its key.
         unit_ids.insert(id.to_string());
-        self.document_unit_ids.insert(id.to_string());
         Ok(())
     }
 }

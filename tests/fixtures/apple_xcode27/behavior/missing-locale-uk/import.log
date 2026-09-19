@@ -1,0 +1,14 @@
+COMMAND: ['xcodebuild', '-importLocalizations', '-project', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj', '-localizationPath', '/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/missing-locale-uk/export/uk.xcloc/Localized Contents/uk.xliff']
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild -importLocalizations -project /tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/Oracle.xcodeproj -localizationPath "/tmp/xcstrings-pr26-xcode-contract-9m3wxp0f/corpus-capture/missing-locale-uk/export/uk.xcloc/Localized Contents/uk.xliff"
+
+Localization Import started for Oracle project
+2026-09-19 23:34:39 Started import
+2026-09-19 23:34:39 Comparing
+2026-09-19 23:34:39 Checking for new localizations in the XLIFF for Localizable.xcstrings...
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "fallback|==|plural.few")
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "fallback|==|plural.other")
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "fallback|==|plural.one")
+--- xcodebuild: WARNING: Localizable.xcstrings: No translation found in the XLIFF (Key: "fallback|==|plural.many")
+2026-09-19 23:34:39 Writing
+2026-09-19 23:34:39 No translations to import for Localizable.xcstrings

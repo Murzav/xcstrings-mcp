@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.2" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 http://docs.oasis-open.org/xliff/v1.2/os/xliff-core-1.2-strict.xsd">
+  <file original="Localizable.xcstrings" source-language="en" target-language="fr" datatype="plaintext">
+    <header>
+      <tool tool-id="com.apple.dt.xcode" tool-name="Xcode" tool-version="27.0" build-num="27A266a"/>
+    </header>
+    <body>
+      <trans-unit id="empty" xml:space="preserve">
+        <source>source empty</source>
+        <target state="translated"/>
+        <note/>
+      </trans-unit>
+      <trans-unit id="final" xml:space="preserve">
+        <source>source final</source>
+        <target state="translated">changed final</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="missing" xml:space="preserve">
+        <source>source missing</source>
+        <target state="translated">old missing</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="needs-review-l10n" xml:space="preserve">
+        <source>source needs-review-l10n</source>
+        <target state="translated">old needs-review-l10n</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="needs-review-translation" xml:space="preserve">
+        <source>source needs-review-translation</source>
+        <target state="translated">old needs-review-translation</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="new" xml:space="preserve">
+        <source>source new</source>
+        <target state="translated">old new</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="no-state" xml:space="preserve">
+        <source>source no-state</source>
+        <target state="translated">changed no-state</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="qualifier" xml:space="preserve">
+        <source>source qualifier</source>
+        <target state="translated">changed qualifier</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="signed-off" xml:space="preserve">
+        <source>source signed-off</source>
+        <target state="translated">changed signed-off</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="translated" xml:space="preserve">
+        <source>source translated</source>
+        <target state="translated">changed translated</target>
+        <note/>
+      </trans-unit>
+      <trans-unit id="unknown" xml:space="preserve">
+        <source>source unknown</source>
+        <target state="translated">changed unknown</target>
+        <note/>
+      </trans-unit>
+    </body>
+  </file>
+</xliff>

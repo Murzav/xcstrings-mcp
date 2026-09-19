@@ -1,0 +1,50 @@
+[
+  {
+    "file": {
+      "original": "Custom.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "shared",
+        "source": "CUSTOM source",
+        "target": "CUSTOM cible",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "shared",
+        "source": "LOCAL source",
+        "target": "LOCAL cible",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

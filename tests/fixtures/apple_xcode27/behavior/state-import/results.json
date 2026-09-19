@@ -1,0 +1,17 @@
+{
+  "compile": 0,
+  "export": 0,
+  "import": 0,
+  "semantic_equal": false,
+  "changed_keys": [
+    "empty",
+    "unknown",
+    "final",
+    "signed-off",
+    "translated",
+    "no-state",
+    "qualifier"
+  ],
+  "after_compile": 0,
+  "reexport": 0
+}

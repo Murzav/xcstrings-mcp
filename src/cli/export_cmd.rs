@@ -6,6 +6,7 @@ use xcstrings_mcp::error::XcStringsError;
 use xcstrings_mcp::io::FileStore;
 use xcstrings_mcp::io::fs::FsFileStore;
 use xcstrings_mcp::service::xliff;
+use xcstrings_mcp::xliff_operation::resolve_export_destination;
 
 use super::common::{EXIT_OK, handle_error, load_file};
 
@@ -20,10 +21,11 @@ pub fn run(
     file: Option<PathBuf>,
     locale: String,
     output: Option<PathBuf>,
+    original: Option<String>,
     all: bool,
     json: bool,
 ) -> ExitCode {
-    match execute(file, locale, output, all, json) {
+    match execute(file, locale, output, original, all, json) {
         Ok(code) => code,
         Err(err) => handle_error(err),
     }
@@ -33,15 +35,17 @@ fn execute(
     file: Option<PathBuf>,
     locale: String,
     output: Option<PathBuf>,
+    original: Option<String>,
     all: bool,
     json: bool,
 ) -> Result<ExitCode, XcStringsError> {
     let (path, parsed) = load_file(file)?;
 
-    let original = path
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("Localizable.xcstrings");
+    let original = original.as_deref().unwrap_or_else(|| {
+        path.file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("Localizable.xcstrings")
+    });
 
     let untranslated_only = !all;
 
@@ -50,7 +54,8 @@ fn execute(
     let output_path = output.unwrap_or_else(|| PathBuf::from(format!("{locale}.xliff")));
 
     let store = FsFileStore::new();
-    store.write(&output_path, &xml)?;
+    let destination = resolve_export_destination(&store, &path, &output_path)?;
+    store.write(&destination, &xml)?;
 
     let output_display = output_path.display().to_string();
 
@@ -62,7 +67,7 @@ fn execute(
         };
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else {
-        eprintln!("Exported {count} keys to {output_display}");
+        eprintln!("Exported {count} translation leaves to {output_display}");
     }
 
     Ok(ExitCode::from(EXIT_OK))

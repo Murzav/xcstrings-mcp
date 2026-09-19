@@ -1,3 +1,4 @@
+pub mod assessment;
 pub mod context;
 pub mod coverage;
 pub mod creator;
@@ -17,27 +18,6 @@ pub mod plural_extractor;
 pub mod semantic_merge;
 pub mod strings_parser;
 pub mod stringsdict_parser;
+pub(crate) mod submission;
 pub mod validator;
 pub mod xliff;
-
-use crate::model::xcstrings::{StringEntry, TranslationState};
-
-/// Check if an entry has a translated localization for the given locale.
-/// A key is considered translated if it has:
-/// - a string_unit with state == Translated, OR
-/// - any variations present (plural/device)
-pub(crate) fn is_translated_for(entry: &StringEntry, locale: &str) -> bool {
-    let Some(locs) = &entry.localizations else {
-        return false;
-    };
-    let Some(loc) = locs.get(locale) else {
-        return false;
-    };
-    if loc.variations.is_some() {
-        return true;
-    }
-    if let Some(su) = &loc.string_unit {
-        return su.state == TranslationState::Translated;
-    }
-    false
-}

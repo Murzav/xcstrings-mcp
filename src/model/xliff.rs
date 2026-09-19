@@ -16,7 +16,8 @@ pub struct XliffFile {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct XliffUnit {
     pub id: String,
-    pub source: String,
+    /// Xcode may omit source on reexported added plural cases.
+    pub source: Option<String>,
     pub target: Option<String>,
     pub state: Option<String>,
     pub state_qualifier: Option<String>,

@@ -1,0 +1,1066 @@
+{
+  "toolchain": {
+    "xcode": "27.0",
+    "build": "27A266a",
+    "observed": "2026-09-19"
+  },
+  "files": [
+    {
+      "path": "positive/catalog-matrix/source.xcstrings",
+      "origin": "corpus-capture/positive-matrix/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "6c47bdab0cc70174e2fa5a2b7f4105d5c4007221ae9446139d9a60e2e078f289"
+    },
+    {
+      "path": "positive/catalog-matrix/exported.xliff",
+      "origin": "corpus-capture/positive-matrix/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "a49d1b096f236bf4a9da9f6cdf3db3e67a99751dfdf1c4a606014c4450014bd1"
+    },
+    {
+      "path": "positive/catalog-matrix/expected-after-import.xcstrings",
+      "origin": "corpus-capture/positive-matrix/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "c40ef78f47cee860ed7244a28206994f1f3bcf3ffeaea6f770eda624583c3e49"
+    },
+    {
+      "path": "positive/catalog-matrix/reexported.xliff",
+      "origin": "corpus-capture/positive-matrix/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "6d1386cf7087b1ab71d7699e46c690c60449723c8023128b33398a422f44091a"
+    },
+    {
+      "path": "positive/catalog-matrix/results.json",
+      "origin": "corpus-capture/positive-matrix/results.json",
+      "kind": "experiment_result",
+      "sha256": "51074ca64f7dcf64fcb8c5c9a5f397a4bf61c724cd68b7fda11104b4ba9b4c81"
+    },
+    {
+      "path": "positive/catalog-matrix/expected-units.json",
+      "origin": "corpus-capture/positive-matrix/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "2101c0da29d139c0e4a62594acd78a1974dcbc3f7d6f90e97a40417b7b5b5e0f"
+    },
+    {
+      "path": "positive/catalog-matrix/compile.log",
+      "origin": "corpus-capture/positive-matrix-compile.log",
+      "kind": "command_log",
+      "sha256": "0c89b6e444b078d96d0131a8244f9aa0ccc776af010cbd3acb216601bce04305"
+    },
+    {
+      "path": "positive/catalog-matrix/export.log",
+      "origin": "corpus-capture/positive-matrix-export.log",
+      "kind": "command_log",
+      "sha256": "4f5f1e2b4c9ad6f58a6978805a8bbef91141fda8109bccc56afc34ceb8308f17"
+    },
+    {
+      "path": "positive/catalog-matrix/import.log",
+      "origin": "corpus-capture/positive-matrix-import.log",
+      "kind": "command_log",
+      "sha256": "3645689f8246734e2af7f19ce31215c88c29efa7e09cd0ad804572e79ff1a01b"
+    },
+    {
+      "path": "positive/catalog-matrix/after-compile.log",
+      "origin": "corpus-capture/positive-matrix-after-compile.log",
+      "kind": "command_log",
+      "sha256": "925223ed94148992d188c71609e53d41346710b6630dfe78159385eb4131f6db"
+    },
+    {
+      "path": "positive/catalog-matrix/reexport.log",
+      "origin": "corpus-capture/positive-matrix-reexport.log",
+      "kind": "command_log",
+      "sha256": "213a120e4e78b95727b711d1963a21130e75e012272fbcb196a36cdc3a771dc5"
+    },
+    {
+      "path": "positive/multiple-catalogs/source.xcstrings",
+      "origin": "phase-b/multiple-catalogs/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "9772a086f1f026044a18623e658242fdef1d2e272f6f7acaaaf2c5d43ab1f0e2"
+    },
+    {
+      "path": "positive/multiple-catalogs/exported.xliff",
+      "origin": "phase-b/multiple-catalogs/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "829ac8a9290141cf4e839bba31724c72377a89dbd468f2e5d0cc1cf40e2f3db8"
+    },
+    {
+      "path": "positive/multiple-catalogs/expected-after-import.xcstrings",
+      "origin": "phase-b/multiple-catalogs/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "9772a086f1f026044a18623e658242fdef1d2e272f6f7acaaaf2c5d43ab1f0e2"
+    },
+    {
+      "path": "positive/multiple-catalogs/reexported.xliff",
+      "origin": "phase-b/multiple-catalogs/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "829ac8a9290141cf4e839bba31724c72377a89dbd468f2e5d0cc1cf40e2f3db8"
+    },
+    {
+      "path": "positive/multiple-catalogs/results.json",
+      "origin": "phase-b/multiple-catalogs/results.json",
+      "kind": "experiment_result",
+      "sha256": "83c67bcbd3379cc34c8f7b911871b09a62a81baec0382fc3db5b6f5ef71a7877"
+    },
+    {
+      "path": "positive/multiple-catalogs/expected-units.json",
+      "origin": "phase-b/multiple-catalogs/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "2821fd4f01d0299527bc8c382652dd53ac20ebd4206fb0aaddd7e60b5ff5f455"
+    },
+    {
+      "path": "positive/multiple-catalogs/compile.log",
+      "origin": "phase-b/multiple-catalogs-compile.log",
+      "kind": "command_log",
+      "sha256": "c549776f9944db40a87becfa97891ffb331b6d5f328ed6932897fe38bfed2646"
+    },
+    {
+      "path": "positive/multiple-catalogs/export.log",
+      "origin": "phase-b/multiple-catalogs-export.log",
+      "kind": "command_log",
+      "sha256": "d292bc43e0486fffff305b4b1f27a411e7b707522e7aba394230562e3ffef441"
+    },
+    {
+      "path": "positive/multiple-catalogs/import.log",
+      "origin": "phase-b/multiple-catalogs-import.log",
+      "kind": "command_log",
+      "sha256": "f90b9beb065d031019620fd0a799aaa0e851cfa3986f967b2f99a5b2fdabc406"
+    },
+    {
+      "path": "positive/multiple-catalogs/after-compile.log",
+      "origin": "phase-b/multiple-catalogs-after-compile.log",
+      "kind": "command_log",
+      "sha256": "16dc0abf945a70708a02338a58bb37d41b0b84a70a90096ecd8960969e3bcd57"
+    },
+    {
+      "path": "positive/multiple-catalogs/reexport.log",
+      "origin": "phase-b/multiple-catalogs-reexport.log",
+      "kind": "command_log",
+      "sha256": "e581675a80443ce3d5e0fd9f6219e6e947162d7d7584f0116d836f59d81bc1a0"
+    },
+    {
+      "path": "positive/multiple-catalogs/source-custom.xcstrings",
+      "origin": "phase-b/multiple-catalogs/export/fr.xcloc/Source Contents/Custom.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "bd13505d5e67763e81ba1096d84392b8445d5549566a3974aa5fcbea7d5d9dc6"
+    },
+    {
+      "path": "positive/multiple-catalogs/expected-custom-after-import.xcstrings",
+      "origin": "phase-b/multiple-catalogs/custom-after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "524975fd4ed5001c5e1680560bc085c9b1950fa325bf4e942ef7a15f4399a0ba"
+    },
+    {
+      "path": "behavior/state-import/source.xcstrings",
+      "origin": "phase-b/states-import/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "d13b9bd8cca444f428438b05caf630ee0667eb07d61325824b60113c3d55d1fd"
+    },
+    {
+      "path": "behavior/state-import/exported.xliff",
+      "origin": "phase-b/states-import/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "f776731dc3817d2e0231dc5c8391e9730ebefcb6243022d0d386fa03fb773230"
+    },
+    {
+      "path": "behavior/state-import/expected-after-import.xcstrings",
+      "origin": "phase-b/states-import/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "18d5ae123f909ffe2b6c5642a94a87e7cef04a308bc726fb6e4070f8c31cd9e7"
+    },
+    {
+      "path": "behavior/state-import/reexported.xliff",
+      "origin": "phase-b/states-import/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "445a9485f2e150f300268cc531fc06066c49729e5c38e033ee05f644c78677e0"
+    },
+    {
+      "path": "behavior/state-import/results.json",
+      "origin": "phase-b/states-import/results.json",
+      "kind": "experiment_result",
+      "sha256": "0f3c51192c54d43975909ddf5506ed51a6789f0a6fa03c58b0a79f43dbce0b84"
+    },
+    {
+      "path": "behavior/state-import/import-edited.xliff",
+      "origin": "phase-b/states-import/export/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "bbce97a25abdf886204caf6a8fe0995c48e7101306fd807c64fc5131ccc807ce"
+    },
+    {
+      "path": "behavior/state-import/expected-units.json",
+      "origin": "phase-b/states-import/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "c57da4c3f914a7cad9e6969af7dd92981470aaabdf07cfe63b7bf747dcad9d8e"
+    },
+    {
+      "path": "behavior/state-import/compile.log",
+      "origin": "phase-b/states-import-compile.log",
+      "kind": "command_log",
+      "sha256": "88946fc29d68fd522cb3f39040e802d570d6ee2207c6ff26b09d28a71f3068ba"
+    },
+    {
+      "path": "behavior/state-import/export.log",
+      "origin": "phase-b/states-import-export.log",
+      "kind": "command_log",
+      "sha256": "ceb610f3b3b00d079dd49176fe4d5f547e497cceafd08892cec56ed63b1c0516"
+    },
+    {
+      "path": "behavior/state-import/import.log",
+      "origin": "phase-b/states-import-import.log",
+      "kind": "command_log",
+      "sha256": "7eb8d8b6eaff088dfc232c7d51bd36359be4e53628327b6eef618f7a1e605580"
+    },
+    {
+      "path": "behavior/state-import/after-compile.log",
+      "origin": "phase-b/states-import-after-compile.log",
+      "kind": "command_log",
+      "sha256": "904c941a6fceb4b6d9236d22060eed5e10797be925693543344bed00381b58a7"
+    },
+    {
+      "path": "behavior/state-import/reexport.log",
+      "origin": "phase-b/states-import-reexport.log",
+      "kind": "command_log",
+      "sha256": "c2393bf5eb1d859d0fb8b87c987b883ae276ff4dad0ce923dc317548eefaf9f2"
+    },
+    {
+      "path": "behavior/state-qualifiers/source.xcstrings",
+      "origin": "phase-b/qualifiers/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "98530a664e72db409ef1d5170bfa3226c6cbea86bfa34e6a49d53af3c4086c76"
+    },
+    {
+      "path": "behavior/state-qualifiers/exported.xliff",
+      "origin": "phase-b/qualifiers/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "7f6b8c79c0958429a8b30aec1ef293e900a3145f1857e546f445fcaf5e5d288c"
+    },
+    {
+      "path": "behavior/state-qualifiers/expected-after-import.xcstrings",
+      "origin": "phase-b/qualifiers/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "4b322c2a4d2f949927b5bc10d4e88f3ca94f3a9b444600f2ccd7d49d8fa46743"
+    },
+    {
+      "path": "behavior/state-qualifiers/reexported.xliff",
+      "origin": "phase-b/qualifiers/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "a560e97c1fe783e4344456c06e7faa696ec97abd666f79c32a30fda54670065f"
+    },
+    {
+      "path": "behavior/state-qualifiers/results.json",
+      "origin": "phase-b/qualifiers/results.json",
+      "kind": "experiment_result",
+      "sha256": "4256ff645ac7057076b0591e7b10c377f05684a28dbecbee9c0dcacae7500008"
+    },
+    {
+      "path": "behavior/state-qualifiers/import-edited.xliff",
+      "origin": "phase-b/qualifiers/export/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "f9420b3032dd491472c79af179e33a79b5be63e838f50afa8bfd035889814ae8"
+    },
+    {
+      "path": "behavior/state-qualifiers/expected-units.json",
+      "origin": "phase-b/qualifiers/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "cc4f623ce6e1b83e1e94556121b5508fe670fbf47755f69973bdc57b23ff43eb"
+    },
+    {
+      "path": "behavior/state-qualifiers/compile.log",
+      "origin": "phase-b/qualifiers-compile.log",
+      "kind": "command_log",
+      "sha256": "9ea8e61b9a8f25cac83d541f1caa149ced994163dc88745faa6b83529f62ee38"
+    },
+    {
+      "path": "behavior/state-qualifiers/export.log",
+      "origin": "phase-b/qualifiers-export.log",
+      "kind": "command_log",
+      "sha256": "19379fe64d7ce4c1f9315414437ab10bc978edb6e49b9a4e6b4f072df3f8aabd"
+    },
+    {
+      "path": "behavior/state-qualifiers/import.log",
+      "origin": "phase-b/qualifiers-import.log",
+      "kind": "command_log",
+      "sha256": "4d192c0db8ded52f4054e4a7b3da68a8a67fcb303139d8fce124f3896f8ed10e"
+    },
+    {
+      "path": "behavior/state-qualifiers/after-compile.log",
+      "origin": "phase-b/qualifiers-after-compile.log",
+      "kind": "command_log",
+      "sha256": "dce6c5da262495341f210a8b4f75d6d50967f12a3722b3d0ca200bc4aecd3e70"
+    },
+    {
+      "path": "behavior/state-qualifiers/reexport.log",
+      "origin": "phase-b/qualifiers-reexport.log",
+      "kind": "command_log",
+      "sha256": "0b6e549e7daf423534dcce43fc18bacfc43308b3397123fac08855ded198de04"
+    },
+    {
+      "path": "behavior/plural-fallback/source.xcstrings",
+      "origin": "phase-b/shape-boundaries/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "b863d89ba0b78a287967029a0d7fc505a78d03904872ba85d14e202efc010623"
+    },
+    {
+      "path": "behavior/plural-fallback/exported.xliff",
+      "origin": "phase-b/shape-boundaries/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "821e53eb1d9d3921c15adc821545886cda87e23c2d44695ae99e88b95b035780"
+    },
+    {
+      "path": "behavior/plural-fallback/expected-after-import.xcstrings",
+      "origin": "phase-b/shape-boundaries/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "7f8b9c772b001c50c1efba64a2b3123e1659f45b1457155ba991d566e4b6aa31"
+    },
+    {
+      "path": "behavior/plural-fallback/reexported.xliff",
+      "origin": "phase-b/shape-boundaries/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "88586b4bb6e0e83a211751684558490d93eb1a12ffd00bcb9a846ede1d26557c"
+    },
+    {
+      "path": "behavior/plural-fallback/results.json",
+      "origin": "phase-b/shape-boundaries/results.json",
+      "kind": "experiment_result",
+      "sha256": "c020a276ccaeb07cd009ee0df56cb09050a53c75519a1be4811229d06ede4681"
+    },
+    {
+      "path": "behavior/plural-fallback/expected-units.json",
+      "origin": "phase-b/shape-boundaries/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "98da0063b2b5078211f186e3af26a5fe9dc5666b964c7ed5614a8bf4f30f190c"
+    },
+    {
+      "path": "behavior/plural-fallback/compile.log",
+      "origin": "phase-b/shape-boundaries-compile.log",
+      "kind": "command_log",
+      "sha256": "458ebe1f5254f5c2c56bb719bc241ede1058d0b2b27002bc5ae2198efd82f628"
+    },
+    {
+      "path": "behavior/plural-fallback/export.log",
+      "origin": "phase-b/shape-boundaries-export.log",
+      "kind": "command_log",
+      "sha256": "a9e185d9c3e62a542f342e6342e3f89c6b887f873067ff11ac7e526985f7729f"
+    },
+    {
+      "path": "behavior/plural-fallback/import.log",
+      "origin": "phase-b/shape-boundaries-import.log",
+      "kind": "command_log",
+      "sha256": "34e260a56ea26bbddcf284fb0cb16d648d2050341ac0f3597ebf15582afdd0e4"
+    },
+    {
+      "path": "behavior/plural-fallback/after-compile.log",
+      "origin": "phase-b/shape-boundaries-after-compile.log",
+      "kind": "command_log",
+      "sha256": "490d20eb7eacb4840c6145bbf7d88c80e1f83159d2a9670a25aa0b1087c4db4d"
+    },
+    {
+      "path": "behavior/plural-fallback/reexport.log",
+      "origin": "phase-b/shape-boundaries-reexport.log",
+      "kind": "command_log",
+      "sha256": "88e29d06f96a1ca7410282ce1d8ab88f000e58e896c16b7ba9862c7df2efc209"
+    },
+    {
+      "path": "behavior/missing-locale-uk/source.xcstrings",
+      "origin": "corpus-capture/missing-locale-uk/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "aa7ac80f0a0856782e68bfe4a5e58b241776d8fa4b443a339c9839182331fdb0"
+    },
+    {
+      "path": "behavior/missing-locale-uk/exported.xliff",
+      "origin": "corpus-capture/missing-locale-uk/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "5ee966959769a54304b27d20a9d47cb8f8b5544ef00b5db45b7de909c5f84c77"
+    },
+    {
+      "path": "behavior/missing-locale-uk/expected-after-import.xcstrings",
+      "origin": "corpus-capture/missing-locale-uk/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "aa7ac80f0a0856782e68bfe4a5e58b241776d8fa4b443a339c9839182331fdb0"
+    },
+    {
+      "path": "behavior/missing-locale-uk/reexported.xliff",
+      "origin": "corpus-capture/missing-locale-uk/reexport/uk.xcloc/Localized Contents/uk.xliff",
+      "kind": "xcode_export",
+      "sha256": "5ee966959769a54304b27d20a9d47cb8f8b5544ef00b5db45b7de909c5f84c77"
+    },
+    {
+      "path": "behavior/missing-locale-uk/results.json",
+      "origin": "corpus-capture/missing-locale-uk/results.json",
+      "kind": "experiment_result",
+      "sha256": "745cf1172709e7e020fab40b54134088ec61fbc132b0da71b25e6ab82473b91a"
+    },
+    {
+      "path": "behavior/missing-locale-uk/expected-units.json",
+      "origin": "corpus-capture/missing-locale-uk/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "7b635b2bb409067ee51307da2a126395a3fc1bfba64e2288b36efecc326d57c1"
+    },
+    {
+      "path": "behavior/missing-locale-uk/compile.log",
+      "origin": "corpus-capture/missing-locale-uk-compile.log",
+      "kind": "command_log",
+      "sha256": "a647c151225e9c236d4d8fb8455e228360bc1e735624423e3750d79279fd8cd3"
+    },
+    {
+      "path": "behavior/missing-locale-uk/export.log",
+      "origin": "corpus-capture/missing-locale-uk-export.log",
+      "kind": "command_log",
+      "sha256": "e2c0e0b430cc0f982d897c1954d91f7fcfabdb38cc5c316ca73b921f1b2f63ff"
+    },
+    {
+      "path": "behavior/missing-locale-uk/import.log",
+      "origin": "corpus-capture/missing-locale-uk-import.log",
+      "kind": "command_log",
+      "sha256": "8cf00d707998288cb6d7c4ceaa92f66352ef07cf01b349a62ac34308ffb22ac0"
+    },
+    {
+      "path": "behavior/missing-locale-uk/after-compile.log",
+      "origin": "corpus-capture/missing-locale-uk-after-compile.log",
+      "kind": "command_log",
+      "sha256": "f8c000701e3292684f9e538065fffe82a61c24365cf8573c1a33c2a85d1ad9d6"
+    },
+    {
+      "path": "behavior/missing-locale-uk/reexport.log",
+      "origin": "corpus-capture/missing-locale-uk-reexport.log",
+      "kind": "command_log",
+      "sha256": "b052313afcf4c33b967754207959eb39e0df6bd9c87e82a22343f852e853c502"
+    },
+    {
+      "path": "behavior/inline-import/source.xcstrings",
+      "origin": "phase-b/inline-import/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "89727c78ac5c76bb41b91ae362d0f39e70fd980a1a0040bbee9a2ba985002752"
+    },
+    {
+      "path": "behavior/inline-import/exported.xliff",
+      "origin": "phase-b/inline-import/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "5794e0b0818d3734f29250c8ca8ca1370761a2dbacb571b665e8ed811819fe2e"
+    },
+    {
+      "path": "behavior/inline-import/expected-after-import.xcstrings",
+      "origin": "phase-b/inline-import/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "82ae18f5c2532804ce1f4a308ac8acb9017c3eda096872ac1b399ade8cebde91"
+    },
+    {
+      "path": "behavior/inline-import/reexported.xliff",
+      "origin": "phase-b/inline-import/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "27e27161f76a4f23f4ec62d3a8f7affd4d6c11ee6b8feba9b8953fb9f0ac4313"
+    },
+    {
+      "path": "behavior/inline-import/results.json",
+      "origin": "phase-b/inline-import/results.json",
+      "kind": "experiment_result",
+      "sha256": "2fff4c767834bc7a0b5cf6e862e0ca60b79725cfd870cbc087c350a28c409ebf"
+    },
+    {
+      "path": "behavior/inline-import/import-edited.xliff",
+      "origin": "phase-b/inline-import/export/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "7f2364ee0cee4eb7fe8f7b62d7bc21ccfe9d9cc85e23085a0bdebd7da3ef9eeb"
+    },
+    {
+      "path": "behavior/inline-import/expected-units.json",
+      "origin": "phase-b/inline-import/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "b73a941daf2830ff1b4740601002f0f10307eada9c97480a3a9b31bdf799d736"
+    },
+    {
+      "path": "behavior/inline-import/compile.log",
+      "origin": "phase-b/inline-import-compile.log",
+      "kind": "command_log",
+      "sha256": "33892805847e33408edcd8e828df18205064f90ad11154955357b1ad8fed352c"
+    },
+    {
+      "path": "behavior/inline-import/export.log",
+      "origin": "phase-b/inline-import-export.log",
+      "kind": "command_log",
+      "sha256": "cc34e05cddfd7bde988573a17112ea8135b6dc85a5705c6d2f5de0d1bb1be519"
+    },
+    {
+      "path": "behavior/inline-import/import.log",
+      "origin": "phase-b/inline-import-import.log",
+      "kind": "command_log",
+      "sha256": "0193898af167322a52cd38efaa176096d50c7e33fc6245fd8d907ba21ad89cd9"
+    },
+    {
+      "path": "behavior/inline-import/after-compile.log",
+      "origin": "phase-b/inline-import-after-compile.log",
+      "kind": "command_log",
+      "sha256": "1cc73dbfe075aeafa229fd4b17b3568b31b08f1b092bad12e389b00a8af56b75"
+    },
+    {
+      "path": "behavior/inline-import/reexport.log",
+      "origin": "phase-b/inline-import-reexport.log",
+      "kind": "command_log",
+      "sha256": "984237e2bc4bda497895839187b2971baff04a9c3ca50a076e8c8e2be1533318"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/source.xcstrings",
+      "origin": "phase-b/target-create/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "0a7dcd4e422d2f6eeea2057e2c2f2bb57f81b83dbe80b653095268e3f76ba4c7"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/exported.xliff",
+      "origin": "phase-b/target-create/before.xliff",
+      "kind": "xcode_export",
+      "sha256": "96b1946345b47dc5ec0fca79d97b9d0020e3ddb005041c6fe728340a1e90c4be"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/expected-after-import.xcstrings",
+      "origin": "phase-b/target-create/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "8ba01aee2b6855317554ee9063020a8aa30dc98161ac237a4799bac63e33894e"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/reexported.xliff",
+      "origin": "phase-b/target-create/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "f02181c7651c4d54d4ddb0bb58f228b3ece2d63679597d32caa42123c0fcbea0"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/results.json",
+      "origin": "phase-b/target-create/results.json",
+      "kind": "experiment_result",
+      "sha256": "b2aad940ae5d08742dabd2e76c17fdf13269b47bdc54bc32e5d1c10aa93ab717"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/expected-units.json",
+      "origin": "phase-b/target-create/before.xliff",
+      "kind": "oracle_extraction",
+      "method": "ElementTree namespace-aware extraction; no production codec",
+      "sha256": "c3ca7827d24cee3d13673ae99ff29a904bcd3808b2758f72496a40a7b9923b57"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/compile.log",
+      "origin": "phase-b/target-create-compile.log",
+      "kind": "command_log",
+      "sha256": "2c2e59b3b509780a872fcc4b63d27979118045bd857e7520b4656e212f491cd0"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/export.log",
+      "origin": "phase-b/target-create-export.log",
+      "kind": "command_log",
+      "sha256": "46f00daeb05fec515e17b52223509e74440f99595e2b2375714e15bb05463ba9"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/import.log",
+      "origin": "phase-b/target-create-import.log",
+      "kind": "command_log",
+      "sha256": "5e1444b4124a496950c2e4dec6e2ed00371b2227f26a504ac84ad1a3c1c6cf19"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/after-compile.log",
+      "origin": "phase-b/target-create-after-compile.log",
+      "kind": "command_log",
+      "sha256": "5b9f6397dc68ce5411110b701e2251b8c1dc1a6ae9d111262099be42d861b829"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/reexport.log",
+      "origin": "phase-b/target-create-reexport.log",
+      "kind": "command_log",
+      "sha256": "6eb0c355eca289e5579bb0bb381e492c5aa4f86fb56a7e80409081ff51fd8952"
+    },
+    {
+      "path": "negative/new-target-substitution-loss/destination-before-import.xcstrings",
+      "origin": "phase-b/target-create-input.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "b724fa43b2702ee765ec04b7f999b7b60ba3fb7df67e4951846f81056772c7ea"
+    },
+    {
+      "path": "negative/delimiter-substitution-loss/source.xcstrings",
+      "origin": "valid-source.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "9ca40efb485b032ac374f1f316c6c4643487410ce7c685143b39099f9820bc44"
+    },
+    {
+      "path": "negative/delimiter-substitution-loss/exported.xliff",
+      "origin": "valid-export/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "2d09b637e8bf93974815c19ddb96e6f4d3378d0186937b9cc2eb35eaebac45ce"
+    },
+    {
+      "path": "negative/delimiter-substitution-loss/observed-after-import.xcstrings",
+      "origin": "valid-after-import.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "36e1514911709a74697af2d5fff1d24ec889b74b85e59386ef89d9e0b29b8f53"
+    },
+    {
+      "path": "negative/delimiter-substitution-loss/reexported.xliff",
+      "origin": "reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "d97db98bd3443e9580406a0a479335ba787112d0bea2f71006cb56b037dc2560"
+    },
+    {
+      "path": "negative/id-collision/source.xcstrings",
+      "origin": "extended-source.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "41ef14ad39fc60ded01a30cf5a7a048d4828c596dc8a32ae78fb7fae840c7b68"
+    },
+    {
+      "path": "negative/id-collision/export.log",
+      "origin": "extended-export.log",
+      "kind": "command_log",
+      "sha256": "bf5f0b8b875523ea6357e45969d248e663b86ff8e38fe07234c41f9a9ff748e9"
+    },
+    {
+      "path": "negative/invalid-nesting/device-other-nested.xcstrings",
+      "origin": "source.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "1976ae6b0e2354342e745fdaa1ea82ad261e0cbdb2afcd0a217f5bfa23a895f3"
+    },
+    {
+      "path": "negative/invalid-nesting/device-other-compile.log",
+      "origin": "compile.log",
+      "kind": "command_log",
+      "sha256": "e301e6b98a3f7e4127d091fde9cf7a74140baa0df627a244f446c55876985bf5"
+    },
+    {
+      "path": "negative/invalid-nesting/plural-device-and-at-name.xcstrings",
+      "origin": "names-source.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "c7fbdfc5544058acee169f3b922547729cff85da250c63c2c279a4c3b0d1c515"
+    },
+    {
+      "path": "negative/invalid-nesting/plural-device-and-at-name-compile.log",
+      "origin": "compile-names.log",
+      "kind": "command_log",
+      "sha256": "68c2822a9f81781aa0533a3d735412cb59bcb20882668ece06a67490d929c056"
+    },
+    {
+      "path": "provenance/single-catalog-project.pbxproj",
+      "origin": "Oracle.xcodeproj/project.pbxproj",
+      "kind": "project_input",
+      "sha256": "fe5ed317c04e6392c4203a8fb350c559b7950e2fa6e2c7a47ad197f3f37249d2"
+    },
+    {
+      "path": "provenance/multiple-catalogs-project.pbxproj",
+      "origin": "phase-b/Oracle.xcodeproj/project.pbxproj",
+      "kind": "project_input",
+      "sha256": "fe5ed317c04e6392c4203a8fb350c559b7950e2fa6e2c7a47ad197f3f37249d2"
+    },
+    {
+      "path": "provenance/capture_corpus.py",
+      "origin": "capture_corpus.py",
+      "kind": "experiment_script",
+      "sha256": "8eba85bdbef94f20a418f2a0531ebdad7c7f0d16cf75dc8328f8021f331ff47f"
+    },
+    {
+      "path": "provenance/probe.py",
+      "origin": "phase-b/probe.py",
+      "kind": "experiment_script",
+      "sha256": "44e14b6413ffaa6abc384285feee5f139c28e8ff9dccc47a109653e0d9065451"
+    },
+    {
+      "path": "provenance/probe_extra.py",
+      "origin": "phase-b/probe_extra.py",
+      "kind": "experiment_script",
+      "sha256": "b2a4b3336bcbde7f643ec20807e0b6b7a65dcb7bdd21073437ae36e769c4da62"
+    },
+    {
+      "path": "provenance/probe_final.py",
+      "origin": "phase-b/probe_final.py",
+      "kind": "experiment_script",
+      "sha256": "82a303e6055cd9e40bcca979761e12944416b5d98fc6ae2c4ec739fd149f3007"
+    },
+    {
+      "path": "behavior/partial-device/source.xcstrings",
+      "origin": "phase-b/partial-device/Localizable.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "66084f3466be6a683899197ebbc8e3b8fed4c65204f6c4b20c552882e664be09"
+    },
+    {
+      "path": "behavior/partial-device/exported.xliff",
+      "origin": "phase-b/partial-device/export/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "ab627ec0ef59a34f58b0e9208c450986925c5cffdf9ab2ed5a997b57b938bf32"
+    },
+    {
+      "path": "behavior/partial-device/export.log",
+      "origin": "phase-b/partial-device/export.log",
+      "kind": "command_log",
+      "sha256": "483b87b3ff342d6ee6b328ddf8046a5df9f4ee817bfafb63a0edbb4c0556c58f"
+    },
+    {
+      "path": "negative/substitution-without-parent/source.xcstrings",
+      "origin": "phase-b/partial-substitution/leaf-only.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "dfc36b0b7818db62eb8df9d2ee37b9164b821f2f8065b214ec6125f893ad2160"
+    },
+    {
+      "path": "negative/substitution-without-parent/compile.log",
+      "origin": "phase-b/partial-substitution/leaf-only.log",
+      "kind": "command_log",
+      "sha256": "70c110d91851ce990c3786e480855adf6159db39ea80f481c623510c4522292c"
+    },
+    {
+      "path": "negative/literal-variation-suffix/source.xcstrings",
+      "origin": "phase-b/literal-delimiters/existing/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "920af22f2085334da21ea22d7cfa2c3b8cac949c871d23240b2e65f6d293ff15"
+    },
+    {
+      "path": "negative/literal-variation-suffix/exported.xliff",
+      "origin": "phase-b/literal-delimiters/existing/actual-export.xliff",
+      "kind": "xcode_export",
+      "sha256": "0c95ee98b2b593e9014d3e2dbef79b7b8f2cb7cf4756320c4b2881952987ce97"
+    },
+    {
+      "path": "negative/literal-variation-suffix/import-edited.xliff",
+      "origin": "phase-b/literal-delimiters/existing/edited-input.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "42ee7d56fc090e5cf011596aa630fbc516f506ec0b57bc388c92cfc695ba3ef7"
+    },
+    {
+      "path": "negative/literal-variation-suffix/expected-after-import.xcstrings",
+      "origin": "phase-b/literal-delimiters/existing/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "ce94edd9f41021dcf78650420a2d315142b18f0026556f728fdf2133e6f93154"
+    },
+    {
+      "path": "negative/literal-variation-suffix/export.log",
+      "origin": "phase-b/literal-delimiters/existing/export.log",
+      "kind": "command_log",
+      "sha256": "61663695bcab99be7d0fcebdf4d3e803b917e3767954ce28c46fd9478e4a5ef9"
+    },
+    {
+      "path": "negative/literal-variation-suffix/import.log",
+      "origin": "phase-b/literal-delimiters/existing/import.log",
+      "kind": "command_log",
+      "sha256": "6235a53c8cf1d14f5a5dda77622a6260fc6a3e1362f4f9b9764efd1e5e82ee6f"
+    },
+    {
+      "path": "negative/literal-variation-suffix/after-compile.log",
+      "origin": "phase-b/literal-delimiters/existing/compile.log",
+      "kind": "command_log",
+      "sha256": "01fbb9c596bd4d1df4976fd4b20b4ea52596e7de6348fabf6b27d835a2eec400"
+    },
+    {
+      "path": "negative/literal-variation-suffix/reexport.log",
+      "origin": "phase-b/literal-delimiters/existing/reexport.log",
+      "kind": "command_log",
+      "sha256": "eb9859fba1011ec358fdcd622aa251098d3b0875d5db838e78acd021829876e0"
+    },
+    {
+      "path": "negative/literal-variation-suffix/reexported.xliff",
+      "origin": "phase-b/literal-delimiters/existing/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "b6806d57eeeef0e1e87d54e7ec44625875b3b206ab2d7a3fdd9b5380401796c8"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/source.xcstrings",
+      "origin": "phase-b/changed-cases/many-own-id/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "c0abd61863b62d493d8edd1d4ac1a58e5dca1f54ce151139531c0f6c6fb0654f"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/exported.xliff",
+      "origin": "phase-b/changed-cases/many-own-id/actual-export.xliff",
+      "kind": "xcode_export",
+      "sha256": "f7f7e00afc7456af27496114f55a4c4832ce29e1dd174bbd6562ab839c0c4ffe"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/import-edited.xliff",
+      "origin": "phase-b/changed-cases/many-own-id/edited-input.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "808d5a562a26c7c49d4f7a5591a551a663759cd81ee7ef494b10c14fef2a5c1b"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/expected-after-import.xcstrings",
+      "origin": "phase-b/changed-cases/many-own-id/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "87abc95f64865bc71d384025247bc4dffe7e27dd3d5d913c5b8dda38accb6e4a"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/export.log",
+      "origin": "phase-b/changed-cases/many-own-id/export.log",
+      "kind": "command_log",
+      "sha256": "319784b0b4e85aa7ca04693ae4942ddf469180ba5d05a5be21ee2742bf0732f3"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/import.log",
+      "origin": "phase-b/changed-cases/many-own-id/import.log",
+      "kind": "command_log",
+      "sha256": "2c979fd54cca40bfd5a5c1490f1bc5baba3902faea293494eac97632335d3b39"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/after-compile.log",
+      "origin": "phase-b/changed-cases/many-own-id/compile.log",
+      "kind": "command_log",
+      "sha256": "beab708ce8c82c29ae5da97199e5ac73b62d0880f7e0fc28c35e86082bff47ce"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/reexport.log",
+      "origin": "phase-b/changed-cases/many-own-id/reexport.log",
+      "kind": "command_log",
+      "sha256": "e6285d020eae350d32f92b4183b71f12b7a7d917169d47e7be15d83120b91a78"
+    },
+    {
+      "path": "negative/new-target-case-source-identity/reexported.xliff",
+      "origin": "phase-b/changed-cases/many-own-id/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "0d0346f705bf042c98845ea51b82a965a0aab78a8aa68bc273d549357b72d0e1"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/source.xcstrings",
+      "origin": "phase-b/changed-cases/many-other-id/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "c0abd61863b62d493d8edd1d4ac1a58e5dca1f54ce151139531c0f6c6fb0654f"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/exported.xliff",
+      "origin": "phase-b/changed-cases/many-other-id/actual-export.xliff",
+      "kind": "xcode_export",
+      "sha256": "f7f7e00afc7456af27496114f55a4c4832ce29e1dd174bbd6562ab839c0c4ffe"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/import-edited.xliff",
+      "origin": "phase-b/changed-cases/many-other-id/edited-input.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "e68c392397491cbc6808d79ada15a8b8ce758e056f81c59040dad9fbc58dd60e"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/expected-after-import.xcstrings",
+      "origin": "phase-b/changed-cases/many-other-id/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "013bbd1dbb9f70a3342f5496ebc443ab3b5b1a335bb6a3e41d88a5712677adc5"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/export.log",
+      "origin": "phase-b/changed-cases/many-other-id/export.log",
+      "kind": "command_log",
+      "sha256": "9e004a306728cd0cfc61319f0e76699a97a117e5bd47a7e5f1130d265ca3e2f3"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/import.log",
+      "origin": "phase-b/changed-cases/many-other-id/import.log",
+      "kind": "command_log",
+      "sha256": "f0fc548ef7323de2aafb37a351db431552cebaee1c5253e5c55aae2ca3532932"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/after-compile.log",
+      "origin": "phase-b/changed-cases/many-other-id/compile.log",
+      "kind": "command_log",
+      "sha256": "eb3b21fe1b73abfbca9ee9c8ad52767fb1016f2d9ded0b1a06bc579fc2804219"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/reexport.log",
+      "origin": "phase-b/changed-cases/many-other-id/reexport.log",
+      "kind": "command_log",
+      "sha256": "65edf59ba0f2b4589dbe018f2a0a5db70f86ec9674f37b7eac3d562982eaa682"
+    },
+    {
+      "path": "behavior/new-target-case-existing-context/reexported.xliff",
+      "origin": "phase-b/changed-cases/many-other-id/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "a652283afb00bf929e76f3f94ecc19d65afb55eba8ac013150402c739887e1c2"
+    },
+    {
+      "path": "negative/overlapping-shapes/source.xcstrings",
+      "origin": "phase-b/overlap-roundtrip/existing/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "385e4d25a9fb8cb5b9bea04c33e2b3f9750dbf04aea1764f4079ac08a2465186"
+    },
+    {
+      "path": "negative/overlapping-shapes/exported.xliff",
+      "origin": "phase-b/overlap-roundtrip/existing/actual-export.xliff",
+      "kind": "xcode_export",
+      "sha256": "42549c0a9849522810e0bbaeba1d106ad54e9784a6b7ee13d387008db5245a0d"
+    },
+    {
+      "path": "negative/overlapping-shapes/import-edited.xliff",
+      "origin": "phase-b/overlap-roundtrip/existing/edited-input.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "dbfaa83db14431ef45091bf62c575f0a77ce4c6d125f9baca0650cc204dce2b0"
+    },
+    {
+      "path": "negative/overlapping-shapes/expected-after-import.xcstrings",
+      "origin": "phase-b/overlap-roundtrip/existing/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "2bbadc635aa11b4233c20afc4059e1b31956fb8a7149bb87521aabc636985b16"
+    },
+    {
+      "path": "negative/overlapping-shapes/export.log",
+      "origin": "phase-b/overlap-roundtrip/existing/export.log",
+      "kind": "command_log",
+      "sha256": "badcb684830676290e818456fd33b11af653c379faa1bc5a110759cae18c1412"
+    },
+    {
+      "path": "negative/overlapping-shapes/import.log",
+      "origin": "phase-b/overlap-roundtrip/existing/import.log",
+      "kind": "command_log",
+      "sha256": "7ad6658fe35fedc32e3652dc08c522238281a5a61f8cec1ec5c98d2c75a2ec73"
+    },
+    {
+      "path": "negative/overlapping-shapes/after-compile.log",
+      "origin": "phase-b/overlap-roundtrip/existing/compile.log",
+      "kind": "command_log",
+      "sha256": "87e3513f19e8c895c753daa56c415a4f4a8a5abeae05fccaafc37bec1be3edf6"
+    },
+    {
+      "path": "negative/overlapping-shapes/reexport.log",
+      "origin": "phase-b/overlap-roundtrip/existing/reexport.log",
+      "kind": "command_log",
+      "sha256": "06d7485f3063f05ee0fb2e783f9545a13be6ed0626bf3057c8b578b8da440cd0"
+    },
+    {
+      "path": "negative/overlapping-shapes/reexported.xliff",
+      "origin": "phase-b/overlap-roundtrip/existing/reexport/fr.xcloc/Localized Contents/fr.xliff",
+      "kind": "xcode_export",
+      "sha256": "dcdbb0aa9dbbf252b80f0afa29cd2a5323fd6dd1996290ec4ceb395baaeac01e"
+    },
+    {
+      "path": "provenance/changed_probe.py",
+      "origin": "phase-b/changed_probe.py",
+      "kind": "experiment_script",
+      "sha256": "3f3606aacfafcea8a1ec08f7bf1fcfbf22828202fafc920cfbc3b059684eeded"
+    },
+    {
+      "path": "provenance/literal_probe.py",
+      "origin": "phase-b/literal_probe.py",
+      "kind": "experiment_script",
+      "sha256": "9fae36e78b2af9517a548de9c47bb558d6430db2e09b843e0175a93316d3c760"
+    },
+    {
+      "path": "provenance/overlap_probe.py",
+      "origin": "phase-b/overlap_probe.py",
+      "kind": "experiment_script",
+      "sha256": "a4d1f7112ed4cb862e21d22471ffbc5b425b660283f7f913d43f0892e4615654"
+    },
+    {
+      "path": "positive/catalog-matrix-safe/source.xcstrings",
+      "origin": "positive/catalog-matrix/source.xcstrings",
+      "kind": "derived_catalog_input",
+      "method": "remove exact key ambiguous|==|plural.one only; JSON dump indent2",
+      "origin_sha256": "6c47bdab0cc70174e2fa5a2b7f4105d5c4007221ae9446139d9a60e2e078f289",
+      "sha256": "323be4aa31c9dd07d2fde87707351d3a3f1d77d1b2b3730af51820306ce2b70b"
+    },
+    {
+      "path": "positive/device-root-substitution/source.xcstrings",
+      "origin": "phase-b/device-substitution-placement/root-de/before.xcstrings",
+      "kind": "catalog_input",
+      "sha256": "54df57af3a4b53fb4711083da38ad125011deb95ed57c16d8f9e8ee69c57ce97"
+    },
+    {
+      "path": "positive/device-root-substitution/exported.xliff",
+      "origin": "phase-b/device-substitution-placement/root-de/export/de.xcloc/Localized Contents/de.xliff",
+      "kind": "xcode_export",
+      "sha256": "2f9282b64c7d4326e5a869338b83d39c98255fe77b426c1d8ffa841aed40507a"
+    },
+    {
+      "path": "positive/device-root-substitution/import-edited.xliff",
+      "origin": "phase-b/device-substitution-placement/root-de/edited-input.xliff",
+      "kind": "edited_xcode_export",
+      "sha256": "5301daae0d293fa316b2f2ec42cb72101ec51d53f49283cc5c04dd5387ad2a25"
+    },
+    {
+      "path": "positive/device-root-substitution/expected-after-import.xcstrings",
+      "origin": "phase-b/device-substitution-placement/root-de/after.xcstrings",
+      "kind": "xcode_import_result",
+      "sha256": "2cef015d54ceb9a6ab1961496c441556c595896f3f9b6e83dbc4f567c46bd313"
+    },
+    {
+      "path": "positive/device-root-substitution/reexported.xliff",
+      "origin": "phase-b/device-substitution-placement/root-de/reexport/de.xcloc/Localized Contents/de.xliff",
+      "kind": "xcode_export",
+      "sha256": "74932c083fb0861d6eeca7c15c8448821a11afc53ad5670e579ace50ef9a9b08"
+    },
+    {
+      "path": "positive/device-root-substitution/compile.log",
+      "origin": "phase-b/device-substitution-placement/root-de/compile-before.log",
+      "kind": "command_log",
+      "sha256": "b73a2563732a8ff04f2a15c28b422b0ad14dfbc084f377bfbebb3f15f258230c"
+    },
+    {
+      "path": "positive/device-root-substitution/export.log",
+      "origin": "phase-b/device-substitution-placement/root-de/export.log",
+      "kind": "command_log",
+      "sha256": "a5f8877129a9ab2f04c2240cb004f36ea7c4ebdd85dce769497f35a1bd60e095"
+    },
+    {
+      "path": "positive/device-root-substitution/import.log",
+      "origin": "phase-b/device-substitution-placement/root-de/import.log",
+      "kind": "command_log",
+      "sha256": "613dae7a546d6c66ce2aded2c4743c0d58f61ee0fda43b95d93210e7c39e4c47"
+    },
+    {
+      "path": "positive/device-root-substitution/after-compile.log",
+      "origin": "phase-b/device-substitution-placement/root-de/compile-after.log",
+      "kind": "command_log",
+      "sha256": "38a19ddecef63ca8342adff503c295465f8a58365529b73f89a6150eb1e15e24"
+    },
+    {
+      "path": "positive/device-root-substitution/reexport.log",
+      "origin": "phase-b/device-substitution-placement/root-de/reexport.log",
+      "kind": "command_log",
+      "sha256": "e58681fc8ffaa4d04e75fadb4e80ed4951c8c4b719509b2617ca52aaf485a45f"
+    }
+  ],
+  "cases": [
+    {
+      "path": "positive/catalog-matrix",
+      "category": "positive",
+      "notes": "Compiler-valid Apple shapes. Multi parent positional references normalize, and source-only plural gains new target leaves; exact expected import is included. All unrelated native metadata retained."
+    },
+    {
+      "path": "positive/multiple-catalogs",
+      "category": "positive",
+      "notes": "Duplicate shared key scoped to two file originals; no flattening."
+    },
+    {
+      "path": "behavior/state-import",
+      "category": "behavior",
+      "notes": "Changed targets; missing differs from empty; unfinished states ignored by Xcode. import-edited XML is deliberately transformed, not original Apple output."
+    },
+    {
+      "path": "behavior/state-qualifiers",
+      "category": "behavior",
+      "notes": "machine_translated qualifier mapping; other qualifier behavior."
+    },
+    {
+      "path": "behavior/plural-fallback",
+      "category": "behavior",
+      "notes": "only-other compiles; Xcode synthesizes missing French one. Source plural may have simple target."
+    },
+    {
+      "path": "behavior/missing-locale-uk",
+      "category": "behavior",
+      "notes": "Missing target locale few/many source fallback uses source other; one uses source one. All exported targets absent."
+    },
+    {
+      "path": "behavior/inline-import",
+      "category": "behavior",
+      "notes": "Edited standard inline content flattens; empty x contributes no text. This is not approval to flatten opaque placeholders."
+    },
+    {
+      "path": "negative/new-target-substitution-loss",
+      "category": "negative",
+      "notes": "Xcode import silently drops newly introduced substitution leaves. Expected output documents the bug, never desired application behavior."
+    },
+    {
+      "path": "negative/delimiter-substitution-loss",
+      "category": "negative",
+      "notes": "Mixed original fixture is compiler-valid but PIPE|==|NAME target substitution is lost by Apple import; do not treat whole fixture as positive."
+    },
+    {
+      "path": "negative/id-collision",
+      "category": "negative",
+      "notes": "Literal key ambiguous|==|plural.one collides with varied key ambiguous; Apple export crashes. No exported XML exists."
+    },
+    {
+      "path": "negative/invalid-nesting",
+      "category": "negative",
+      "notes": "Compiler rejects device.other further variation, plural leaf further variation and @-containing substitution references. Inputs deliberately retained whole with provenance; do not advertise all recursive trees as valid."
+    }
+  ]
+}

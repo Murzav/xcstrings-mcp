@@ -13,7 +13,18 @@ fn typed_paths_resolve_recursive_devices_plurals_and_substitution_context() {
     })).unwrap();
 
     let traversal = collect_leaves(&localization);
-    assert_eq!(traversal.diagnostics, vec![]);
+    assert_eq!(
+        traversal
+            .diagnostics
+            .iter()
+            .map(|d| (&d.path, &d.code, d.detail.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(
+            &vec![],
+            &LeafDiagnosticCode::InvalidShape,
+            "stringUnit and variations cannot coexist safely"
+        )]
+    );
     assert_eq!(
         traversal
             .leaves
@@ -112,6 +123,7 @@ fn traversal_diagnoses_empty_localization_and_empty_axis() {
             .map(|d| (&d.path, &d.code))
             .collect::<Vec<_>>(),
         vec![
+            (&vec![], &LeafDiagnosticCode::InvalidShape),
             (&vec![], &LeafDiagnosticCode::EmptyAxis),
             (
                 &vec![LeafStep::Device(DeviceCategory::IPhone)],
@@ -144,5 +156,49 @@ fn all_seven_apple_devices_have_known_typed_variants() {
             DeviceCategory::Mac,
             DeviceCategory::Other
         ]
+    );
+}
+
+#[test]
+fn traversal_reports_lossy_overlapping_shapes_without_discarding_data() {
+    let catalog = xcstrings_mcp::service::parser::parse(include_str!(
+        "fixtures/apple_xcode27/negative/overlapping-shapes/source.xcstrings"
+    ))
+    .unwrap();
+    let root = &catalog.strings["unit_and_variations"]
+        .localizations
+        .as_ref()
+        .unwrap()["en"];
+    let traversal = collect_leaves(root);
+    assert_eq!(traversal.leaves.len(), 3);
+    assert_eq!(
+        traversal
+            .diagnostics
+            .iter()
+            .map(|d| (&d.path, &d.code, d.detail.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(
+            &vec![],
+            &LeafDiagnosticCode::InvalidShape,
+            "stringUnit and variations cannot coexist safely"
+        )]
+    );
+    let axes = &catalog.strings["plural_and_device"]
+        .localizations
+        .as_ref()
+        .unwrap()["en"];
+    let traversal = collect_leaves(axes);
+    assert_eq!(traversal.leaves.len(), 4);
+    assert_eq!(
+        traversal
+            .diagnostics
+            .iter()
+            .map(|d| (&d.path, &d.code, d.detail.as_str()))
+            .collect::<Vec<_>>(),
+        vec![(
+            &vec![],
+            &LeafDiagnosticCode::InvalidShape,
+            "plural and device axes cannot coexist safely"
+        )]
     );
 }

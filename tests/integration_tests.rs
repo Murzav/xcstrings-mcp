@@ -53,6 +53,7 @@ fn parse_validate_merge_roundtrip() {
         value: "Ласкаво просимо до застосунку".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
 
     // Validate first
@@ -118,6 +119,7 @@ fn specifier_mismatch_rejected() {
         value: "Привіт".to_string(), // missing %@
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
 
     let rejected = validator::validate_translations(&file, &translations);
@@ -146,6 +148,7 @@ fn should_not_translate_filtered_in_flow() {
         value: "MeineApp".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
     let rejected = validator::validate_translations(&file, &translations);
     assert_eq!(rejected.len(), 1);
@@ -165,6 +168,7 @@ fn sequential_merges_no_corruption() {
         value: "Hallo".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
     let r1 = merger::merge_translations(&mut file, &t1);
     assert_eq!(r1.accepted, 1);
@@ -176,6 +180,7 @@ fn sequential_merges_no_corruption() {
         value: "Willkommen in der App".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
     let r2 = merger::merge_translations(&mut file, &t2);
     assert_eq!(r2.accepted, 1);
@@ -223,6 +228,7 @@ fn full_roundtrip_with_memory_store() {
             value: format!("DE: {}", unit.source_text),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         })
         .collect();
 
@@ -308,6 +314,7 @@ fn xcode_generated_submit_and_reformat() {
         value: "사용 가능한 제품".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
 
     let rejected = validator::validate_translations(&file, &translations);
@@ -492,6 +499,7 @@ fn plural_extract_then_submit() {
         value: String::new(),
         plural_forms: Some(plural_forms),
         substitution_name: None,
+        ..Default::default()
     }];
 
     // Note: validator specifier check uses string_unit fallback (key name) for
@@ -540,6 +548,7 @@ fn substitution_roundtrip() {
         value: String::new(),
         plural_forms: Some(plural_forms),
         substitution_name: Some("BIRDS".to_string()),
+        ..Default::default()
     }];
 
     let result = merger::merge_translations(&mut file, &translations);
@@ -649,6 +658,7 @@ fn plural_validate_then_merge_full_flow() {
         value: String::new(),
         plural_forms: Some(plural_forms),
         substitution_name: None,
+        ..Default::default()
     }];
 
     // Validate — should pass (validator now handles plural-only source keys)
@@ -767,6 +777,7 @@ fn multiline_specifier_safe() {
         value: "Рядок 1\nРядок 2\nРядок 3".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
 
     let rejected = validator::validate_translations(&file, &translations);
@@ -892,6 +903,7 @@ fn batch_retry_continue_on_error_writes_valid() {
             value: "Hallo".to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         },
         // Invalid: specifier_key needs %@ but translation lacks it
         CompletedTranslation {
@@ -900,6 +912,7 @@ fn batch_retry_continue_on_error_writes_valid() {
             value: "Hallo ohne Spezifizierer".to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         },
     ];
 
@@ -976,7 +989,7 @@ fn xliff_export_import_roundtrip() {
     let (locale, translations) = xliff::import_xliff(&xml).unwrap();
     assert_eq!(locale, "uk");
 
-    // Only entries with non-empty target text are imported.
+    // Only entries with an explicit ready target are imported, including blanks.
     // "greeting" has uk translation -> imported. "welcome_message" does not -> skipped.
     assert!(
         !translations.is_empty(),
@@ -1115,7 +1128,7 @@ mod proptest_tests {
                     value: format!("DE: {k}"),
                     plural_forms: None,
                     substitution_name: None,
-                })
+                 ..Default::default() })
                 .collect();
 
             if !translations.is_empty() {
@@ -1142,7 +1155,7 @@ mod proptest_tests {
                     value: format!("DE: {k}"),
                     plural_forms: None,
                     substitution_name: None,
-                })
+                 ..Default::default() })
                 .collect();
 
             if !translations.is_empty() {
@@ -1232,18 +1245,18 @@ mod proptest_tests {
 
             let translatable = file.strings.values().filter(|e| e.should_translate).count();
 
-            // Add locale "test_xx"
-            locale::add_locale(&mut file, "test_xx").unwrap();
+            // Add locale "ja"
+            locale::add_locale(&mut file, "ja").unwrap();
             let locales_after_add = locale::list_locales(&file);
-            let test_locale = locales_after_add.iter().find(|l| l.locale == "test_xx").unwrap();
+            let test_locale = locales_after_add.iter().find(|l| l.locale == "ja").unwrap();
             prop_assert_eq!(test_locale.total, translatable);
 
-            // Remove locale "test_xx"
-            locale::remove_locale(&mut file, "test_xx", "en").unwrap();
+            // Remove locale "ja"
+            locale::remove_locale(&mut file, "ja", "en").unwrap();
             let locales_after_remove = locale::list_locales(&file);
             prop_assert!(
-                !locales_after_remove.iter().any(|l| l.locale == "test_xx"),
-                "test_xx locale should be gone after remove"
+                !locales_after_remove.iter().any(|l| l.locale == "ja"),
+                "ja locale should be gone after remove"
             );
 
             // Key count unchanged
@@ -1279,6 +1292,7 @@ fn xcode26_version_11_merge_preserves_version() {
         value: "Meine App".to_string(),
         plural_forms: None,
         substitution_name: None,
+        ..Default::default()
     }];
     merger::merge_translations(&mut file, &translations);
     let formatted = formatter::format_xcstrings(&file).unwrap();
@@ -1378,6 +1392,7 @@ fn full_lifecycle_create_add_translate_coverage() {
             value: "Мій Застосунок".to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         },
         CompletedTranslation {
             key: "subtitle".to_string(),
@@ -1385,6 +1400,7 @@ fn full_lifecycle_create_add_translate_coverage() {
             value: "Ласкаво просимо".to_string(),
             plural_forms: None,
             substitution_name: None,
+            ..Default::default()
         },
     ];
 

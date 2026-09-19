@@ -14,16 +14,17 @@ MCP server for iOS/macOS .xcstrings (String Catalog) localization. Parse, transl
 
 `.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `one/few/many/other` — easy to miss, painful to debug.
 
-xcstrings-mcp is a small Rust process that sits between the assistant and the file. The assistant calls structured tools (read this batch, validate that translation, write the result atomically); the bytes on disk stay byte-identical to what Xcode would produce.
+xcstrings-mcp is a small Rust process that sits between the assistant and the file. The assistant calls structured tools to read a batch, validate translations, and write atomically while preserving catalog data and Xcode's JSON formatting.
 
 ## Features
 
 - 28 MCP tools, 8 prompts, and 12 CLI commands for the full translation lifecycle
 - Batch translation that fits the context window: pull 50–100 keys at a time
+- Recursive Apple plural, device, substitution, and supported chained variations, with typed paths for individual translation leaves
 - Deterministic Foundation format-argument and CLDR plural validation: definite `%d`/`%@`/`%jd` mismatches block (including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text such as `%lld日`), while percent signs in prose such as `85% of` are accepted with explicit warnings; substitution plurals require exact `%arg` placeholders and reject longer Unicode words
-- Atomic writes that match Xcode's JSON formatting exactly (`" : "` colon spacing, preserved key order, BOM stripped on read and never re-emitted)
+- Atomic writes with Xcode's `" : "` colon spacing; known/unknown fields, explicit defaults/nulls, and member order survive edits (BOM stripped on read and never re-emitted)
 - Legacy migration from `.strings` and `.stringsdict` (UTF-8/UTF-16, plural rules, positional specifiers)
-- XLIFF 1.2 import/export with decoded, XML-normalized attributes and namespace URIs plus consistent official default/prefix-qualified namespace support for external translation tools; imports enforce `xliff > file > body > group/trans-unit` structure, accept bound foreign extensions only at schema extension points, reject malformed order/cardinality before writes, and retain fully unqualified legacy compatibility without allowing mixed structural modes
+- Apple XLIFF 1.2 variation IDs, exact file scopes, draft text/state preservation, and all-or-nothing import with stale-write detection; strict XML structure/namespaces and fully unqualified legacy input remain supported
 - Glossary support so terminology stays consistent across locales
 - Conservative ordered three-way catalog merge with stable conflicts, dry-run fingerprints, and compare-and-swap apply
 - Tested with Claude Code, Cursor, VS Code + Copilot, Windsurf, Zed, and OpenAI Codex; should work with any MCP client
@@ -143,15 +144,21 @@ transport: stdio
 ```
 </details>
 
-### Rust library compatibility
+### Upgrading to 2.0
 
-The CLI binary and stdio MCP configuration are unchanged. Rust applications that embed the public `XcStringsMcpServer` type must use `rmcp` 3.1.2 and Rust 1.88 or newer:
+The binary name and stdio MCP configuration are unchanged. Rust applications that embed `XcStringsMcpServer` need Rust 1.88 or newer and a compatible `rmcp` 3.4 dependency:
 
 ```toml
-rmcp = { version = "3.1.2", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "3.4", features = ["server", "transport-io", "macros"] }
 ```
 
 `rmcp` 2.x and 3.x expose distinct Rust traits and response types, so an embedder compiled against `rmcp` 2.x must update its direct dependency before adopting this release.
+
+The public catalog model is recursive. Catalog maps use `model::xcstrings::OrderedMap` (`IndexMap`), and plural/device branches are `Localization` values with optional `string_unit`, nested variations, and substitutions. Replace old map types and leaf struct literals accordingly. Use `XcStringsFile::new`, `StringUnit::new`, `Localization::with_unit`, or `..Default::default()` for new catalog objects; retain `extra` and `layout` when changing parsed objects. Rust `CompletedTranslation` literals need `path: None` for legacy requests or `Some(vec![...])` for an explicit leaf.
+
+For full Apple XLIFF import in Rust, use `service::xliff::parse_document` followed by catalog-aware `service::xliff::plan_import`, or `xliff_operation::execute_import` with a `FileStore` for the conditional atomic write. The retained `service::xliff::import_xliff` adapter returns flattened simple translations. It rejects Apple-delimited IDs, multiple file originals, and draft, machine-translated, or unsupported target states instead of discarding their semantics; explicit empty ready targets are retained. Migrate callers that need full variation, scope, and state support to the catalog-aware API.
+
+MCP inspection adds `leaves` and `diagnostics`; existing summary fields remain available. Native `accepted` counts submitted requests, while XLIFF `accepted`/`exported_count` count translation units. Use `accepted_destinations` for concrete key/locale/path identities. XLIFF import now rejects the entire selected scope on any invalid unit, imports draft states, and treats an explicit empty target as intentional text. Missing targets remain no-ops. The application release number is independent of the catalog's `version` field, which native edits preserve.
 
 The public `XcStringsError` enum is now non-exhaustive so future error variants do not create the same source break. Downstream matches must add a wildcard arm:
 
@@ -196,8 +203,8 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 | `get_diff` | Compare cached vs on-disk file (added/removed/modified keys) |
 | `get_glossary` | Get translation glossary entries for a locale pair |
 | `update_glossary` | Add or update glossary terms |
-| `export_xliff` | Export simple `stringUnit` entries to XLIFF 1.2; variation-only plural, device, and substitution entries are excluded |
-| `import_xliff` | Import simple `stringUnit` IDs from one-root XLIFF 1.2; empty Xcode IDs are accepted safely, while Apple `|==|` variation IDs, XML-normalized duplicate unit IDs, malformed structure/namespaces, and unsafe multi-file collisions are rejected before writes |
+| `export_xliff` | Export supported Apple translation leaves and variation IDs to XLIFF 1.2 |
+| `import_xliff` | Import one exact catalog scope atomically, preserving target text and translation states |
 | `import_strings` | Migrate legacy `.strings`/`.stringsdict` files to `.xcstrings` |
 | `search_keys` | Search keys by substring; `format_specifiers` lists definite arguments only |
 | `create_xcstrings` | Create a new empty .xcstrings file |
@@ -209,6 +216,32 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 | `get_key` | Get all translations for a specific key across all locales |
 | `rename_key` | Rename a localization key, preserving all translations |
 | `merge_xcstrings` | Three-way semantic merge of complete catalogs with stable conflicts, resolutions, validation delta, and exact-byte CAS apply |
+
+### Translating Apple variations
+
+Inspect `leaves` from `get_untranslated`, `get_plurals`, or each locale in `get_key.translations`. Each leaf includes its typed `path`, source text, current value/state when present, required/completion flags, and substitution metadata. Copy the returned path into a submission:
+
+```json
+{"translations":[
+  {"key":"items","locale":"fr","path":[{"plural":"many"}],"value":"%lld éléments"},
+  {"key":"phone_items","locale":"fr","path":[{"device":"iphone"},{"plural":"other"}],"value":"%lld éléments"},
+  {"key":"bird_count","locale":"fr","path":[{"substitution":"BIRDS"},{"plural":"one"}],"value":"%arg oiseau"}
+],"dry_run":true}
+```
+
+`path: []` explicitly selects the root `stringUnit`. Omitting `path` retains legacy simple submissions and `plural_forms`/`substitution_name` aggregates; do not mix those selectors with `path`. Preserve the format arguments shown for that leaf, including `%arg` where present. Duplicate or overlapping destinations are rejected. For an all-or-nothing native batch, set `continue_on_error: false`.
+
+Supported device categories are `iphone`, `ipad`, `mac`, `applewatch`, `appletv`, `applevision`, and `other`. Supported chains include device→plural. Device text can reference substitutions declared at the localization root; their leaf paths start with `substitution`, independently of the device path. Nested substitutions inside a device branch are unsupported. A plural case cannot be further varied, and `device.other` must be a simple fallback. Source and target may use different valid shapes, including target-only variations. Unknown fields and enum values survive native edits; unsupported axes/shapes and unknown locales remain diagnostic and incomplete.
+
+Coverage requires every required leaf to be `translated` or `machine_translated`. Explicit empty text in either state is complete; missing, `new`, and `needs_review` leaves are incomplete. Required plural categories come from pinned CLDR 48.2.1: for example Ukrainian requires `one/few/many/other`, and French `one/many/other`. These are completeness recommendations, not Xcode's minimum compiler requirements. Successful compilation alone does not prove translation completeness.
+
+### Apple XLIFF workflow
+
+Export defaults to incomplete leaves; use `untranslated_only: false` (CLI `--all`) for every leaf. `original` sets the exact exported `<file original="…">`; import requires it when several distinct originals exist and reports skipped scopes. It never guesses a catalog from a basename. Dotted substitution names and keys containing `|==|` are resolved in catalog context, not split blindly.
+
+Preview with `dry_run: true`, inspect `rejected`, `accepted_destinations`, `missing_targets`, and `skipped_scopes`, then apply. A rejected batch or stale write leaves the catalog and cache unchanged. Native unknown metadata survives the import. Draft `new`/`needs-review-*` targets retain text and state; `translated` with `state-qualifier="leveraged-mt"` maps to `machine_translated`. A missing `<target>` does nothing; `<target state="translated"/>` intentionally clears the leaf. Xcode itself may skip drafts, so its behavior differs here.
+
+Apple interoperability has limits. Xcode can ignore changes to a literal key such as `ambiguous|==|plural.one` even without a competing base key, so export rejects literals resembling valid variation IDs. Exact literal imports and native edits remain supported when the destination is unambiguous; ordinary keys such as `varied|==|key` are supported. Substitution names containing `|==|` cannot safely roundtrip through Xcode and fail XLIFF conversion before writes. Xcode can also silently drop newly introduced target-only substitution leaves, so verify changed content after an external import. The importer accepts Xcode’s source-less plural units only when they contain a target and resolve to an existing target plural leaf; source-less simple units remain invalid. XLIFF 2.x and opaque inline placeholder semantics are unsupported; malformed XML, unsupported state mappings, and unsafe shapes are rejected.
 
 ### Merging catalog conflicts
 
@@ -247,7 +280,7 @@ xcstrings-mcp --json merge \
   --expected-fingerprints '{"base":"sha256:...","current":"sha256:...","incoming":"sha256:...","output":null}'
 ```
 
-Filesystem apply compares the exact expected output bytes while holding a stable sibling advisory lock, then writes one target-owned temporary file, fsyncs it, and atomically renames it. Any orphan cleanup for that target happens under the same lock. Expected absence is directory-entry aware, so an unexpected dangling symlink is rejected instead of replaced. Live `.xcstrings` aliases must resolve to real `.xcstrings` catalogs; internal lock/temp sidecars are reserved, and redirected, non-regular, or multiply linked lock files fail closed. This serializes cooperating xcstrings-mcp CLI/MCP writers. It cannot prevent an external editor that ignores the advisory lock; the fingerprint/CAS checks detect stale state when it is observable, but this is not a multi-file atomic snapshot. The semantic merge preserves unknown raw JSON, while later legacy typed mutation tools do not promise to preserve unknown fields.
+Filesystem apply compares the exact expected output bytes while holding a stable sibling advisory lock, then writes one target-owned temporary file, fsyncs it, and atomically renames it. Any orphan cleanup for that target happens under the same lock. Expected absence is directory-entry aware, so an unexpected dangling symlink is rejected instead of replaced. Live `.xcstrings` aliases must resolve to real `.xcstrings` catalogs; internal lock/temp sidecars are reserved, and redirected, non-regular, or multiply linked lock files fail closed. This serializes cooperating xcstrings-mcp CLI/MCP writers. It cannot prevent an external editor that ignores the advisory lock; the fingerprint/CAS checks detect stale state when it is observable, but this is not a multi-file atomic snapshot. Both semantic merge and native catalog mutation preserve unknown fields.
 
 ### Prompts
 
@@ -311,13 +344,13 @@ xcstrings-mcp export --locale de -o out.xliff
 |---------|-------------|
 | `info` | File summary: source language, keys, locales |
 | `coverage` | Translation coverage per locale |
-| `validate` | Check definite Foundation arguments, exact substitution placeholders, percent-prose warnings, plurals, and empty values |
+| `validate` | Check format arguments, substitution placeholders, percent-prose warnings, and required leaf completeness |
 | `search <pattern>` | Find keys by substring |
 | `stale` | List stale/removed keys |
 | `add-locale <locale>` | Add a new locale |
 | `remove-locale <locale>` | Remove a locale |
-| `export` | Export simple `stringUnit` entries to XLIFF 1.2; skip variation-only entries |
-| `import` | Import simple `stringUnit` IDs from structurally validated XLIFF 1.2; empty Xcode IDs are accepted safely, while Apple `|==|` variation IDs, XML-normalized duplicate unit IDs, malformed structure/namespaces, and unsafe multi-file collisions fail before writes |
+| `export` | Export supported Apple leaves to XLIFF 1.2; `--all` includes complete translations |
+| `import` | Atomically import one XLIFF 1.2 scope; `--original` selects an exact file original |
 | `migrate` | Migrate legacy .strings/.stringsdict |
 | `merge` | Three-way semantic catalog merge; dry-run by default, apply with exact fingerprints and resolutions |
 | `completions <shell>` | Generate shell completions |
@@ -326,6 +359,11 @@ XLIFF unit IDs are compared after XML 1.0 attribute normalization. An Xcode
 export whose distinct raw keys differ only by an attribute line break versus a
 space therefore fails closed as a duplicate instead of silently overwriting a
 catalog translation.
+
+```sh
+xcstrings-mcp export Localizable.xcstrings --locale fr --all --original App/Localizable.xcstrings -o fr.xliff
+xcstrings-mcp import Localizable.xcstrings --xliff fr.xliff --original App/Localizable.xcstrings --dry-run --json
+```
 
 `--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`. Validation keeps definite format mismatches and invalid positional arguments blocking, recognizes arguments next to unspaced Han, Hiragana, Katakana, and Hangul text, and rejects `%arg` when it is merely a prefix of a longer Unicode word. XLIFF import reports accepted ambiguous percent sequences in `warnings[]` (and on stderr in human-readable mode).
 
@@ -347,7 +385,7 @@ What it actually does for you:
 
 - Stops Claude from reading raw `.xcstrings` files (which would just dump tens of thousands of tokens into the context for no benefit)
 - Picks the right tool sequence per workflow (translate, migrate, audit, export, and catalog merge/conflict resolution)
-- Handles CLDR plural categories per locale (Ukrainian wants `one/few/many`, Japanese only wants `other`)
+- Handles required CLDR categories and typed variation paths (Ukrainian `one/few/many/other`, Japanese `other`)
 - Keeps glossary terms consistent across translations
 - Spawns one subagent per language for parallel multi-locale work
 
@@ -364,11 +402,11 @@ Or clone and copy:
 cp -r skills/xcstrings-mcp ~/.claude/skills/
 ```
 
-The skill covers full translation, language management, coverage audits, legacy migration, simple-string XLIFF roundtrips, catalog merge/conflict resolution, plural handling, and glossary work.
+The skill covers full translation, language management, coverage audits, legacy migration, Apple XLIFF variations, catalog merge/conflict resolution, and glossary work.
 
 ## Performance
 
-Each platform release is a ~2.1–2.4 MB `.tar.gz` containing a ~4.5 MB binary (stripped, LTO). The server is event-driven on stdio, so it doesn't tick when no requests are in flight.
+The server is event-driven on stdio. The measurements below predate the recursive 2.0 catalog model; use the repository benchmarks to measure the current release on your catalogs.
 
 | File | Parse | Get untranslated | Validate | RAM |
 |------|-------|-----------------|----------|-----|
@@ -376,8 +414,6 @@ Each platform release is a ~2.1–2.4 MB `.tar.gz` containing a ~4.5 MB binary (
 | 4.1 MB (2K keys × 10 locales) | 24 ms | 5 ms | 7 ms | 40 MB |
 | 10.3 MB (5K keys × 10 locales) | 60 ms | 11 ms | 23 ms | 49 MB |
 | 56.7 MB (10K keys × 30 locales) | 333 ms | 62 ms | 221 ms | 287 MB |
-
-Scaling is linear in keys × locales. A typical iOS project (2–5K keys) parses in well under 60 ms.
 
 ## Architecture
 

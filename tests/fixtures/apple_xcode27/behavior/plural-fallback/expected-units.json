@@ -1,0 +1,52 @@
+[
+  {
+    "file": {
+      "original": "Localizable.xcstrings",
+      "source-language": "en",
+      "target-language": "fr",
+      "datatype": "plaintext"
+    },
+    "units": [
+      {
+        "id": "only_other|==|plural.one",
+        "source": "EN %lld",
+        "target": null,
+        "target_attributes": null,
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "only_other|==|plural.other",
+        "source": "EN %lld",
+        "target": "FR %lld",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      },
+      {
+        "id": "varied_source_simple_target",
+        "source": "EN %lld other",
+        "target": "FR %lld flat",
+        "target_attributes": {
+          "state": "translated"
+        },
+        "notes": [
+          {
+            "attributes": {},
+            "text": null
+          }
+        ]
+      }
+    ]
+  }
+]

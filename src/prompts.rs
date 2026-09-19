@@ -105,11 +105,11 @@ impl XcStringsMcpServer {
             1. Call get_untranslated with locale=\"{locale}\" and batch_size={count}\n\
             2. For each string, translate naturally \u{2014} not word-for-word\n\
             3. Preserve the conversion, length modifier, flags, width, and precision of all definite Foundation format arguments; valid positional reordering is allowed\n\
-            4. For plural forms, use get_plurals to see required CLDR forms for {locale}\n\
+            4. Inspect leaves and diagnostics; get_plurals details plural/device/substitution chains and required CLDR forms for {locale}\n\
             5. Use get_context to understand nearby related strings\n\
-            6. Submit translations using submit_translations\n\
+            6. Submit each required incomplete leaf with its exact returned path; path=[] selects the root. Do not mix path with legacy plural_forms/substitution_name\n\
             7. Inspect rejected[] for blocking failures and warnings[] for accepted ambiguous percent-in-prose differences\n\
-            8. If there are more untranslated strings, repeat from step 1\n\
+            8. Repeat while supported leaves can be completed; report unsupported shapes/locales instead of retrying unchanged diagnostics\n\
             \n\
             Guidelines:\n\
             - Keep translations concise \u{2014} mobile UI has limited space\n\
@@ -148,8 +148,8 @@ impl XcStringsMcpServer {
             3. For each validation issue, assess severity:\n\
             \x20  - Definite Foundation argument mismatches or invalid positions: BLOCKING \u{2014} fix before submit\n\
             \x20  - Ambiguous percent-in-prose differences: WARNING \u{2014} review context; valid prose may remain unchanged\n\
-            \x20  - Missing plural forms: HIGH \u{2014} will cause runtime issues\n\
-            \x20  - Empty translations: MEDIUM \u{2014} incomplete but not broken\n\
+            \x20  - Missing required variation leaves: HIGH \u{2014} incomplete by CLDR recommendations, distinct from compiler validity\n\
+            \x20  - Missing/draft translations: MEDIUM; intentional blank translated leaves are complete\n\
             4. Review a sample of translated strings for quality:\n\
             \x20  - Natural language flow (not word-for-word translation)\n\
             \x20  - Consistent terminology\n\
@@ -188,22 +188,24 @@ impl XcStringsMcpServer {
             \x20 Call list_locales to verify {locale} exists (add_locale if needed)\n\
             \x20 Call get_glossary for existing terminology guidance\n\
             \n\
-            Step 3: Translate simple strings\n\
+            Step 3: Translate required leaves in batches\n\
             \x20 Call get_untranslated with locale=\"{locale}\"\n\
-            \x20 Translate each batch and submit with submit_translations\n\
-            \x20 Repeat until no untranslated strings remain\n\
+            \x20 Inspect leaves and diagnostics; submit each translation with its exact path (path=[] for the root)\n\
+            \x20 Preview with dry_run=true; repeat while supported leaves can be completed, reporting unsupported diagnostics\n\
             \n\
-            Step 4: Translate plural forms\n\
+            Step 4: Check all variation branches\n\
             \x20 Call get_plurals with locale=\"{locale}\"\n\
-            \x20 For each plural key, provide all required CLDR forms\n\
-            \x20 Submit using submit_translations with plural_forms\n\
+            \x20 Complete required plural/device/substitution leaves, including supported chains, using returned typed paths\n\
+            \x20 Legacy plural_forms/substitution_name require omitting path; native accepted counts input requests, accepted_destinations lists concrete leaves\n\
+            \x20 CLDR 48.2.1 requirements measure completeness, not Xcode's compiler minimum\n\
             \n\
             Step 5: Validate\n\
             \x20 Call validate_translations to check blocking errors and non-blocking warnings\n\
             \x20 Fix blocking problems; review ambiguous percent-in-prose warnings in context\n\
             \n\
             Step 6: Final check\n\
-            \x20 Call get_coverage to confirm 100% for {locale}\n\
+            \x20 Call get_coverage; only claim 100% when every required leaf is translated or machine_translated and diagnostics are resolved\n\
+            \x20 Intentional blank translated leaves are complete; missing/new/needs_review leaves and unknown shapes/locales are incomplete\n\
             \x20 Call get_diff to see all changes made",
             file_path = params.file_path,
             locale = params.locale,
@@ -238,8 +240,8 @@ impl XcStringsMcpServer {
             \x20 Categorize by severity:\n\
             \x20   BLOCKING: definite Foundation argument mismatch or invalid position\n\
             \x20   WARNING: ambiguous percent-in-prose difference \u{2014} review, but do not rewrite valid prose solely to silence it\n\
-            \x20   HIGH: missing plural forms \u{2014} will show wrong text\n\
-            \x20   MEDIUM: empty translations \u{2014} incomplete but not broken\n\
+            \x20   HIGH: missing required variation leaves \u{2014} incomplete by CLDR recommendations\n\
+            \x20   MEDIUM: missing/draft translations; intentional blank translated leaves are complete\n\
             \n\
             Step 3: Check for stale keys\n\
             \x20 Call get_stale with locale=\"{locale}\" to find removed strings\n\
@@ -286,13 +288,13 @@ impl XcStringsMcpServer {
             \x20 Ambiguous percent-in-prose differences are non-blocking; confirm the wording is intentional instead of forcing it to resemble a format argument\n\
             \n\
             Step 4: Fix HIGH issues (missing plural forms)\n\
-            \x20 For each missing plural form:\n\
+            \x20 For each missing plural/device/substitution leaf:\n\
             \x20 - Call get_plurals to see required CLDR forms for {locale}\n\
             \x20 - Provide all required forms (one, few, many, other etc.)\n\
-            \x20 - Submit with submit_translations using plural_forms\n\
+            \x20 - Submit with the exact returned path; use plural_forms only for a legacy aggregate with no path\n\
             \n\
-            Step 5: Fix MEDIUM issues (empty translations)\n\
-            \x20 These are untranslated strings \u{2014} use the translate_batch workflow\n\
+            Step 5: Complete missing or draft translations\n\
+            \x20 Preserve intentional blank translated/machine_translated leaves; new/needs_review leaves remain incomplete\n\
             \x20 Call get_untranslated and translate in batches\n\
             \n\
             Step 6: Verify\n\
@@ -430,20 +432,20 @@ impl XcStringsMcpServer {
             \x20 Call get_glossary to see existing terminology guidance\n\
             \x20 Use consistent terminology throughout\n\
             \n\
-            Step 5: Translate simple strings\n\
+            Step 5: Translate required leaves\n\
             \x20 Call get_untranslated in batches (batch_size=20)\n\
             \x20 Translate each batch naturally, preserving definite Foundation argument components; valid positional reordering is allowed\n\
-            \x20 Submit with submit_translations\n\
-            \x20 Repeat until no untranslated strings remain\n\
+            \x20 Submit with each leaf's exact returned path; path=[] selects the root\n\
+            \x20 Repeat while supported leaves can be completed; report unsupported diagnostics instead of looping\n\
             \n\
-            Step 6: Translate plural forms\n\
+            Step 6: Check plural/device/substitution chains\n\
             \x20 Call get_plurals with locale=\"{locale}\"\n\
-            \x20 For each plural key, provide all required CLDR forms\n\
-            \x20 Submit using submit_translations with plural_forms\n\
+            \x20 Complete every required typed leaf and preserve its own format arguments and substitution metadata\n\
+            \x20 Use CLDR 48.2.1 requirements; legacy plural_forms/substitution_name must not be combined with path\n\
             \n\
             Step 7: Validate and finalize\n\
             \x20 Call validate_translations to fix blocking errors and review non-blocking warnings\n\
-            \x20 Call get_coverage to confirm 100% for {locale}",
+            \x20 Call get_coverage; missing/draft leaves and unknown shapes/locales prevent completion, while intentional blank translated leaves are complete",
             locale = params.locale,
             file_instruction = file_instruction,
         );

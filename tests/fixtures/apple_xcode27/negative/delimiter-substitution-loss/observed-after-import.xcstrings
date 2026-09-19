@@ -1,0 +1,584 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+      "comment" : "Oracle ",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FR "
+          }
+        }
+      }
+    },
+    "ambiguous|==|plural.one" : {
+      "comment" : "Oracle ambiguous|==|plural.one",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN ambiguous|==|plural.one"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FR ambiguous|==|plural.one"
+          }
+        }
+      }
+    },
+    "chained" : {
+      "comment" : "Oracle chained",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "iphone" : {
+                "variations" : {
+                  "plural" : {
+                    "one" : {
+                      "stringUnit" : {
+                        "state" : "translated",
+                        "value" : "EN chained phone %lld one"
+                      }
+                    },
+                    "other" : {
+                      "stringUnit" : {
+                        "state" : "translated",
+                        "value" : "EN chained phone %lld many"
+                      }
+                    }
+                  }
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "en %lld fallback"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "device" : {
+              "iphone" : {
+                "variations" : {
+                  "plural" : {
+                    "one" : {
+                      "stringUnit" : {
+                        "state" : "translated",
+                        "value" : "FR chained phone %lld one"
+                      }
+                    },
+                    "other" : {
+                      "stringUnit" : {
+                        "state" : "translated",
+                        "value" : "FR chained phone %lld many"
+                      }
+                    }
+                  }
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "fr %lld fallback"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "device" : {
+      "comment" : "Oracle device",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "device" : {
+              "appletv" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device appletv"
+                }
+              },
+              "applevision" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device applevision"
+                }
+              },
+              "applewatch" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device applewatch"
+                }
+              },
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device ipad"
+                }
+              },
+              "iphone" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device iphone"
+                }
+              },
+              "mac" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device mac"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN device other"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "device" : {
+              "appletv" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device appletv"
+                }
+              },
+              "applevision" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device applevision"
+                }
+              },
+              "applewatch" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device applewatch"
+                }
+              },
+              "ipad" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device ipad"
+                }
+              },
+              "iphone" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device iphone"
+                }
+              },
+              "mac" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device mac"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR device other"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "literal|==|text" : {
+      "comment" : "Oracle literal|==|text",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN literal|==|text"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FR literal|==|text"
+          }
+        }
+      }
+    },
+    "plural" : {
+      "comment" : "Oracle plural",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN plural %lld one"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN plural %lld many"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR plural %lld one"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR plural %lld many"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "simple" : {
+      "comment" : "Oracle simple",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN simple"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FR simple"
+          }
+        }
+      }
+    },
+    "state_needs_review" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Review"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "needs_review",
+            "value" : "Revoir"
+          }
+        }
+      }
+    },
+    "state_new" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Nouveau"
+          }
+        }
+      }
+    },
+    "sub_DOT.NAME" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en %#@DOT.NAME@"
+          },
+          "substitutions" : {
+            "DOT.NAME" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "en %lld single"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "en %lld multiple"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fr %#@DOT.NAME@"
+          },
+          "substitutions" : {
+            "DOT.NAME" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "fr %lld single"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "fr %lld multiple"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sub_PIPE|==|NAME" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en %#@PIPE|==|NAME@"
+          },
+          "substitutions" : {
+            "PIPE|==|NAME" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "en %lld single"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "en %lld multiple"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fr %1$#@PIPE|==|NAME@"
+          }
+        }
+      }
+    },
+    "substitution" : {
+      "comment" : "Oracle substitution",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EN substitution %#@COUNT@"
+          },
+          "substitutions" : {
+            "COUNT" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "EN substitution %lld one"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "EN substitution %lld many"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FR substitution %#@COUNT@"
+          },
+          "substitutions" : {
+            "COUNT" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "FR substitution %lld one"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "FR substitution %lld many"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "target_only_device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap"
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "device" : {
+              "iphone" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Toucher"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Cliquer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "target_only_plural" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld count"
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR count %lld single"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR count %lld multiple"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "varied|==|key" : {
+      "comment" : "Oracle varied|==|key",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN varied|==|key %lld one"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "EN varied|==|key %lld many"
+                }
+              }
+            }
+          }
+        },
+        "fr" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR varied|==|key %lld one"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "FR varied|==|key %lld many"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

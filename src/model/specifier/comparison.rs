@@ -54,22 +54,39 @@ struct LogicalFormat {
 }
 
 pub fn compare_formats(source: &str, target: &str) -> FormatComparison {
-    compare_formats_with_mode(source, target, false)
+    compare_formats_with_mode(source, target, false, false)
 }
 
-pub(crate) fn compare_substitution_formats(source: &str, target: &str) -> FormatComparison {
-    compare_formats_with_mode(source, target, true)
+/// A substitution leaf references arguments in its parent string, so gaps are legal.
+pub(crate) fn compare_format_fragment(source: &str, target: &str) -> FormatComparison {
+    compare_formats_with_mode(source, target, false, true)
 }
 
-fn compare_formats_with_mode(source: &str, target: &str, substitution: bool) -> FormatComparison {
+/// Validate a named substitution leaf within its parent's argument positions.
+pub(crate) fn compare_substitution_fragment(source: &str, target: &str) -> FormatComparison {
+    compare_formats_with_mode(source, target, true, true)
+}
+
+fn compare_formats_with_mode(
+    source: &str,
+    target: &str,
+    substitution: bool,
+    fragment: bool,
+) -> FormatComparison {
     let source_analysis = analyze_format(source);
     let target_analysis = analyze_format(target);
     let mut comparison = FormatComparison::default();
     append_analysis_problems("source", &source_analysis, &mut comparison.errors);
     append_analysis_problems("translation", &target_analysis, &mut comparison.errors);
 
-    let source_map = logical_arguments("source", &source_analysis, &mut comparison.errors);
-    let target_map = logical_arguments("translation", &target_analysis, &mut comparison.errors);
+    let source_map =
+        logical_arguments("source", &source_analysis, &mut comparison.errors, fragment);
+    let target_map = logical_arguments(
+        "translation",
+        &target_analysis,
+        &mut comparison.errors,
+        fragment,
+    );
     if comparison.errors.is_empty() {
         compare_logical_arguments(source_map, target_map, &mut comparison.errors);
     }
@@ -239,6 +256,7 @@ fn logical_arguments(
     side: &str,
     analysis: &FormatAnalysis,
     errors: &mut Vec<FormatComparisonIssue>,
+    fragment: bool,
 ) -> Option<LogicalFormat> {
     let has_positional = analysis.arguments.iter().any(has_any_position);
     let has_sequential = analysis.arguments.iter().any(has_any_sequential_argument);
@@ -325,7 +343,7 @@ fn logical_arguments(
             },
         });
     }
-    validate_positions(side, &arguments, errors)?;
+    validate_positions(side, &arguments, errors, fragment)?;
     compatible.then_some(LogicalFormat {
         arguments,
         occurrences,
@@ -336,6 +354,7 @@ fn validate_positions(
     side: &str,
     arguments: &BTreeMap<u32, ArgumentType>,
     errors: &mut Vec<FormatComparisonIssue>,
+    fragment: bool,
 ) -> Option<()> {
     if arguments.contains_key(&0) {
         errors.push(FormatComparisonIssue {
@@ -344,10 +363,11 @@ fn validate_positions(
         });
         return None;
     }
-    if arguments
-        .keys()
-        .enumerate()
-        .any(|(index, position)| *position != index as u32 + 1)
+    if !fragment
+        && arguments
+            .keys()
+            .enumerate()
+            .any(|(index, position)| *position != index as u32 + 1)
     {
         errors.push(FormatComparisonIssue {
             code: "missing_positional_argument",

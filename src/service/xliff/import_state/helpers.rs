@@ -1,5 +1,4 @@
 use super::*;
-use crate::model::translation::CompletedTranslation;
 
 impl ImportState {
     pub(super) fn finish_unit(&mut self, unit: UnitData) -> Result<(), XcStringsError> {
@@ -8,17 +7,23 @@ impl ImportState {
                 "element <trans-unit> is missing required <source> child".to_string(),
             ));
         }
-        if let Some(target) = unit.target
-            && !target.is_empty()
-        {
-            self.translations.push(CompletedTranslation {
-                key: unit.id,
-                locale: unit.locale,
-                value: target,
-                plural_forms: None,
-                substitution_name: None,
-            });
-        }
+        let file_index = self
+            .stack
+            .iter()
+            .rev()
+            .find_map(|frame| match frame.data {
+                FrameData::File { file_index, .. } => Some(file_index),
+                _ => None,
+            })
+            .ok_or_else(|| parse_error("XLIFF unit is not enclosed by <file>".into()))?;
+        self.files[file_index].units.push(XliffUnit {
+            id: unit.id,
+            source: unit.source,
+            target: unit.target,
+            state: unit.state,
+            state_qualifier: unit.state_qualifier,
+            notes: unit.notes,
+        });
         Ok(())
     }
 
@@ -72,17 +77,6 @@ impl ImportState {
             ) => true,
             _ => false,
         }
-    }
-
-    pub(super) fn enclosing_file_locale(&self) -> Result<&str, XcStringsError> {
-        self.stack
-            .iter()
-            .rev()
-            .find_map(|frame| match &frame.data {
-                FrameData::File { locale, .. } => Some(locale.as_str()),
-                _ => None,
-            })
-            .ok_or_else(|| parse_error("<trans-unit> has no enclosing <file>".to_string()))
     }
 
     pub(super) fn parent_is(&self, kind: CoreElement) -> bool {

@@ -1,0 +1,17 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "target_only_substitution": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld total"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
