@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+- Refresh direct and transitive dependencies to their latest resolvable stable versions, including rmcp 3.4, quick-xml 0.42, and jsonschema 0.56, while retaining the existing CLI and MCP behavior.
+
+### Fixed
+- XLIFF export preserves carriage returns, line feeds, and tabs in keys and carriage returns in translation text across XML roundtrips.
+- Release builds now reject tags that do not match the package version before publishing artifacts, and use the reviewed dependency lockfile for builds and publication.
+
 ## [1.4.1] - 2026-08-11
 
 ### Added

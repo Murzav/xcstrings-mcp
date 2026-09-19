@@ -15,7 +15,7 @@ pub struct TranslationUnit {
     /// Developer comment providing context for translators
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
-    /// Definite format arguments found in source (e.g., ["%@", "%lld"]). Ambiguous percent-in-prose sequences are excluded and reported as warnings during validation.
+    /// Definite format arguments found in source (e.g., `["%@", "%lld"]`). Ambiguous percent-in-prose sequences are excluded and reported as warnings during validation.
     pub format_specifiers: Vec<String>,
     /// True if key uses plural variations. Use get_plurals for full details before translating.
     pub has_plurals: bool,

@@ -49,9 +49,9 @@ pub fn parse_stringsdict(content: &str) -> Result<ParsedStringsdict, XcStringsEr
     loop {
         match reader.read_event() {
             Ok(Event::Start(ref e)) => {
-                if e.name().as_ref() == b"plist" {
+                if e.name().as_ref() == "plist" {
                     found_plist = true;
-                } else if found_plist && e.name().as_ref() == b"dict" {
+                } else if found_plist && e.name().as_ref() == "dict" {
                     break;
                 }
             }
@@ -72,7 +72,7 @@ pub fn parse_stringsdict(content: &str) -> Result<ParsedStringsdict, XcStringsEr
         match read_next_significant_event(&mut reader)? {
             SignificantEvent::Key(entry_key) => {
                 // Expect a <dict> for this entry
-                skip_to_start_tag(&mut reader, b"dict")?;
+                skip_to_start_tag(&mut reader, "dict")?;
                 if let Some(entry) = parse_entry(&mut reader, &entry_key)? {
                     entries.push(entry);
                 } else {
@@ -102,7 +102,7 @@ fn read_next_significant_event(
 ) -> Result<SignificantEvent, XcStringsError> {
     loop {
         match reader.read_event() {
-            Ok(Event::Start(ref e)) if e.name().as_ref() == b"key" => {
+            Ok(Event::Start(ref e)) if e.name().as_ref() == "key" => {
                 let text = read_text_content(reader)?;
                 return Ok(SignificantEvent::Key(text));
             }
@@ -120,16 +120,11 @@ fn read_text_content(reader: &mut Reader<&[u8]>) -> Result<String, XcStringsErro
     loop {
         match reader.read_event() {
             Ok(Event::Text(ref e)) => {
-                let decoded = e
-                    .decode()
-                    .map_err(|err| XcStringsError::StringsdictParse(err.to_string()))?;
-                text.push_str(&decoded);
+                text.push_str(e.as_ref());
             }
             Ok(Event::GeneralRef(ref e)) => {
-                let name = e
-                    .decode()
-                    .map_err(|err| XcStringsError::StringsdictParse(err.to_string()))?;
-                if let Some(resolved) = resolve_xml_entity(&name) {
+                let name = e.as_ref();
+                if let Some(resolved) = resolve_xml_entity(name) {
                     text.push_str(resolved);
                 } else if let Ok(Some(ch)) = e.resolve_char_ref() {
                     text.push(ch);
@@ -140,7 +135,7 @@ fn read_text_content(reader: &mut Reader<&[u8]>) -> Result<String, XcStringsErro
                 }
             }
             Ok(Event::CData(ref e)) => {
-                text.push_str(&String::from_utf8_lossy(e.as_ref()));
+                text.push_str(e.as_ref());
             }
             Ok(Event::End(_)) => return Ok(text),
             Ok(Event::Eof) => {
@@ -155,14 +150,14 @@ fn read_text_content(reader: &mut Reader<&[u8]>) -> Result<String, XcStringsErro
 }
 
 /// Skip events until we find a `<start>` tag with the given name.
-fn skip_to_start_tag(reader: &mut Reader<&[u8]>, tag_name: &[u8]) -> Result<(), XcStringsError> {
+fn skip_to_start_tag(reader: &mut Reader<&[u8]>, tag_name: &str) -> Result<(), XcStringsError> {
     loop {
         match reader.read_event() {
             Ok(Event::Start(ref e)) if e.name().as_ref() == tag_name => return Ok(()),
             Ok(Event::Eof) => {
                 return Err(XcStringsError::StringsdictParse(format!(
                     "unexpected EOF waiting for <{}>",
-                    String::from_utf8_lossy(tag_name)
+                    tag_name
                 )));
             }
             Err(e) => return Err(XcStringsError::StringsdictParse(e.to_string())),
@@ -186,12 +181,12 @@ fn parse_entry(
         match read_next_significant_event(reader)? {
             SignificantEvent::Key(k) if k == "NSStringLocalizedFormatKey" => {
                 // Next element should be <string>
-                skip_to_start_tag(reader, b"string")?;
+                skip_to_start_tag(reader, "string")?;
                 format_key = read_text_content(reader)?;
             }
             SignificantEvent::Key(var_name) => {
                 // Should be a variable dict
-                skip_to_start_tag(reader, b"dict")?;
+                skip_to_start_tag(reader, "dict")?;
                 if let Some(var) = parse_variable_dict(reader)? {
                     has_plural_variable = true;
                     variables.insert(var_name, var);
@@ -237,7 +232,7 @@ fn parse_variable_dict(
         match read_next_significant_event(reader)? {
             SignificantEvent::Key(k) => {
                 // All values here are <string> elements
-                skip_to_start_tag(reader, b"string")?;
+                skip_to_start_tag(reader, "string")?;
                 let value = read_text_content(reader)?;
 
                 match k.as_str() {

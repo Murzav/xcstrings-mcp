@@ -28,26 +28,26 @@ pub(super) enum CoreElement {
 }
 
 impl CoreElement {
-    pub(super) fn from_local_name(name: &[u8]) -> Option<Self> {
+    pub(super) fn from_local_name(name: &str) -> Option<Self> {
         match name {
-            b"xliff" => Some(Self::Xliff),
-            b"file" => Some(Self::File),
-            b"header" => Some(Self::Header),
-            b"body" => Some(Self::Body),
-            b"group" => Some(Self::Group),
-            b"trans-unit" => Some(Self::TransUnit),
-            b"source" => Some(Self::Source),
-            b"target" => Some(Self::Target),
-            b"seg-source" => Some(Self::SegSource),
-            b"alt-trans" => Some(Self::AltTrans),
-            b"bin-unit" => Some(Self::BinUnit),
-            b"context-group" | b"count-group" | b"note" => Some(Self::Metadata),
-            b"g" | b"x" | b"bx" | b"ex" | b"bpt" | b"ept" | b"sub" | b"it" | b"ph" | b"mrk" => {
+            "xliff" => Some(Self::Xliff),
+            "file" => Some(Self::File),
+            "header" => Some(Self::Header),
+            "body" => Some(Self::Body),
+            "group" => Some(Self::Group),
+            "trans-unit" => Some(Self::TransUnit),
+            "source" => Some(Self::Source),
+            "target" => Some(Self::Target),
+            "seg-source" => Some(Self::SegSource),
+            "alt-trans" => Some(Self::AltTrans),
+            "bin-unit" => Some(Self::BinUnit),
+            "context-group" | "count-group" | "note" => Some(Self::Metadata),
+            "g" | "x" | "bx" | "ex" | "bpt" | "ept" | "sub" | "it" | "ph" | "mrk" => {
                 Some(Self::Inline)
             }
-            b"skl" | b"external-file" | b"internal-file" | b"glossary" | b"reference"
-            | b"phase-group" | b"phase" | b"tool" | b"context" | b"count" | b"prop-group"
-            | b"prop" | b"bin-source" | b"bin-target" => Some(Self::Other),
+            "skl" | "external-file" | "internal-file" | "glossary" | "reference"
+            | "phase-group" | "phase" | "tool" | "context" | "count" | "prop-group" | "prop"
+            | "bin-source" | "bin-target" => Some(Self::Other),
             _ => None,
         }
     }
@@ -66,17 +66,17 @@ pub(super) enum ImportElementKind {
 }
 
 impl ImportElement {
-    pub(super) fn core(kind: CoreElement, name: &[u8]) -> Self {
+    pub(super) fn core(kind: CoreElement, name: &str) -> Self {
         Self {
             kind: ImportElementKind::Core(kind),
-            name: String::from_utf8_lossy(name).into_owned(),
+            name: name.to_owned(),
         }
     }
 
-    pub(super) fn extension(name: &[u8]) -> Self {
+    pub(super) fn extension(name: &str) -> Self {
         Self {
             kind: ImportElementKind::Extension,
-            name: String::from_utf8_lossy(name).into_owned(),
+            name: name.to_owned(),
         }
     }
 }

@@ -1,7 +1,7 @@
 use std::io::Cursor;
 
 use quick_xml::events::{BytesDecl, BytesEnd, BytesStart, BytesText, Event};
-use quick_xml::{Decoder, NsReader, Writer, XmlVersion};
+use quick_xml::{NsReader, Writer, XmlVersion};
 
 use crate::error::XcStringsError;
 use crate::model::translation::CompletedTranslation;
@@ -194,51 +194,36 @@ pub fn import_xliff(
     let mut state = ImportState::new();
 
     loop {
-        let decoder = reader.decoder();
         let event = reader
             .read_event()
             .map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
         match event {
             Event::Start(ref e) => {
                 let (namespace, _) = reader.resolver().resolve_element(e.name());
-                let element = document.start(decoder, &namespace, e, reader.resolver())?;
-                let target_locale = semantic_attribute(
-                    decoder,
-                    e,
-                    &element.kind,
-                    CoreElement::File,
-                    b"target-language",
-                )?;
-                let unit_id = unit_id_attribute(decoder, e, &element.kind)?;
+                let element = document.start(&namespace, e, reader.resolver())?;
+                let target_locale =
+                    semantic_attribute(e, &element.kind, CoreElement::File, "target-language")?;
+                let unit_id = unit_id_attribute(e, &element.kind)?;
                 state.start(element, target_locale, unit_id)?;
             }
             Event::Empty(ref e) => {
                 let (namespace, _) = reader.resolver().resolve_element(e.name());
-                let element = document.empty(decoder, &namespace, e, reader.resolver())?;
-                let target_locale = semantic_attribute(
-                    decoder,
-                    e,
-                    &element.kind,
-                    CoreElement::File,
-                    b"target-language",
-                )?;
-                let unit_id = unit_id_attribute(decoder, e, &element.kind)?;
+                let element = document.empty(&namespace, e, reader.resolver())?;
+                let target_locale =
+                    semantic_attribute(e, &element.kind, CoreElement::File, "target-language")?;
+                let unit_id = unit_id_attribute(e, &element.kind)?;
                 state.start(element.clone(), target_locale, unit_id)?;
                 state.end(element)?;
             }
             Event::Text(ref e) => {
-                let text = e
-                    .decode()
-                    .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
-                document.text(&text)?;
-                state.text(&text);
+                let text = e.as_ref();
+                document.text(text)?;
+                state.text(text);
             }
             Event::GeneralRef(ref e) => {
                 document.general_reference()?;
-                let name = e
-                    .decode()
-                    .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
-                let resolved = if let Some(s) = resolve_xml_entity(&name) {
+                let name = e.as_ref();
+                let resolved = if let Some(s) = resolve_xml_entity(name) {
                     s.to_owned()
                 } else if let Ok(Some(ch)) = e.resolve_char_ref() {
                     ch.to_string()
@@ -252,15 +237,13 @@ pub fn import_xliff(
             Event::End(ref e) => {
                 let (namespace, _) = reader.resolver().resolve_element(e.name());
                 let local_name = e.local_name();
-                let element = document.end(decoder, &namespace, local_name.as_ref())?;
+                let element = document.end(&namespace, local_name.as_ref())?;
                 state.end(element)?;
             }
             Event::CData(ref e) => {
                 document.cdata()?;
-                let text = e
-                    .decode()
-                    .map_err(|err| XcStringsError::XliffParse(err.to_string()))?;
-                state.text(&text);
+                let text = e.as_ref();
+                state.text(text);
             }
             Event::Decl(_) => document.declaration()?,
             Event::DocType(_) => document.doctype()?,
@@ -275,42 +258,39 @@ pub fn import_xliff(
 }
 
 fn semantic_attribute(
-    decoder: Decoder,
     element: &BytesStart<'_>,
     kind: &ImportElementKind,
     expected: CoreElement,
-    attribute: &[u8],
+    attribute: &str,
 ) -> Result<Option<String>, XcStringsError> {
     if *kind == ImportElementKind::Core(expected) {
-        normalized_attribute(decoder, element, attribute)
+        normalized_attribute(element, attribute)
     } else {
         Ok(None)
     }
 }
 
 fn unit_id_attribute(
-    decoder: Decoder,
     element: &BytesStart<'_>,
     kind: &ImportElementKind,
 ) -> Result<Option<String>, XcStringsError> {
     match kind {
         ImportElementKind::Core(CoreElement::TransUnit | CoreElement::BinUnit) => {
-            normalized_attribute(decoder, element, b"id")
+            normalized_attribute(element, "id")
         }
         _ => Ok(None),
     }
 }
 
 fn normalized_attribute(
-    decoder: Decoder,
     element: &BytesStart<'_>,
-    name: &[u8],
+    name: &str,
 ) -> Result<Option<String>, XcStringsError> {
     for attribute in element.attributes().with_checks(false) {
         let attribute = attribute.map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
         if attribute.key.as_ref() == name {
             let value = attribute
-                .decoded_and_normalized_value(XmlVersion::Implicit1_0, decoder)
+                .normalized_value(XmlVersion::Implicit1_0)
                 .map_err(|error| XcStringsError::XliffParse(error.to_string()))?;
             return Ok(Some(value.into_owned()));
         }

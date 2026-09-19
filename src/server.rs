@@ -7,7 +7,7 @@ use rmcp::{
         router::{prompt::PromptRouter, tool::ToolRouter},
         wrapper::Parameters,
     },
-    model::{ProtocolVersion, ServerCapabilities, ServerInfo},
+    model::{ProtocolVersion, ServerCapabilities, ServerConfig},
     prompt_handler, tool, tool_handler, tool_router,
 };
 use tokio::sync::Mutex;
@@ -612,8 +612,8 @@ impl XcStringsMcpServer {
 #[tool_handler(router = self.tool_router)]
 #[prompt_handler(router = self.prompt_router)]
 impl ServerHandler for XcStringsMcpServer {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_prompts()
