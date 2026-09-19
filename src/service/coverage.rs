@@ -61,7 +61,6 @@ fn locale_coverage(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
 
     use indexmap::IndexMap;
 
@@ -75,6 +74,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -87,9 +87,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: state.clone(),
                         value: format!("value_{locale}"),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
         }
@@ -102,6 +104,7 @@ mod tests {
             } else {
                 Some(localizations)
             },
+            ..Default::default()
         }
     }
 
@@ -111,6 +114,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         }
     }
 
@@ -240,10 +244,12 @@ mod tests {
             Localization {
                 string_unit: None,
                 variations: Some(Variations {
-                    plural: Some(BTreeMap::new()),
+                    plural: Some(IndexMap::new()),
                     device: None,
+                    ..Default::default()
                 }),
                 substitutions: None,
+                ..Default::default()
             },
         );
         strings.insert(
@@ -253,6 +259,7 @@ mod tests {
                 should_translate: true,
                 comment: None,
                 localizations: Some(localizations),
+                ..Default::default()
             },
         );
         let file = make_file(strings);

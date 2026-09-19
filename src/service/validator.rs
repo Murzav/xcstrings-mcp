@@ -178,10 +178,10 @@ fn resolve_plural_source<'a>(
         .and_then(|variations| variations.plural.as_ref())
     {
         if let Some(value) = plural.get(form) {
-            return Some(&value.string_unit.value);
+            return value.string_unit.as_ref().map(|unit| unit.value.as_str());
         }
         if let Some(value) = plural.get("other").or_else(|| plural.values().next()) {
-            return Some(&value.string_unit.value);
+            return value.string_unit.as_ref().map(|unit| unit.value.as_str());
         }
     }
 
@@ -193,15 +193,18 @@ fn resolve_plural_source<'a>(
     )
 }
 
-fn plural_value<'a>(substitution: &'a serde_json::Value, form: &str) -> Option<&'a str> {
-    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
+fn plural_value<'a>(
+    substitution: &'a crate::model::xcstrings::Substitution,
+    form: &str,
+) -> Option<&'a str> {
+    let plural = substitution.variations.as_ref()?.plural.as_ref()?;
     plural
         .get(form)
         .or_else(|| plural.get("other"))
         .or_else(|| plural.values().next())?
-        .get("stringUnit")?
-        .get("value")?
-        .as_str()
+        .string_unit
+        .as_ref()
+        .map(|unit| unit.value.as_str())
 }
 
 #[cfg(test)]
@@ -223,6 +226,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -234,9 +238,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source_value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -244,6 +250,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -281,6 +288,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         };
         let file = make_file(vec![("api_key", entry)]);
         let translations = vec![simple_translation("api_key", "uk", "ключ")];
@@ -348,30 +356,36 @@ mod tests {
                 string_unit: None,
                 variations: Some(crate::model::xcstrings::Variations {
                     plural: Some({
-                        let mut plural = std::collections::BTreeMap::new();
+                        let mut plural = crate::model::xcstrings::OrderedMap::new();
                         plural.insert(
                             "one".to_string(),
                             crate::model::xcstrings::PluralVariation {
-                                string_unit: StringUnit {
+                                string_unit: Some(StringUnit {
                                     state: TranslationState::Translated,
                                     value: "%lld item".to_string(),
-                                },
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
                             },
                         );
                         plural.insert(
                             "other".to_string(),
                             crate::model::xcstrings::PluralVariation {
-                                string_unit: StringUnit {
+                                string_unit: Some(StringUnit {
                                     state: TranslationState::Translated,
                                     value: "%lld items".to_string(),
-                                },
+                                    ..Default::default()
+                                }),
+                                ..Default::default()
                             },
                         );
                         plural
                     }),
                     device: None,
+                    ..Default::default()
                 }),
                 substitutions: None,
+                ..Default::default()
             },
         );
         let entry = StringEntry {
@@ -379,6 +393,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         };
         let file = make_file(vec![("items", entry)]);
 

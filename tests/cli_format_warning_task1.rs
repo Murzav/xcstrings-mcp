@@ -97,20 +97,24 @@ fn simple_catalog(key: &str, value: &str) -> String {
         string_unit: Some(StringUnit {
             state: TranslationState::Translated,
             value: value.to_string(),
+            ..Default::default()
         }),
         variations: None,
         substitutions: None,
+        ..Default::default()
     };
     let entry = StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), localization)])),
+        ..Default::default()
     };
     formatter::format_xcstrings(&XcStringsFile {
         source_language: "en".to_string(),
         strings: IndexMap::from([(key.to_string(), entry)]),
         version: "1.0".to_string(),
+        ..Default::default()
     })
     .unwrap()
 }

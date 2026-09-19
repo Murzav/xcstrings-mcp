@@ -160,7 +160,12 @@ fn translations_from_localization(
             plural_forms: Some(
                 plural
                     .iter()
-                    .map(|(form, value)| (form.clone(), value.string_unit.value.clone()))
+                    .filter_map(|(form, value)| {
+                        value
+                            .string_unit
+                            .as_ref()
+                            .map(|unit| (form.clone(), unit.value.clone()))
+                    })
                     .collect(),
             ),
             substitution_name: None,
@@ -183,13 +188,15 @@ fn translations_from_localization(
     translations
 }
 
-fn substitution_forms(substitution: &serde_json::Value) -> Option<BTreeMap<String, String>> {
-    let plural = substitution.get("variations")?.get("plural")?.as_object()?;
+fn substitution_forms(
+    substitution: &crate::model::xcstrings::Substitution,
+) -> Option<BTreeMap<String, String>> {
+    let plural = substitution.variations.as_ref()?.plural.as_ref()?;
     Some(
         plural
             .iter()
             .filter_map(|(form, value)| {
-                let value = value.get("stringUnit")?.get("value")?.as_str()?;
+                let value = &value.string_unit.as_ref()?.value;
                 Some((form.clone(), value.to_string()))
             })
             .collect(),
@@ -211,6 +218,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -222,9 +230,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: source.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -233,9 +243,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: translation.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -243,6 +255,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -336,9 +349,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Hello".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -347,9 +362,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Hallo".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         localizations.insert(
@@ -358,9 +375,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "Привіт".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         let entry = StringEntry {
@@ -368,6 +387,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         };
         let file = make_file(vec![("greeting", entry)]);
 

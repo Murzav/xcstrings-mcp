@@ -70,9 +70,11 @@ pub fn add_locale(file: &mut XcStringsFile, locale: &str) -> Result<usize, XcStr
                 string_unit: Some(StringUnit {
                     state: TranslationState::New,
                     value: String::new(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         count += 1;
@@ -128,6 +130,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -140,9 +143,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: state.clone(),
                         value: format!("value_{locale}"),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
         }
@@ -155,6 +160,7 @@ mod tests {
             } else {
                 Some(localizations)
             },
+            ..Default::default()
         }
     }
 
@@ -164,6 +170,7 @@ mod tests {
             should_translate: false,
             comment: None,
             localizations: None,
+            ..Default::default()
         }
     }
 
@@ -340,9 +347,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "val".to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         nt_entry.localizations = Some(locs);

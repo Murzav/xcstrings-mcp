@@ -176,6 +176,7 @@ mod tests {
             source_language: "en".to_string(),
             strings: IndexMap::new(),
             version: "1.0".to_string(),
+            ..Default::default()
         };
         let result = format_xcstrings(&file).unwrap();
         assert!(result.ends_with('\n'));

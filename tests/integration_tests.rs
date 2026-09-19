@@ -508,8 +508,14 @@ fn plural_extract_then_submit() {
         .unwrap();
     let de = &locs["de"];
     let plural = de.variations.as_ref().unwrap().plural.as_ref().unwrap();
-    assert_eq!(plural["one"].string_unit.value, "%lld Tag verbleibend");
-    assert_eq!(plural["other"].string_unit.value, "%lld Tage verbleibend");
+    assert_eq!(
+        plural["one"].string_unit.as_ref().unwrap().value,
+        "%lld Tag verbleibend"
+    );
+    assert_eq!(
+        plural["other"].string_unit.as_ref().unwrap().value,
+        "%lld Tage verbleibend"
+    );
 }
 
 #[test]
@@ -546,7 +552,7 @@ fn substitution_roundtrip() {
         .unwrap();
     let de = &locs["de"];
     let subs = de.substitutions.as_ref().unwrap();
-    let birds = &subs["BIRDS"];
+    let birds = serde_json::to_value(&subs["BIRDS"]).unwrap();
     let one_val = birds["variations"]["plural"]["one"]["stringUnit"]["value"]
         .as_str()
         .unwrap();
@@ -664,7 +670,10 @@ fn plural_validate_then_merge_full_flow() {
         .as_ref()
         .unwrap()["de"];
     let plural = de.variations.as_ref().unwrap().plural.as_ref().unwrap();
-    assert_eq!(plural["one"].string_unit.value, "%lld Tag verbleibend");
+    assert_eq!(
+        plural["one"].string_unit.as_ref().unwrap().value,
+        "%lld Tag verbleibend"
+    );
 }
 
 // ── Phase 4 fixture tests ──
@@ -1049,9 +1058,11 @@ mod proptest_tests {
                         string_unit: Some(StringUnit {
                             state: state.clone(),
                             value: format!("Value for {key}"),
+                            ..Default::default()
                         }),
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     },
                 );
                 (
@@ -1061,6 +1072,7 @@ mod proptest_tests {
                         should_translate,
                         comment: None,
                         localizations: Some(localizations),
+                        ..Default::default()
                     },
                 )
             },
@@ -1074,6 +1086,7 @@ mod proptest_tests {
                 source_language: "en".to_string(),
                 strings,
                 version: "1.0".to_string(),
+                ..Default::default()
             }
         })
     }
@@ -1155,10 +1168,10 @@ mod proptest_tests {
                         string_unit: Some(StringUnit {
                             state: TranslationState::Translated,
                             value: format!("Value for {key}"),
-                        }),
+                         ..Default::default() }),
                         variations: None,
                         substitutions: None,
-                    },
+                     ..Default::default() },
                 );
                 strings.insert(
                     key.clone(),
@@ -1167,14 +1180,14 @@ mod proptest_tests {
                         should_translate: true,
                         comment: None,
                         localizations: Some(localizations),
-                    },
+                     ..Default::default() },
                 );
             }
             let file = XcStringsFile {
                 source_language: "en".to_string(),
                 strings,
                 version: "1.0".to_string(),
-            };
+             ..Default::default() };
 
             let report = diff::compute_diff(&file, &file);
             prop_assert!(report.added.is_empty(), "diff of identical files should have no added keys");
@@ -1196,10 +1209,10 @@ mod proptest_tests {
                         string_unit: Some(StringUnit {
                             state: TranslationState::Translated,
                             value: format!("Value for {key}"),
-                        }),
+                         ..Default::default() }),
                         variations: None,
                         substitutions: None,
-                    },
+                     ..Default::default() },
                 );
                 strings.insert(
                     key.clone(),
@@ -1208,14 +1221,14 @@ mod proptest_tests {
                         should_translate: true,
                         comment: None,
                         localizations: Some(localizations),
-                    },
+                     ..Default::default() },
                 );
             }
             let mut file = XcStringsFile {
                 source_language: "en".to_string(),
                 strings,
                 version: "1.0".to_string(),
-            };
+             ..Default::default() };
 
             let translatable = file.strings.values().filter(|e| e.should_translate).count();
 

@@ -33,14 +33,18 @@ fn export_catalog() -> XcStringsFile {
                         string_unit: Some(StringUnit {
                             state: TranslationState::Translated,
                             value: "Hello".to_string(),
+                            ..Default::default()
                         }),
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     },
                 )])),
+                ..Default::default()
             },
         )]),
         version: "1.0".to_string(),
+        ..Default::default()
     }
 }
 

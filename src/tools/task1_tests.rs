@@ -27,20 +27,24 @@ fn simple_catalog(key: &str, source_value: &str) -> String {
         string_unit: Some(StringUnit {
             state: TranslationState::Translated,
             value: source_value.to_string(),
+            ..Default::default()
         }),
         variations: None,
         substitutions: None,
+        ..Default::default()
     };
     let entry = StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), source)])),
+        ..Default::default()
     };
     formatter::format_xcstrings(&XcStringsFile {
         source_language: "en".to_string(),
         strings: IndexMap::from([(key.to_string(), entry)]),
         version: "1.0".to_string(),
+        ..Default::default()
     })
     .unwrap()
 }
@@ -1180,6 +1184,7 @@ async fn submit_matches_all_240_modifier_oracle_cases() {
         source_language: "en".to_string(),
         strings,
         version: "1.0".to_string(),
+        ..Default::default()
     })
     .unwrap();
     store.add_file("/test/file.xcstrings", &catalog);
@@ -1240,11 +1245,14 @@ fn modifier_entry(token: &str) -> StringEntry {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: format!("{token} items"),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         )])),
+        ..Default::default()
     }
 }
 
@@ -1263,20 +1271,27 @@ fn substitution_catalog() -> String {
         string_unit: Some(StringUnit {
             state: TranslationState::Translated,
             value: "I saw %#@BIRDS@".to_string(),
+            ..Default::default()
         }),
         variations: None,
-        substitutions: Some(BTreeMap::from([("BIRDS".to_string(), substitution)])),
+        substitutions: Some(IndexMap::from([(
+            "BIRDS".to_string(),
+            serde_json::from_value(substitution).unwrap(),
+        )])),
+        ..Default::default()
     };
     let entry = StringEntry {
         extraction_state: None,
         should_translate: true,
         comment: None,
         localizations: Some(IndexMap::from([("en".to_string(), source)])),
+        ..Default::default()
     };
     formatter::format_xcstrings(&XcStringsFile {
         source_language: "en".to_string(),
         strings: IndexMap::from([("birds".to_string(), entry)]),
         version: "1.0".to_string(),
+        ..Default::default()
     })
     .unwrap()
 }

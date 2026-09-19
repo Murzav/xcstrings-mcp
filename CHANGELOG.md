@@ -6,10 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+- Recursive String Catalog representation for device, plural, substitution, and chained variation leaves, including Apple Vision and machine-translated states.
+- Pinned CLDR 48.2.1 cardinal categories for 224 locales; malformed or unknown locale identifiers no longer receive invented plural rules.
+
 ### Changed
 - Refresh direct and transitive dependencies to their latest resolvable stable versions, including rmcp 3.4, quick-xml 0.42, and jsonschema 0.56, while retaining the existing CLI and MCP behavior.
+- **BREAKING (Rust library API):** catalog maps preserve insertion order, plural/device branches contain recursive `Localization` nodes, and substitutions use typed metadata. Struct literals now need `..Default::default()` for preservation metadata; use `Localization::with_unit`, `StringUnit::new`, and `OrderedMap` when constructing catalogs. Mutate existing string units with `set_translation` to retain unknown fields.
 
 ### Fixed
+- Catalog edits preserve unknown properties at every level, original property order, explicit defaults, and null values. Duplicate JSON members are rejected instead of silently overwritten.
 - XLIFF export preserves carriage returns, line feeds, and tabs in keys and carriage returns in translation text across XML roundtrips.
 - Release builds now reject tags that do not match the package version before publishing artifacts, and use the reviewed dependency lockfile for builds and publication.
 

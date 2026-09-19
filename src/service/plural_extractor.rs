@@ -81,7 +81,9 @@ pub fn get_untranslated_plurals(
             && let Some(plural) = &variations.plural
         {
             for (form, var) in plural {
-                source_forms.insert(form.clone(), var.string_unit.value.clone());
+                if let Some(unit) = &var.string_unit {
+                    source_forms.insert(form.clone(), unit.value.clone());
+                }
             }
         }
 
@@ -132,7 +134,9 @@ pub fn get_untranslated_plurals(
             if let Some(variations) = &t_loc.variations {
                 if let Some(plural) = &variations.plural {
                     for (form, var) in plural {
-                        existing_translations.insert(form.clone(), var.string_unit.value.clone());
+                        if let Some(unit) = &var.string_unit {
+                            existing_translations.insert(form.clone(), unit.value.clone());
+                        }
                     }
                 }
 
@@ -184,25 +188,18 @@ pub fn get_untranslated_plurals(
 /// Extract plural form values from substitution JSON entries.
 /// Returns `(substitution_name, { form_name -> value })`.
 fn parse_substitution_plurals(
-    subs: &BTreeMap<String, serde_json::Value>,
+    subs: &crate::model::xcstrings::OrderedMap<String, crate::model::xcstrings::Substitution>,
 ) -> Vec<(String, BTreeMap<String, String>)> {
     let mut result = Vec::new();
 
     for (name, value) in subs {
         let mut forms = BTreeMap::new();
 
-        let plural = value
-            .get("variations")
-            .and_then(|v| v.get("plural"))
-            .and_then(|p| p.as_object());
+        let plural = value.variations.as_ref().and_then(|v| v.plural.as_ref());
 
         if let Some(plural_map) = plural {
             for (form, form_value) in plural_map {
-                if let Some(val) = form_value
-                    .get("stringUnit")
-                    .and_then(|su| su.get("value"))
-                    .and_then(|v| v.as_str())
-                {
+                if let Some(val) = form_value.string_unit.as_ref().map(|su| su.value.as_str()) {
                     forms.insert(form.clone(), val.to_string());
                 }
             }

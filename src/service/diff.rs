@@ -78,9 +78,11 @@ mod tests {
                     string_unit: Some(StringUnit {
                         state: TranslationState::Translated,
                         value: value.to_string(),
+                        ..Default::default()
                     }),
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 },
             );
             strings.insert(
@@ -90,6 +92,7 @@ mod tests {
                     should_translate: true,
                     comment: None,
                     localizations: Some(locs),
+                    ..Default::default()
                 },
             );
         }
@@ -97,6 +100,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -110,6 +114,7 @@ mod tests {
                     should_translate: true,
                     comment: None,
                     localizations: None,
+                    ..Default::default()
                 },
             );
         }
@@ -117,6 +122,7 @@ mod tests {
             source_language: "en".to_string(),
             strings,
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 

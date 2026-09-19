@@ -1,9 +1,6 @@
-use std::collections::BTreeMap;
-
 use crate::model::translation::{CompletedTranslation, RejectedTranslation, SubmitResult};
 use crate::model::xcstrings::{
-    Localization, OrderedMap, PluralVariation, StringUnit, TranslationState, Variations,
-    XcStringsFile,
+    Localization, OrderedMap, TranslationState, Variations, XcStringsFile,
 };
 
 /// Merge a batch of validated translations into the file model.
@@ -50,40 +47,30 @@ pub fn merge_translations(
                         string_unit: None,
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     });
 
-                let subs = localization.substitutions.get_or_insert_with(BTreeMap::new);
-
-                let template = source_sub_template;
-                let sub_value = subs.entry(sub_name.clone()).or_insert_with(|| {
-                    // Start from source template (preserves argNum, formatSpecifier)
-                    template.unwrap_or_else(|| serde_json::json!({}))
-                });
-
-                // Build plural variations JSON
-                let mut plural_obj = serde_json::Map::new();
-                for (form, value) in plural_forms {
-                    plural_obj.insert(
-                        form.clone(),
-                        serde_json::json!({
-                            "stringUnit": {
-                                "state": "translated",
-                                "value": value
-                            }
-                        }),
-                    );
-                }
-
-                // Set variations.plural on the substitution
-                if let Some(sub_obj) = sub_value.as_object_mut() {
-                    let variations = sub_obj
-                        .entry("variations")
-                        .or_insert_with(|| serde_json::json!({}));
-
-                    if let Some(vars_obj) = variations.as_object_mut() {
-                        vars_obj
-                            .insert("plural".to_string(), serde_json::Value::Object(plural_obj));
+                let subs = localization
+                    .substitutions
+                    .get_or_insert_with(OrderedMap::new);
+                let substitution = subs.entry(sub_name.clone()).or_insert_with(|| {
+                    let mut template = source_sub_template.unwrap_or_default();
+                    if let Some(plural) =
+                        template.variations.as_mut().and_then(|v| v.plural.as_mut())
+                    {
+                        plural.retain(|form, _| plural_forms.contains_key(form));
                     }
+                    template
+                });
+                let variations = substitution
+                    .variations
+                    .get_or_insert_with(Variations::default);
+                let plural_map = variations.plural.get_or_insert_with(OrderedMap::new);
+                for (form, value) in plural_forms {
+                    plural_map
+                        .entry(form.clone())
+                        .or_default()
+                        .set_translation(TranslationState::Translated, value);
                 }
             } else {
                 // Write plural forms to localization.variations.plural
@@ -93,25 +80,22 @@ pub fn merge_translations(
                         string_unit: None,
                         variations: None,
                         substitutions: None,
+                        ..Default::default()
                     });
 
                 let variations = localization.variations.get_or_insert(Variations {
                     plural: None,
                     device: None,
+                    ..Default::default()
                 });
 
-                let plural_map = variations.plural.get_or_insert_with(BTreeMap::new);
+                let plural_map = variations.plural.get_or_insert_with(OrderedMap::new);
 
                 for (form, value) in plural_forms {
-                    plural_map.insert(
-                        form.clone(),
-                        PluralVariation {
-                            string_unit: StringUnit {
-                                state: TranslationState::Translated,
-                                value: value.clone(),
-                            },
-                        },
-                    );
+                    plural_map
+                        .entry(form.clone())
+                        .or_default()
+                        .set_translation(TranslationState::Translated, value);
                 }
             }
         } else {
@@ -121,12 +105,10 @@ pub fn merge_translations(
                     string_unit: None,
                     variations: None,
                     substitutions: None,
+                    ..Default::default()
                 });
 
-            localization.string_unit = Some(StringUnit {
-                state: TranslationState::Translated,
-                value: translation.value.clone(),
-            });
+            localization.set_translation(TranslationState::Translated, &translation.value);
         }
 
         accepted_keys.push(translation.key.clone());
@@ -148,6 +130,7 @@ mod tests {
     use indexmap::IndexMap;
 
     use super::*;
+    use crate::model::xcstrings::StringUnit;
     use crate::model::xcstrings::{StringEntry, XcStringsFile};
 
     fn make_file(entries: Vec<(&str, StringEntry)>) -> XcStringsFile {
@@ -158,6 +141,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v))
                 .collect(),
             version: "1.0".to_string(),
+            ..Default::default()
         }
     }
 
@@ -167,6 +151,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: None,
+            ..Default::default()
         }
     }
 
@@ -178,9 +163,11 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: value.to_string(),
+                    ..Default::default()
                 }),
                 variations: None,
                 substitutions: None,
+                ..Default::default()
             },
         );
         StringEntry {
@@ -188,6 +175,7 @@ mod tests {
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         }
     }
 
@@ -273,9 +261,12 @@ mod tests {
         let uk = &locs["uk"];
         let plural = uk.variations.as_ref().unwrap().plural.as_ref().unwrap();
         assert_eq!(plural.len(), 4);
-        assert_eq!(plural["one"].string_unit.value, "%lld елемент");
         assert_eq!(
-            plural["one"].string_unit.state,
+            plural["one"].string_unit.as_ref().unwrap().value,
+            "%lld елемент"
+        );
+        assert_eq!(
+            plural["one"].string_unit.as_ref().unwrap().state,
             TranslationState::Translated
         );
     }
@@ -338,13 +329,13 @@ mod tests {
                 string_unit: Some(StringUnit {
                     state: TranslationState::Translated,
                     value: "I saw %#@BIRDS@ in the park".to_string(),
-                }),
+                 ..Default::default() }),
                 variations: None,
                 substitutions: Some({
-                    let mut subs = BTreeMap::new();
+                    let mut subs = OrderedMap::new();
                     subs.insert(
                         "BIRDS".to_string(),
-                        serde_json::json!({
+                        serde_json::from_value(serde_json::json!({
                             "argNum": 1,
                             "formatSpecifier": "lld",
                             "variations": {
@@ -353,17 +344,18 @@ mod tests {
                                     "other": { "stringUnit": { "state": "translated", "value": "%arg birds" } }
                                 }
                             }
-                        }),
+                        })).unwrap(),
                     );
                     subs
                 }),
-            },
+             ..Default::default() },
         );
         let entry = StringEntry {
             extraction_state: None,
             should_translate: true,
             comment: None,
             localizations: Some(localizations),
+            ..Default::default()
         };
 
         let mut file = make_file(vec![("bird_sighting", entry)]);
@@ -389,7 +381,7 @@ mod tests {
             .unwrap();
         let de = &locs["de"];
         let subs = de.substitutions.as_ref().unwrap();
-        let birds = &subs["BIRDS"];
+        let birds = serde_json::to_value(&subs["BIRDS"]).unwrap();
 
         // Verify argNum and formatSpecifier are preserved from source
         assert_eq!(birds["argNum"], 1, "argNum should be preserved from source");
@@ -433,7 +425,7 @@ mod tests {
             .unwrap();
         let de = &locs["de"];
         let subs = de.substitutions.as_ref().unwrap();
-        let birds_sub = &subs["BIRDS"];
+        let birds_sub = serde_json::to_value(&subs["BIRDS"]).unwrap();
         let birds_one = birds_sub["variations"]["plural"]["one"]["stringUnit"]["value"]
             .as_str()
             .unwrap();

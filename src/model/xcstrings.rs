@@ -1,81 +1,96 @@
-use std::collections::BTreeMap;
-
 use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Map type for xcstrings string keys and localizations.
-/// Uses IndexMap to preserve Xcode's insertion order (Finder-like sort in Xcode 16+).
-/// Xcode uses `localizedStandardCompare` which is locale-dependent and cannot be
-/// reproduced in pure Rust. IndexMap preserves whatever order Xcode wrote.
+mod layout;
+pub mod paths;
+pub use layout::ObjectLayout;
+use layout::catalog_object;
+
+/// Semantic maps retain the catalog's insertion order.
 pub type OrderedMap<K, V> = IndexMap<K, V>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct XcStringsFile {
-    pub source_language: String,
-    pub strings: OrderedMap<String, StringEntry>,
-    pub version: String,
-}
+catalog_object!(XcStringsFile {
+    source_language: String = String::new() => "sourceLanguage", required;
+    strings: OrderedMap<String, StringEntry> = OrderedMap::new() => "strings", required;
+    version: String = "1.0".into() => "version", required;
+});
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct StringEntry {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub extraction_state: Option<ExtractionState>,
-    #[serde(default = "default_true", skip_serializing_if = "is_true")]
-    pub should_translate: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub comment: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub localizations: Option<OrderedMap<String, Localization>>,
-}
-
-fn default_true() -> bool {
+fn default_should_translate() -> bool {
     true
 }
 
-fn is_true(v: &bool) -> bool {
-    *v
+catalog_object!(StringEntry {
+    extraction_state: Option<ExtractionState> = None => "extractionState", optional;
+    #[schemars(default = "default_should_translate")]
+    should_translate: bool = true => "shouldTranslate", default_true;
+    comment: Option<String> = None => "comment", optional;
+    localizations: Option<OrderedMap<String, Localization>> = None => "localizations", optional;
+});
+
+catalog_object!(Localization {
+    string_unit: Option<StringUnit> = None => "stringUnit", optional;
+    variations: Option<Variations> = None => "variations", optional;
+    substitutions: Option<OrderedMap<String, Substitution>> = None => "substitutions", optional;
+});
+
+catalog_object!(StringUnit {
+    state: TranslationState = TranslationState::New => "state", required;
+    value: String = String::new() => "value", required;
+});
+
+catalog_object!(Variations {
+    plural: Option<OrderedMap<String, Localization>> = None => "plural", optional;
+    device: Option<OrderedMap<DeviceCategory, Localization>> = None => "device", optional;
+});
+
+catalog_object!(Substitution {
+    arg_num: Option<u32> = None => "argNum", optional;
+    format_specifier: Option<String> = None => "formatSpecifier", optional;
+    variations: Option<Variations> = None => "variations", optional;
+});
+
+/// Branches can contain another variation axis, substitutions, or a string unit.
+pub type PluralVariation = Localization;
+pub type DeviceVariation = Localization;
+
+impl XcStringsFile {
+    pub fn new(source_language: impl Into<String>) -> Self {
+        Self {
+            source_language: source_language.into(),
+            ..Self::default()
+        }
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Localization {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub string_unit: Option<StringUnit>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub variations: Option<Variations>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub substitutions: Option<BTreeMap<String, serde_json::Value>>,
+impl StringUnit {
+    pub fn new(state: TranslationState, value: impl Into<String>) -> Self {
+        Self {
+            state,
+            value: value.into(),
+            ..Self::default()
+        }
+    }
+
+    /// Update only the translation payload, retaining future metadata and order.
+    pub fn set_translation(&mut self, state: TranslationState, value: impl Into<String>) {
+        self.state = state;
+        self.value = value.into();
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct StringUnit {
-    pub state: TranslationState,
-    pub value: String,
-}
+impl Localization {
+    pub fn with_unit(unit: StringUnit) -> Self {
+        Self {
+            string_unit: Some(unit),
+            ..Self::default()
+        }
+    }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct Variations {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plural: Option<BTreeMap<String, PluralVariation>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub device: Option<BTreeMap<DeviceCategory, DeviceVariation>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct PluralVariation {
-    pub string_unit: StringUnit,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct DeviceVariation {
-    pub string_unit: StringUnit,
+    pub fn set_translation(&mut self, state: TranslationState, value: impl Into<String>) {
+        let unit = self.string_unit.get_or_insert_with(StringUnit::default);
+        unit.set_translation(state, value);
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -93,6 +108,7 @@ pub enum ExtractionState {
 #[serde(rename_all = "snake_case")]
 pub enum TranslationState {
     New,
+    MachineTranslated,
     Translated,
     NeedsReview,
     Stale,
@@ -114,6 +130,10 @@ pub enum DeviceCategory {
     AppleWatch,
     #[serde(rename = "appletv")]
     AppleTv,
+    #[serde(rename = "applevision")]
+    AppleVision,
+    #[serde(rename = "other")]
+    Other,
     #[serde(untagged)]
     Unknown(String),
 }
