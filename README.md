@@ -12,7 +12,7 @@ MCP server for iOS/macOS .xcstrings (String Catalog) localization. Parse, transl
 
 ## Why this exists
 
-`.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `one/few/many/other` — easy to miss, painful to debug.
+`.xcstrings` files are big JSON. Loading one whole into a model burns a noticeable chunk of the context window for almost no reason — most translation work touches a handful of keys at a time. Hand-editing is also fragile: Xcode formats these files in a very specific way (the `" : "` spacing, key order), and a stray reformat shows up as pure diff noise on the next commit. And then there are CLDR plurals, where every locale wants its own subset of `zero/one/two/few/many/other` — easy to miss, painful to debug.
 
 xcstrings-mcp is a small Rust process that sits between the assistant and the file. The assistant calls structured tools to read a batch, validate translations, and write atomically while preserving catalog data and Xcode's JSON formatting.
 

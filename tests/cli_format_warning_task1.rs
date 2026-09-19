@@ -36,7 +36,7 @@ fn cli_xliff_import_returns_machine_readable_ambiguous_warning() {
         .output()
         .unwrap();
 
-    assert!(output.status.success(), "{:?}", output);
+    assert!(output.status.success(), "{output:?}");
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(json["accepted"], 1);
     assert!(json["rejected"].as_array().unwrap().is_empty());

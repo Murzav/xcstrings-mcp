@@ -156,8 +156,7 @@ fn skip_to_start_tag(reader: &mut Reader<&[u8]>, tag_name: &str) -> Result<(), X
             Ok(Event::Start(ref e)) if e.name().as_ref() == tag_name => return Ok(()),
             Ok(Event::Eof) => {
                 return Err(XcStringsError::StringsdictParse(format!(
-                    "unexpected EOF waiting for <{}>",
-                    tag_name
+                    "unexpected EOF waiting for <{tag_name}>"
                 )));
             }
             Err(e) => return Err(XcStringsError::StringsdictParse(e.to_string())),

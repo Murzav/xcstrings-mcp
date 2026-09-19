@@ -87,8 +87,7 @@ impl DocumentValidator {
     ) -> Result<ImportElement, XcStringsError> {
         let DocumentLifecycle::Inside { depth } = self.lifecycle else {
             return Err(XcStringsError::XliffParse(format!(
-                "unexpected closing element </{}> outside <xliff> document root",
-                local_name
+                "unexpected closing element </{local_name}> outside <xliff> document root"
             )));
         };
 
@@ -154,8 +153,7 @@ impl DocumentValidator {
             DocumentLifecycle::Inside { .. } => {
                 let root_name = self.root_name.as_deref().unwrap_or("xliff");
                 Err(XcStringsError::XliffParse(format!(
-                    "start tag not closed: `</{}>` not found before end of input",
-                    root_name
+                    "start tag not closed: `</{root_name}>` not found before end of input"
                 )))
             }
             DocumentLifecycle::After => Ok(()),
@@ -171,8 +169,7 @@ impl DocumentValidator {
     ) -> Result<ImportElement, XcStringsError> {
         if local_name != "xliff" {
             return Err(XcStringsError::XliffParse(format!(
-                "document root must be <xliff>; found <{}>",
-                local_name
+                "document root must be <xliff>; found <{local_name}>"
             )));
         }
 
@@ -206,8 +203,7 @@ impl DocumentValidator {
 
 fn element_after_root<T>(local_name: &str) -> Result<T, XcStringsError> {
     Err(XcStringsError::XliffParse(format!(
-        "element <{}> appears after </xliff> document root",
-        local_name
+        "element <{local_name}> appears after </xliff> document root"
     )))
 }
 
@@ -227,8 +223,7 @@ fn validate_attributes(
             Ok(attribute) => attribute,
             Err(AttrError::Duplicated(_, _)) => {
                 return Err(XcStringsError::XliffParse(format!(
-                    "duplicate attribute on <{}>",
-                    local_name
+                    "duplicate attribute on <{local_name}>"
                 )));
             }
             Err(error) => return Err(XcStringsError::XliffParse(error.to_string())),
@@ -260,8 +255,7 @@ fn validate_attributes(
                 None => attribute_local_name,
             };
             return Err(XcStringsError::XliffParse(format!(
-                "duplicate expanded attribute '{expanded_name}' on <{}>",
-                local_name
+                "duplicate expanded attribute '{expanded_name}' on <{local_name}>"
             )));
         }
     }
@@ -292,8 +286,7 @@ fn classify_element(
     let namespace = canonical_element_namespace(namespace, local_name)?;
     let Some(namespace_mode) = namespace_mode else {
         return Err(XcStringsError::XliffParse(format!(
-            "element <{}> has no document namespace mode",
-            local_name
+            "element <{local_name}> has no document namespace mode"
         )));
     };
 
@@ -308,14 +301,12 @@ fn classify_element(
         }
         (NamespaceMode::OfficialQualified, None, Some(_)) => {
             Err(XcStringsError::XliffParse(format!(
-                "element <{}> is unqualified in namespace-qualified XLIFF document; expected '{}'",
-                local_name, XLIFF_1_2_NAMESPACE
+                "element <{local_name}> is unqualified in namespace-qualified XLIFF document; expected '{XLIFF_1_2_NAMESPACE}'"
             )))
         }
         (NamespaceMode::LegacyUnqualified, Some(XLIFF_1_2_NAMESPACE), Some(_)) => {
             Err(XcStringsError::XliffParse(format!(
-                "element <{}> uses namespace '{}' in legacy unqualified XLIFF document; expected no namespace",
-                local_name, XLIFF_1_2_NAMESPACE
+                "element <{local_name}> uses namespace '{XLIFF_1_2_NAMESPACE}' in legacy unqualified XLIFF document; expected no namespace"
             )))
         }
         (_, Some(namespace), Some(_)) => namespace_error(Some(namespace), local_name),
@@ -330,8 +321,7 @@ fn canonical_element_namespace(
     match namespace {
         ResolveResult::Bound(namespace) => normalize_namespace(*namespace, local_name).map(Some),
         ResolveResult::Unknown(prefix) => Err(XcStringsError::XliffParse(format!(
-            "element <{}> uses unbound namespace prefix '{}'",
-            local_name, prefix
+            "element <{local_name}> uses unbound namespace prefix '{prefix}'"
         ))),
         ResolveResult::Unbound => Ok(None),
     }
@@ -352,19 +342,17 @@ fn normalize_namespace_value(value: &str, local_name: &str) -> Result<String, Xc
     .normalized_value(XmlVersion::Implicit1_0)
     .map(|value| value.into_owned())
     .map_err(|_| {
-        XcStringsError::XliffParse(format!("invalid XML namespace value on <{}>", local_name))
+        XcStringsError::XliffParse(format!("invalid XML namespace value on <{local_name}>"))
     })
 }
 
 fn namespace_error<T>(namespace: Option<&str>, local_name: &str) -> Result<T, XcStringsError> {
     match namespace {
         Some(namespace) => Err(XcStringsError::XliffParse(format!(
-            "element <{}> uses namespace '{}'; expected '{}'",
-            local_name, namespace, XLIFF_1_2_NAMESPACE
+            "element <{local_name}> uses namespace '{namespace}'; expected '{XLIFF_1_2_NAMESPACE}'"
         ))),
         None => Err(XcStringsError::XliffParse(format!(
-            "element <{}> has no document namespace mode",
-            local_name
+            "element <{local_name}> has no document namespace mode"
         ))),
     }
 }

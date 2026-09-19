@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-09-20
+
 ### Added
 - Recursive String Catalog representation for device, plural, substitution, and chained variation leaves, including Apple Vision and machine-translated states.
 - Pinned CLDR 48.2.1 cardinal categories for 224 locales; malformed or unknown locale identifiers no longer receive invented plural rules.
