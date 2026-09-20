@@ -30,7 +30,7 @@ fn xliff_roundtrip_preserves_control_whitespace_in_unit_id() {
     assert_eq!(locale, "de");
     assert_eq!(
         serde_json::to_value(translations).unwrap(),
-        json!([{"key": "key\r\nwith\tspace & café", "locale": "de", "value": "Übersetzung"}])
+        json!([{"expected_source_version":"", "key": "key\r\nwith\tspace & café", "locale": "de", "value": "Übersetzung"}])
     );
 }
 
@@ -46,7 +46,7 @@ fn xliff_roundtrip_preserves_carriage_returns_in_translation() {
     assert_eq!(locale, "de");
     assert_eq!(
         serde_json::to_value(translations).unwrap(),
-        json!([{"key": "message", "locale": "de", "value": "Erste\r\nZweite\rDritte\n\t& Ende"}])
+        json!([{"expected_source_version":"", "key": "message", "locale": "de", "value": "Erste\r\nZweite\rDritte\n\t& Ende"}])
     );
 }
 
@@ -62,7 +62,7 @@ fn xliff_import_preserves_subflow_nested_inside_inline_content() {
     assert_eq!(locale, "de");
     assert_eq!(
         serde_json::to_value(translations).unwrap(),
-        json!([{"key": "subflow", "locale": "de", "value": "Vor Code übersetzbar & Text nach"}])
+        json!([{"expected_source_version":"", "key": "subflow", "locale": "de", "value": "Vor Code übersetzbar & Text nach"}])
     );
 }
 

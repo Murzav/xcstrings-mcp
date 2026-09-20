@@ -38,21 +38,22 @@ pub(crate) async fn handle_parse(
         _ => return Err(XcStringsError::NotXcStrings { path }),
     }
 
-    let raw = store.read(&path)?;
-    let file = parser::parse(&raw)?;
-    let summary = parser::summarize(&file);
+    let snapshot = crate::workflow_operation::CatalogSnapshot::load(store, &path)?;
+    let view = snapshot.view()?;
+    let summary = parser::summarize(&view.effective_catalog);
+    let result = super::workflow::read_result(&summary, &snapshot, &view)?;
     let mtime = store.modified_time(&path)?;
     let identity = store.file_identity(&path)?;
 
     // Verify we can format (catches issues early)
-    let _ = formatter::format_xcstrings(&file)?;
+    let _ = formatter::format_xcstrings(&snapshot.catalog)?;
 
     let mut guard = cache.lock().await;
     guard.insert(
         identity,
         CachedFile {
             path,
-            content: file,
+            content: snapshot.catalog,
             modified: mtime,
         },
     );
@@ -64,7 +65,7 @@ pub(crate) async fn handle_parse(
         summary.locales.len()
     ));
 
-    Ok(serde_json::to_value(summary)?)
+    Ok(result)
 }
 
 #[cfg(test)]

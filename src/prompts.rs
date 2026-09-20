@@ -106,10 +106,10 @@ impl XcStringsMcpServer {
             2. For each string, translate naturally \u{2014} not word-for-word\n\
             3. Preserve the conversion, length modifier, flags, width, and precision of all definite Foundation format arguments; valid positional reordering is allowed\n\
             4. Inspect leaves and diagnostics; get_plurals details plural/device/substitution chains and required CLDR forms for {locale}\n\
-            5. Use get_context to understand nearby related strings\n\
+            5. Use get_context for current source, authored screen/role/purpose, variable meanings, applicable glossary rules and neighbors; absent facts remain unknown\n\
             6. Submit each required incomplete leaf with its exact returned path; path=[] selects the root. Do not mix path with legacy plural_forms/substitution_name\n\
-            7. Inspect rejected[] for blocking failures and warnings[] for accepted ambiguous percent-in-prose differences\n\
-            8. Repeat while supported leaves can be completed; report unsupported shapes/locales instead of retrying unchanged diagnostics\n\
+            7. Include expected_source_version captured with the input key; never refresh a token to force an outdated translation through. Inspect rejected[], warnings[], and advisory terminology issues\n\
+            8. Each accepted submission is needs_review. Process this captured batch once; report drafts for separate review and do not resubmit them merely because coverage remains incomplete\n\
             \n\
             Guidelines:\n\
             - Keep translations concise \u{2014} mobile UI has limited space\n\
@@ -155,7 +155,10 @@ impl XcStringsMcpServer {
             \x20  - Consistent terminology\n\
             \x20  - Appropriate length for mobile UI\n\
             \x20  - Correct gender/number agreement\n\
-            5. Report findings with specific key names and suggested fixes",
+            5. Preview sync_source_changes; apply with returned expected (from input_revisions) to checkpoint source/context changes. First initialization defaults to review; choose adopt_existing only for an explicitly trusted baseline\n\
+            6. Read get_review_queue for exact paths and expected_source_version/expected_target_version. Check current source, old source evidence, terminology and get_context before approving each draft\n\
+            7. Only after actual review, preview approve_translations then apply using those captured versions. It changes state only. Never approve solely to increase coverage\n\
+            8. After any mutation restart the queue at offset=0; later unchanged pages require expected_queue_version. Report unresolved items and specific suggested fixes",
             locale = params.locale,
         );
 
@@ -189,9 +192,9 @@ impl XcStringsMcpServer {
             \x20 Call get_glossary for existing terminology guidance\n\
             \n\
             Step 3: Translate required leaves in batches\n\
-            \x20 Call get_untranslated with locale=\"{locale}\"\n\
+            \x20 Read all get_untranslated pages for locale=\"{locale}\" before writes to capture a finite worklist and source versions\n\
             \x20 Inspect leaves and diagnostics; submit each translation with its exact path (path=[] for the root)\n\
-            \x20 Preview with dry_run=true; repeat while supported leaves can be completed, reporting unsupported diagnostics\n\
+            \x20 Preview with dry_run=true and each captured expected_source_version; submit each planned leaf once as needs_review. Preserve existing drafts for review; report unsupported diagnostics\n\
             \n\
             Step 4: Check all variation branches\n\
             \x20 Call get_plurals with locale=\"{locale}\"\n\
@@ -203,8 +206,8 @@ impl XcStringsMcpServer {
             \x20 Call validate_translations to check blocking errors and non-blocking warnings\n\
             \x20 Fix blocking problems; review ambiguous percent-in-prose warnings in context\n\
             \n\
-            Step 6: Final check\n\
-            \x20 Call get_coverage; only claim 100% when every required leaf is translated or machine_translated and diagnostics are resolved\n\
+            Step 6: Separate review and final check\n\
+            \x20 Report the drafted work and get_review_queue. Use review_translations for explicit acceptance; never auto-approve to reach 100%. Call get_coverage; only claim completion after required leaves are approved and current\n\
             \x20 Intentional blank translated leaves are complete; missing/new/needs_review leaves and unknown shapes/locales are incomplete\n\
             \x20 Call get_diff to see all changes made",
             file_path = params.file_path,
@@ -282,7 +285,7 @@ impl XcStringsMcpServer {
             \x20 For each definite Foundation argument mismatch or invalid position:\n\
             \x20 - Call get_context to understand the string's purpose\n\
             \x20 - Preserve conversion, length modifier, flags, width, and precision; positional reordering is allowed when argument numbers remain correct\n\
-            \x20 - Submit with submit_translations (dry_run=true first to verify)\n\
+            \x20 - Submit with submit_translations using expected_source_version captured with the source (dry_run=true first to verify); this saves needs_review\n\
             \n\
             Step 3: Review warnings[]\n\
             \x20 Ambiguous percent-in-prose differences are non-blocking; confirm the wording is intentional instead of forcing it to resemble a format argument\n\
@@ -298,7 +301,7 @@ impl XcStringsMcpServer {
             \x20 Call get_untranslated and translate in batches\n\
             \n\
             Step 6: Verify\n\
-            \x20 Call validate_translations again to confirm zero issues remain",
+            \x20 Call validate_translations again; inspect reports and advisory terminology. Report drafts awaiting separate get_review_queue/approve_translations review",
             locale = params.locale,
         );
 
@@ -433,10 +436,10 @@ impl XcStringsMcpServer {
             \x20 Use consistent terminology throughout\n\
             \n\
             Step 5: Translate required leaves\n\
-            \x20 Call get_untranslated in batches (batch_size=20)\n\
+            \x20 Read get_untranslated pages (batch_size=20) into a finite worklist before writing; preserve existing drafts for review\n\
             \x20 Translate each batch naturally, preserving definite Foundation argument components; valid positional reordering is allowed\n\
-            \x20 Submit with each leaf's exact returned path; path=[] selects the root\n\
-            \x20 Repeat while supported leaves can be completed; report unsupported diagnostics instead of looping\n\
+            \x20 Submit with each leaf's exact returned path and captured expected_source_version; path=[] selects the root; accepted values remain needs_review\n\
+            \x20 Process each planned leaf once; stop after drafting and report get_review_queue for separate review, including unsupported diagnostics\n\
             \n\
             Step 6: Check plural/device/substitution chains\n\
             \x20 Call get_plurals with locale=\"{locale}\"\n\
@@ -445,7 +448,7 @@ impl XcStringsMcpServer {
             \n\
             Step 7: Validate and finalize\n\
             \x20 Call validate_translations to fix blocking errors and review non-blocking warnings\n\
-            \x20 Call get_coverage; missing/draft leaves and unknown shapes/locales prevent completion, while intentional blank translated leaves are complete",
+            \x20 Call get_coverage and report draft counts. Use review_translations for separate acceptance; missing/draft leaves and unknown shapes/locales remain incomplete",
             locale = params.locale,
             file_instruction = file_instruction,
         );

@@ -1,20 +1,35 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use xcstrings_mcp::service::file_validator;
+use super::common::{EXIT_OK, EXIT_VALIDATION_ISSUES, handle_error, load_snapshot};
 
-use super::common::{EXIT_OK, EXIT_VALIDATION_ISSUES, handle_error, load_file};
-
-pub fn run(file: Option<PathBuf>, locale: Option<String>, json: bool) -> ExitCode {
-    let (_path, parsed) = match load_file(file) {
+pub fn run(
+    file: Option<PathBuf>,
+    locale: Option<String>,
+    json: bool,
+    glossary_path: &std::path::Path,
+) -> ExitCode {
+    let snapshot = match load_snapshot(file) {
         Ok(v) => v,
         Err(e) => return handle_error(e),
     };
 
-    let reports = file_validator::validate_file(&parsed, locale.as_deref());
+    let guidance = xcstrings_mcp::guidance_operation::GuidanceSnapshot::load(
+        &xcstrings_mcp::io::fs::FsFileStore::new(),
+        glossary_path,
+    );
+    let report = match xcstrings_mcp::workflow_operation::read::validate_catalog(
+        &snapshot,
+        &guidance,
+        locale.as_deref(),
+    ) {
+        Ok(report) => report,
+        Err(error) => return handle_error(error),
+    };
+    let reports = &report.reports;
 
     if json {
-        match serde_json::to_string_pretty(&reports) {
+        match serde_json::to_string_pretty(&report) {
             Ok(out) => println!("{out}"),
             Err(e) => {
                 eprintln!("error: failed to serialize: {e}");
@@ -22,15 +37,45 @@ pub fn run(file: Option<PathBuf>, locale: Option<String>, json: bool) -> ExitCod
             }
         }
     } else {
+        super::common::print_tracking(
+            report.tracking,
+            report.untracked_keys.len(),
+            report.source_changed_keys.len(),
+        );
+        if report.tracking == xcstrings_mcp::model::workflow::TrackingStatus::Initialized
+            && !report.untracked_keys.is_empty()
+        {
+            println!(
+                "Untracked source keys: {}",
+                report.untracked_keys.join(", ")
+            );
+        }
         let total_errors: usize = reports.iter().map(|r| r.errors.len()).sum();
         let total_warnings: usize = reports.iter().map(|r| r.warnings.len()).sum();
 
-        if total_errors == 0 && total_warnings == 0 {
+        for issue in &report.terminology.issues {
+            println!("  TERMINOLOGY  key {:?}: {}", issue.key, issue.detail);
+        }
+        if let Some(unavailable) = &report.terminology.unavailable {
+            println!("Terminology QA unavailable: {}", unavailable.detail);
+        }
+        if !report.source_changed_keys.is_empty() {
+            println!(
+                "Changed source requires review: {}",
+                report.source_changed_keys.join(", ")
+            );
+        }
+        if total_errors == 0
+            && total_warnings == 0
+            && report.terminology.issues.is_empty()
+            && report.terminology.unavailable.is_none()
+            && report.source_changed_keys.is_empty()
+        {
             println!("No validation issues found.");
             return ExitCode::from(EXIT_OK);
         }
 
-        for report in &reports {
+        for report in reports {
             if report.errors.is_empty() && report.warnings.is_empty() {
                 continue;
             }
@@ -52,6 +97,9 @@ pub fn run(file: Option<PathBuf>, locale: Option<String>, json: bool) -> ExitCod
     if reports
         .iter()
         .any(|r| !r.errors.is_empty() || !r.warnings.is_empty())
+        || !report.terminology.issues.is_empty()
+        || report.terminology.unavailable.is_some()
+        || !report.source_changed_keys.is_empty()
     {
         ExitCode::from(EXIT_VALIDATION_ISSUES)
     } else {

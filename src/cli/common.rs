@@ -42,6 +42,30 @@ pub fn load_file(file: Option<PathBuf>) -> Result<(PathBuf, XcStringsFile), XcSt
     Ok((path, parsed))
 }
 
+pub fn load_snapshot(
+    file: Option<PathBuf>,
+) -> Result<xcstrings_mcp::workflow_operation::CatalogSnapshot, XcStringsError> {
+    let path = resolve_file(file)?;
+    xcstrings_mcp::workflow_operation::CatalogSnapshot::load(&FsFileStore::new(), &path)
+}
+
+pub fn workflow_json(
+    report: &impl serde::Serialize,
+    snapshot: &xcstrings_mcp::workflow_operation::CatalogSnapshot,
+    view: &xcstrings_mcp::service::workflow::WorkflowView<'_>,
+) -> Result<String, serde_json::Error> {
+    let mut value = serde_json::to_value(report)?;
+    let object = value.as_object_mut().ok_or_else(|| {
+        <serde_json::Error as serde::ser::Error>::custom("workflow report must be an object")
+    })?;
+    object.insert("tracking".into(), serde_json::to_value(view.tracking)?);
+    object.insert(
+        "input_revisions".into(),
+        serde_json::to_value(snapshot.revisions())?,
+    );
+    serde_json::to_string_pretty(&value)
+}
+
 /// Format and atomically write an .xcstrings file.
 pub fn save_file(path: &Path, file: &XcStringsFile) -> Result<(), XcStringsError> {
     let store = FsFileStore::new();
@@ -54,4 +78,36 @@ pub fn save_file(path: &Path, file: &XcStringsFile) -> Result<(), XcStringsError
 pub fn handle_error(err: XcStringsError) -> ExitCode {
     eprintln!("error: {err}");
     ExitCode::from(EXIT_ERROR)
+}
+
+/// Human output distinguishes native readiness from verified source freshness.
+pub fn print_tracking(
+    status: xcstrings_mcp::model::workflow::TrackingStatus,
+    untracked: usize,
+    changed: usize,
+) {
+    use xcstrings_mcp::model::workflow::TrackingStatus;
+    match status {
+        TrackingStatus::Uninitialized => {
+            println!("Source tracking: uninitialized; historical freshness unknown.")
+        }
+        TrackingStatus::Initialized => println!(
+            "Source tracking: initialized; source-changed keys: {changed}; untracked keys: {untracked}."
+        ),
+    }
+}
+
+pub fn print_view_tracking(view: &xcstrings_mcp::service::workflow::WorkflowView<'_>) {
+    use xcstrings_mcp::model::workflow::SourceFreshness;
+    print_tracking(
+        view.tracking,
+        view.keys
+            .values()
+            .filter(|key| key.freshness == SourceFreshness::Untracked)
+            .count(),
+        view.keys
+            .values()
+            .filter(|key| key.freshness == SourceFreshness::SourceChanged)
+            .count(),
+    );
 }

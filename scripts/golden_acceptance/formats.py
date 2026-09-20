@@ -52,9 +52,10 @@ def legacy_scenarios(h):
 def xliff_scenarios(h):
     path = h.copy("simple.xcstrings", "xliff/simple.xcstrings")
     original = h.read(path)
+    h.prepare(path)
     output = h.temporary / "translated.xliff"
     result = h.on("export_xliff", path, "simple full XLIFF export", locale="ca", output_path=str(output), untranslated_only=False)
-    h.equal(result, {"output_path": str(output), "locale": "ca", "exported_count": 2}, "export report")
+    h.equal({k: result[k] for k in ("output_path", "locale", "exported_count")}, {"output_path": str(output), "locale": "ca", "exported_count": 2}, "export report")
     namespace = {"x": "urn:oasis:names:tc:xliff:document:1.2"}
     tree = ET.parse(output)
     units = tree.findall(".//x:trans-unit", namespace)
@@ -88,6 +89,7 @@ def xliff_scenarios(h):
     h.require(not (h.temporary / "bad.txt").exists(), "invalid export creates nothing")
     fixture = h.copy("xcode_26_6_empty_id.xliff", "empty-id.xliff")
     golden = h.copy("golden.xcstrings", "xliff/golden.xcstrings")
+    h.prepare(golden, [""])
     # Missing target must remain distinct from explicit empty; remove only target
     # from the real Xcode empty-ID fixture to assert the non-destructive no-op.
     tree = ET.parse(fixture)

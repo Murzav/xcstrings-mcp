@@ -3,20 +3,33 @@ use std::process::ExitCode;
 
 use xcstrings_mcp::service::extractor;
 
-use super::common::{EXIT_ERROR, EXIT_OK, handle_error, load_file};
+use super::common::{EXIT_ERROR, EXIT_OK, handle_error, load_snapshot};
 
 pub fn run(file: Option<PathBuf>, locale: Option<String>, limit: usize, json: bool) -> ExitCode {
-    let (_path, parsed) = match load_file(file) {
+    let snapshot = match load_snapshot(file) {
         Ok(v) => v,
         Err(e) => return handle_error(e),
     };
+    let view = match snapshot.view() {
+        Ok(view) => view,
+        Err(error) => return handle_error(error),
+    };
+    let parsed = &view.effective_catalog;
 
     let locale = locale.unwrap_or_else(|| parsed.source_language.clone());
 
-    let (results, total) = match extractor::get_stale(&parsed, &locale, limit, 0) {
+    let (mut results, total) = match extractor::get_stale(parsed, &locale, limit, 0) {
         Ok(v) => v,
         Err(e) => return handle_error(e),
     };
+
+    for unit in &mut results {
+        if let Err(error) =
+            xcstrings_mcp::workflow_operation::read::annotate_unit(&snapshot, &view, unit)
+        {
+            return handle_error(error);
+        }
+    }
 
     if json {
         match serde_json::to_string_pretty(&results) {

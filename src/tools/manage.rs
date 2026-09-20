@@ -21,9 +21,15 @@ pub(crate) async fn handle_list_locales(
     cache: &Mutex<FileCache>,
     params: ListLocalesParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-    let locales = locale::list_locales(&file);
-    Ok(serde_json::to_value(locales)?)
+    let snapshot =
+        super::workflow::resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = snapshot.view()?;
+    let locales = locale::list_locales(&view.effective_catalog);
+    let values = locales
+        .into_iter()
+        .map(|locale| super::workflow::read_result(locale, &snapshot, &view))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(serde_json::to_value(values)?)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

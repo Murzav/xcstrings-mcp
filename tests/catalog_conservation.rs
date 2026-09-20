@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use xcstrings_mcp::service::parser::parse;
 
 const SIMPLE: &str = r#"{"futureRoot":{"x":null},"version":"1.0","strings":{"greeting":{"comment":null,"futureEntry":[2,1],"shouldTranslate":true,"localizations":{"de":{"futureLocale":true,"stringUnit":{"value":"Alt","futureUnit":{"flag":7},"state":"translated"},"variations":null}},"extractionState":null}},"sourceLanguage":"en"}"#;
@@ -135,9 +137,11 @@ proptest::proptest! {
 #[test]
 fn catalog_merge_preserves_existing_unit_metadata() {
     let mut catalog = parse(SIMPLE).unwrap();
-    let translation =
-        serde_json::from_value(serde_json::json!({"key":"greeting","locale":"de","value":"Neu"}))
-            .unwrap();
+    let translation = serde_json::from_value(workflow_fixture::capture(
+        &catalog,
+        serde_json::json!({"key":"greeting","locale":"de","value":"Neu"}),
+    ))
+    .unwrap();
 
     let result = xcstrings_mcp::service::merger::merge_translations(&mut catalog, &[translation]);
 
@@ -146,7 +150,9 @@ fn catalog_merge_preserves_existing_unit_metadata() {
     assert_eq!(result.accepted_keys, vec!["greeting"]);
     assert_eq!(
         serde_json::to_string(&catalog).unwrap(),
-        SIMPLE.replace("Alt", "Neu")
+        SIMPLE
+            .replace("Alt", "Neu")
+            .replace("translated", "needs_review")
     );
 }
 

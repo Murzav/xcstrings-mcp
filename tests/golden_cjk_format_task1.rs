@@ -52,7 +52,7 @@ fn golden_known_valid_cjk_entries_have_no_format_errors() {
         .expect("validate Golden fixture");
     let reports: serde_json::Value =
         serde_json::from_slice(&validation.stdout).expect("validation JSON");
-    let regressions: Vec<(&str, &str)> = reports
+    let regressions: Vec<(&str, &str)> = reports["reports"]
         .as_array()
         .expect("validation reports")
         .iter()

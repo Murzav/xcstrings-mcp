@@ -7,8 +7,10 @@ use tokio::sync::Mutex;
 use super::FileCache;
 use super::parse::{ParseParams, handle_parse};
 use super::test_helpers::MemoryStore;
-use super::translate::{SubmitTranslationsParams, handle_submit_translations};
-use super::xliff::{ImportXliffParams, handle_import_xliff};
+use super::translate::{
+    SubmitTranslationsParams, submit_with_captured_versions as handle_submit_translations,
+};
+use super::xliff::{ImportXliffParams, import_with_current_checkpoint as handle_import_xliff};
 use crate::model::translation::CompletedTranslation;
 use crate::model::xcstrings::{
     Localization, StringEntry, StringUnit, TranslationState, XcStringsFile,
@@ -98,6 +100,7 @@ async fn assert_mcp_xliff_rejected_without_write(xliff: &str, expected_error: &s
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -140,6 +143,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -166,6 +170,7 @@ async fn assert_mcp_xliff_applied(xliff: &str, expected_value: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -219,6 +224,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -245,6 +251,7 @@ async fn mcp_xliff_import_accepts_prefix_bound_elements_for_dry_run_and_apply() 
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -301,6 +308,7 @@ async fn mcp_xliff_import_rejects_wrong_namespace_without_writing() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -347,6 +355,7 @@ async fn mcp_xliff_import_rejects_unqualified_child_in_official_document_without
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -393,6 +402,7 @@ async fn mcp_xliff_import_rejects_qualified_child_in_legacy_document_without_wri
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -439,6 +449,7 @@ async fn mcp_xliff_import_rejects_duplicate_namespace_without_writing() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -902,6 +913,7 @@ async fn mcp_xliff_import_returns_same_ambiguous_warning() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),
@@ -968,6 +980,7 @@ async fn submit_and_mcp_xliff_block_same_definite_modifier_mismatch() {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: None,
             xliff_path: "/test/input.xliff".to_string(),

@@ -71,7 +71,7 @@ fn rejects_ambiguous_literal_key_and_new_variation_atomically() {
 fn scopes_duplicate_ids_to_explicit_original() {
     let xml = include_str!("fixtures/apple_xcode27/positive/multiple-catalogs/exported.xliff");
     let input = parser::parse(include_str!(
-        "fixtures/apple_xcode27/positive/multiple-catalogs/source.xcstrings"
+        "fixtures/apple_xcode27/positive/multiple-catalogs/source-custom.xcstrings"
     ))
     .unwrap();
     let doc = xliff::parse_document(xml).unwrap();
@@ -280,7 +280,7 @@ fn rejects_changed_argument_position_inside_substitution_fragment() {
     ))
     .unwrap();
     let xml = document(
-        r#"<trans-unit id="multi|==|substitutions.YARDS.plural.one"><source>EN yards %2$lld one</source><target>FR yards %3$lld one</target></trans-unit>"#,
+        r#"<trans-unit id="multi|==|substitutions.YARDS.plural.one"><source>EN yards %2$lld single</source><target>FR yards %3$lld one</target></trans-unit>"#,
     );
     let plan = xliff::plan_import(&input, &xliff::parse_document(&xml).unwrap(), None).unwrap();
     assert!(plan.candidate.is_none());

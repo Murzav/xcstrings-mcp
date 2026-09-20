@@ -96,6 +96,7 @@ pub fn assess(
             })
             .collect();
         report.leaves.push(TranslationLeaf {
+            workflow: None,
             source_text: source
                 .and_then(|node| source_unit(node, &leaf.path))
                 .map_or_else(|| key.to_string(), |unit| unit.value.clone()),

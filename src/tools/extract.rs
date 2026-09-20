@@ -7,8 +7,10 @@ use crate::io::FileStore;
 use crate::model::translation::TranslationUnit;
 use crate::model::xcstrings::TranslationState;
 use crate::service::extractor;
+use crate::service::workflow;
 use crate::tools::FileCache;
-use crate::tools::resolve_file;
+use crate::tools::workflow::{read_result, resolve_read_snapshot};
+use crate::workflow_operation::read::{annotate_leaves, annotate_unit};
 
 fn default_batch_size() -> usize {
     30
@@ -47,7 +49,13 @@ pub(crate) async fn handle_get_untranslated(
     cache: &Mutex<FileCache>,
     params: GetUntranslatedParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
+    let file = &view.effective_catalog;
 
     // Determine which locales to check
     let locales: Vec<String> = params
@@ -55,9 +63,12 @@ pub(crate) async fn handle_get_untranslated(
         .unwrap_or_else(|| vec![params.locale.clone()]);
     let locale_refs: Vec<&str> = locales.iter().map(|s| s.as_str()).collect();
 
-    let (units, total) =
-        extractor::get_untranslated_multi(&file, &locale_refs, params.batch_size, params.offset)?;
+    let (mut units, total) =
+        extractor::get_untranslated_multi(file, &locale_refs, params.batch_size, params.offset)?;
 
+    for unit in &mut units {
+        annotate_unit(&snapshot, &view, unit)?;
+    }
     let has_more = params.offset + units.len() < total;
 
     let result = GetUntranslatedResult {
@@ -68,7 +79,7 @@ pub(crate) async fn handle_get_untranslated(
         has_more,
     };
 
-    Ok(serde_json::to_value(result)?)
+    read_result(result, &snapshot, &view)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -101,11 +112,20 @@ pub(crate) async fn handle_get_stale(
     cache: &Mutex<FileCache>,
     params: GetStaleParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
+    let file = &view.effective_catalog;
 
-    let (units, total) =
-        extractor::get_stale(&file, &params.locale, params.batch_size, params.offset)?;
+    let (mut units, total) =
+        extractor::get_stale(file, &params.locale, params.batch_size, params.offset)?;
 
+    for unit in &mut units {
+        annotate_unit(&snapshot, &view, unit)?;
+    }
     let has_more = params.offset + units.len() < total;
 
     let result = GetStaleResult {
@@ -116,7 +136,7 @@ pub(crate) async fn handle_get_stale(
         has_more,
     };
 
-    Ok(serde_json::to_value(result)?)
+    read_result(result, &snapshot, &view)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -151,16 +171,25 @@ pub(crate) async fn handle_search_keys(
     cache: &Mutex<FileCache>,
     params: SearchKeysParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
+    let file = &view.effective_catalog;
 
-    let (units, total) = extractor::search_keys(
-        &file,
+    let (mut units, total) = extractor::search_keys(
+        file,
         &params.pattern,
         &params.locale,
         params.batch_size,
         params.offset,
     )?;
 
+    for unit in &mut units {
+        annotate_unit(&snapshot, &view, unit)?;
+    }
     let has_more = params.offset + units.len() < total;
 
     let result = SearchKeysResult {
@@ -171,7 +200,7 @@ pub(crate) async fn handle_search_keys(
         has_more,
     };
 
-    Ok(serde_json::to_value(result)?)
+    read_result(result, &snapshot, &view)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -186,6 +215,8 @@ pub(crate) struct GetKeyParams {
 #[derive(Debug, Serialize)]
 pub(crate) struct GetKeyResult {
     key: String,
+    source_version: String,
+    source_freshness: crate::model::workflow::SourceFreshness,
     source_language: String,
     source_text: String,
     comment: Option<String>,
@@ -210,7 +241,13 @@ pub(crate) async fn handle_get_key(
     cache: &Mutex<FileCache>,
     params: GetKeyParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
+    let file = &view.effective_catalog;
 
     let entry = file
         .strings
@@ -231,12 +268,19 @@ pub(crate) async fn handle_get_key(
             let value = loc.string_unit.as_ref().map(|su| su.value.clone());
             let state = loc.string_unit.as_ref().map(|su| su.state.clone());
 
-            let assessment = crate::service::assessment::assess(
+            let mut assessment = crate::service::assessment::assess(
                 &params.key,
                 entry,
                 &file.source_language,
                 locale,
             );
+            annotate_leaves(
+                &snapshot,
+                &view,
+                &params.key,
+                locale,
+                &mut assessment.leaves,
+            )?;
             let has_plurals = assessment.leaves.iter().any(|leaf| {
                 leaf.path
                     .iter()
@@ -260,6 +304,8 @@ pub(crate) async fn handle_get_key(
     }
 
     let result = GetKeyResult {
+        source_version: view.keys[&params.key].source_version.clone(),
+        source_freshness: view.keys[&params.key].freshness,
         key: params.key,
         source_language: file.source_language.clone(),
         source_text,
@@ -268,7 +314,7 @@ pub(crate) async fn handle_get_key(
         translations,
     };
 
-    Ok(serde_json::to_value(result)?)
+    read_result(result, &snapshot, &view)
 }
 
 #[cfg(test)]

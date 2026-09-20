@@ -16,7 +16,7 @@ mod apple_id;
 mod apple_import;
 mod apple_mutation;
 mod apple_substitutions;
-pub use apple_export::export_xliff;
+pub use apple_export::{export_xliff, export_xliff_with_keys};
 pub use apple_import::plan_import;
 
 /// Parse a validated XLIFF 1.2 document while retaining file scope, target presence,
@@ -151,6 +151,9 @@ pub fn import_xliff(content: &str) -> Result<(String, Vec<CompletedTranslation>)
             if let Some(value) = unit.target {
                 translations.push(CompletedTranslation {
                     key: unit.id,
+                    // This legacy decoder has no captured catalog input revision.
+                    // Guarded callers must supply the original export's version.
+                    expected_source_version: String::new(),
                     locale: locale.clone(),
                     value,
                     plural_forms: None,

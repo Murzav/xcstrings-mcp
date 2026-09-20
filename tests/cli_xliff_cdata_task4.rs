@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -52,6 +54,11 @@ fn run_import(catalog: &Path, input: &Path, dry_run: bool) -> std::process::Outp
         catalog.to_str().unwrap(),
         "--xliff",
         input.to_str().unwrap(),
+        "--source-versions",
+        &workflow_fixture::import_versions(
+            std::path::Path::new(catalog.to_str().unwrap()),
+            std::path::Path::new(input.to_str().unwrap()),
+        ),
     ]);
     if dry_run {
         command.arg("--dry-run");
@@ -81,6 +88,7 @@ fn cli_cdata_dry_run_preserves_full_value_without_write() {
             "missing_targets": 0,
             "locale": "de",
             "warnings": [],
+            "guidance": {"status":"absent","revision":"input-v1:sha256:d631b9417646a5d7d8382fb22525f2a744daa91c39a968660a959c122c3b2730","issues":[],"unavailable":null},
             "written": false,
             "dry_run": true
         })
@@ -110,6 +118,7 @@ fn cli_cdata_apply_writes_full_value() {
             "missing_targets": 0,
             "locale": "de",
             "warnings": [],
+            "guidance": {"status":"absent","revision":"input-v1:sha256:d631b9417646a5d7d8382fb22525f2a744daa91c39a968660a959c122c3b2730","issues":[],"unavailable":null},
             "written": true,
             "dry_run": false
         })

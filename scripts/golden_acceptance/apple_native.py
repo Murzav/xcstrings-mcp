@@ -80,12 +80,13 @@ def native_submit(h, path, translations, case):
     for translation in translations:
         node = expected["strings"][translation["key"]]["localizations"][translation["locale"]]
         unit = unit_at(node, translation["path"])
-        unit["state"], unit["value"] = "translated", translation["value"]
+        unit["state"], unit["value"] = "needs_review", translation["value"]
     h.equal(ordered(h.read(path)), ordered(expected), case + " complete ordered conservation")
 
 
 def apple_native_paths(h):
     path = h.copy(PREFIX + MATRIX, "apple-native/Localizable.xcstrings")
+    h.prepare(path)
     original = h.read(path)
     translations = []
     for key, entry in original["strings"].items():
@@ -150,6 +151,7 @@ def apple_native_reads(h):
 def apple_delimiter_native(h):
     relative = "negative/delimiter-substitution-loss/source.xcstrings"
     path = h.copy(PREFIX + relative, "apple-native/delimiter.xcstrings")
+    h.prepare(path)
     translations = []
     for key, entry in h.read(path)["strings"].items():
         for leaf_path, unit in leaves(entry.get("localizations", {}).get("fr", {})):
@@ -166,6 +168,7 @@ def apple_legacy_orphan_rejected(h):
     entry["localizations"]["fr"] = {"stringUnit": {"state": "translated", "value": "%lld sans substitution"}}
     document["strings"] = {"substitution": entry}
     h.write(catalog, document)
+    h.prepare(catalog)
     before = catalog.read_bytes()
     request = {"key": "substitution", "locale": "fr", "value": "", "substitution_name": "COUNT",
                "plural_forms": {"one": "%arg élément", "many": "%arg éléments", "other": "%arg éléments"}}

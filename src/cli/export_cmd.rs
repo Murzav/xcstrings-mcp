@@ -3,16 +3,17 @@ use std::process::ExitCode;
 
 use serde::Serialize;
 use xcstrings_mcp::error::XcStringsError;
-use xcstrings_mcp::io::FileStore;
 use xcstrings_mcp::io::fs::FsFileStore;
-use xcstrings_mcp::service::xliff;
-use xcstrings_mcp::xliff_operation::resolve_export_destination;
+use xcstrings_mcp::workflow_operation::CatalogSnapshot;
+use xcstrings_mcp::xliff_operation::{ExportWriteReport, prepare_export, save_export_bundle};
 
-use super::common::{EXIT_OK, handle_error, load_file};
+use super::common::{EXIT_ERROR, EXIT_OK, handle_error, load_file};
 
 #[derive(Serialize)]
 struct ExportResult {
-    output_path: String,
+    #[serde(flatten)]
+    writes: ExportWriteReport,
+    source_versions: std::collections::BTreeMap<String, String>,
     locale: String,
     exported_count: usize,
 }
@@ -22,10 +23,19 @@ pub fn run(
     locale: String,
     output: Option<PathBuf>,
     original: Option<String>,
+    source_versions_output: Option<PathBuf>,
     all: bool,
     json: bool,
 ) -> ExitCode {
-    match execute(file, locale, output, original, all, json) {
+    match execute(
+        file,
+        locale,
+        output,
+        original,
+        source_versions_output,
+        all,
+        json,
+    ) {
         Ok(code) => code,
         Err(err) => handle_error(err),
     }
@@ -36,10 +46,13 @@ fn execute(
     locale: String,
     output: Option<PathBuf>,
     original: Option<String>,
+    source_versions_output: Option<PathBuf>,
     all: bool,
     json: bool,
 ) -> Result<ExitCode, XcStringsError> {
-    let (path, parsed) = load_file(file)?;
+    let (path, _) = load_file(file)?;
+    let store = FsFileStore::new();
+    let snapshot = CatalogSnapshot::load(&store, &path)?;
 
     let original = original.as_deref().unwrap_or_else(|| {
         path.file_name()
@@ -49,28 +62,40 @@ fn execute(
 
     let untranslated_only = !all;
 
-    let (xml, count) = xliff::export_xliff(&parsed, &locale, original, untranslated_only)?;
+    let prepared = prepare_export(&snapshot, &locale, original, untranslated_only)?;
+    let count = prepared.exported_count;
 
     let output_path = output.unwrap_or_else(|| PathBuf::from(format!("{locale}.xliff")));
 
-    let store = FsFileStore::new();
-    let destination = resolve_export_destination(&store, &path, &output_path)?;
-    store.write(&destination, &xml)?;
+    let writes = save_export_bundle(
+        &store,
+        &snapshot,
+        &prepared,
+        &output_path,
+        source_versions_output.as_deref(),
+    )?;
+    let success = writes.xml_written;
 
     let output_display = output_path.display().to_string();
 
     if json {
         let result = ExportResult {
-            output_path: output_display,
+            writes,
+            source_versions: prepared.source_versions,
             locale,
             exported_count: count,
         };
         println!("{}", serde_json::to_string_pretty(&result)?);
     } else {
-        eprintln!("Exported {count} translation leaves to {output_display}");
+        if let Some(error) = writes.phase_error {
+            eprintln!("{error}");
+        } else {
+            eprintln!("Exported {count} translation leaves to {output_display}");
+        }
+        eprintln!("Captured source versions: {}", writes.source_versions_path);
     }
 
-    Ok(ExitCode::from(EXIT_OK))
+    Ok(ExitCode::from(if success { EXIT_OK } else { EXIT_ERROR }))
 }
 
 #[cfg(test)]

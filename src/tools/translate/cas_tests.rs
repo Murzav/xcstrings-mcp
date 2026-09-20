@@ -1,4 +1,4 @@
-use super::{SubmitTranslationsParams, handle_submit_translations};
+use super::{SubmitTranslationsParams, captured_params, handle_submit_translations};
 use crate::tools::{
     FileCache,
     files::handle_list_files,
@@ -50,6 +50,24 @@ impl FileStore for Store {
         self.wrote.store(true, Ordering::SeqCst);
         Ok(())
     }
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[crate::io::FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        if self.require_bom {
+            assert!(expected.unwrap().starts_with(&[0xef, 0xbb, 0xbf]));
+        }
+        if self.conflict {
+            self.inner.update_file(path, EXTERNAL);
+        }
+        self.inner
+            .write_if_inputs_match(path, expected, inputs, content)?;
+        self.wrote.store(true, Ordering::SeqCst);
+        Ok(())
+    }
     fn modified_time(&self, path: &Path) -> Result<SystemTime, XcStringsError> {
         if self.metadata_failure && self.wrote.load(Ordering::SeqCst) {
             return Err(std::io::Error::other("metadata unavailable after commit").into());
@@ -91,7 +109,7 @@ fn params(dry_run: bool) -> SubmitTranslationsParams {
         dry_run,
         continue_on_error: true,
         translations: serde_json::from_value(
-            json!([{"key":"k","locale":"de","path":[],"value":"Quelle B"}]),
+            json!([{"expected_source_version":"","key":"k","locale":"de","path":[],"value":"Quelle B"}]),
         )
         .unwrap(),
     }
@@ -106,9 +124,15 @@ async fn assert_original_cache(cache: &Mutex<FileCache>) {
 async fn concurrent_external_edit_is_not_overwritten_and_cache_is_unchanged() {
     let (mut store, cache) = setup().await;
     store.conflict = true;
-    let error = handle_submit_translations(&store, &cache, &Mutex::new(()), params(false))
-        .await
-        .unwrap_err();
+    let error = handle_submit_translations(
+        &store,
+        &cache,
+        &Mutex::new(()),
+        Path::new("/test/glossary.json"),
+        captured_params(&store, params(false)),
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(
         error,
         XcStringsError::ConditionalWriteConflict {
@@ -126,9 +150,15 @@ async fn concurrent_external_edit_is_not_overwritten_and_cache_is_unchanged() {
 #[tokio::test]
 async fn dry_native_submit_keeps_active_file_and_cache_unchanged() {
     let (store, cache) = setup().await;
-    let result = handle_submit_translations(&store, &cache, &Mutex::new(()), params(true))
-        .await
-        .unwrap();
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &Mutex::new(()),
+        Path::new("/test/glossary.json"),
+        captured_params(&store, params(true)),
+    )
+    .await
+    .unwrap();
     assert_eq!(result["accepted"], 1);
     assert_eq!(result["dry_run"], true);
     assert_eq!(store.inner.read(Path::new("/test/B.xcstrings")).unwrap(), B);
@@ -141,9 +171,15 @@ async fn native_conditional_write_compares_exact_bom_bytes() {
     store
         .inner
         .update_file("/test/B.xcstrings", &format!("\u{feff}{B}"));
-    let result = handle_submit_translations(&store, &cache, &Mutex::new(()), params(false))
-        .await
-        .unwrap();
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &Mutex::new(()),
+        Path::new("/test/glossary.json"),
+        captured_params(&store, params(false)),
+    )
+    .await
+    .unwrap();
     assert_eq!(result["accepted"], 1);
     let updated = store.inner.read(Path::new("/test/B.xcstrings")).unwrap();
     assert!(!updated.starts_with('\u{feff}'));
@@ -157,9 +193,15 @@ async fn native_conditional_write_compares_exact_bom_bytes() {
 async fn native_commit_survives_cache_metadata_failure() {
     let (mut store, cache) = setup().await;
     store.metadata_failure = true;
-    let result = handle_submit_translations(&store, &cache, &Mutex::new(()), params(false))
-        .await
-        .unwrap();
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &Mutex::new(()),
+        Path::new("/test/glossary.json"),
+        captured_params(&store, params(false)),
+    )
+    .await
+    .unwrap();
     assert_eq!(result["accepted"], 1);
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(
@@ -178,15 +220,21 @@ async fn combined_orphan_batch(dry_run: bool) {
     store.inner.update_file("/test/B.xcstrings", &catalog);
     let mut request = params(dry_run);
     request.continue_on_error = false;
-    request.translations = serde_json::from_value(json!([{"key":"k","locale":"de","path":[{"device":"iphone"}],"value":"%lld Handy"},{"key":"k","locale":"de","path":[{"device":"ipad"}],"value":"%lld Tablet"}])).unwrap();
+    request.translations = serde_json::from_value(json!([{"expected_source_version":"","key":"k","locale":"de","path":[{"device":"iphone"}],"value":"%lld Handy"},{"expected_source_version":"","key":"k","locale":"de","path":[{"device":"ipad"}],"value":"%lld Tablet"}])).unwrap();
     let parsed = crate::service::parser::parse(&catalog).unwrap();
     assert!(
         crate::service::validator::validate_translations(&parsed, &request.translations).is_empty()
     );
 
-    let result = handle_submit_translations(&store, &cache, &Mutex::new(()), request)
-        .await
-        .unwrap();
+    let result = handle_submit_translations(
+        &store,
+        &cache,
+        &Mutex::new(()),
+        Path::new("/test/glossary.json"),
+        captured_params(&store, request),
+    )
+    .await
+    .unwrap();
 
     assert_eq!(result["accepted"], 0);
     assert_eq!(result["accepted_destinations"], json!([]));

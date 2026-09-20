@@ -1,219 +1,178 @@
+use crate::{
+    error::XcStringsError,
+    guidance_operation::GuidanceSnapshot,
+    io::FileStore,
+    model::glossary::{GlossaryEdit, GlossaryTerm},
+    service::glossary,
+    workflow_operation::byte_revision,
+};
+use schemars::JsonSchema;
+use serde::Deserialize;
+use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
-
-use crate::error::XcStringsError;
-use crate::io::FileStore;
-use crate::service::glossary::{self, Glossary};
-
-/// Load glossary from disk via FileStore. Returns empty glossary if file doesn't exist.
-fn load_glossary(store: &dyn FileStore, path: &Path) -> Result<Glossary, XcStringsError> {
-    if !store.exists(path) {
-        return glossary::parse_glossary(None);
-    }
-    let raw = store.read(path)?;
-    glossary::parse_glossary(Some(&raw))
-}
-
-/// Save glossary to disk via FileStore, creating parent directories if needed.
-fn save_glossary(
-    store: &dyn FileStore,
-    path: &Path,
-    data: &Glossary,
-) -> Result<(), XcStringsError> {
-    store.create_parent_dirs(path)?;
-    let json = glossary::serialize_glossary(data)?;
-    store.write(path, &json)
-}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct GetGlossaryParams {
-    /// Source locale (e.g. "en")
     pub source_locale: String,
-    /// Target locale (e.g. "uk")
     pub target_locale: String,
-    /// Optional substring filter (matches both keys and values, case-insensitive)
+    /// Case-insensitive lookup filter, independent of exact terminology matching.
     #[serde(default)]
     pub filter: Option<String>,
 }
-
-#[derive(Debug, Serialize)]
-struct GlossaryResult {
-    source_locale: String,
-    target_locale: String,
-    entries: BTreeMap<String, String>,
-    count: usize,
-}
-
 pub(crate) async fn handle_get_glossary(
     store: &dyn FileStore,
-    glossary_path: &Path,
+    path: &Path,
     params: GetGlossaryParams,
-) -> Result<serde_json::Value, XcStringsError> {
-    let glossary_data = load_glossary(store, glossary_path)?;
-    let entries = glossary::get_entries(
-        &glossary_data,
+) -> Result<Value, XcStringsError> {
+    let snapshot = GuidanceSnapshot::load(store, path);
+    let Some(document) = &snapshot.document else {
+        return Ok(
+            json!({"status":snapshot.status,"revision":snapshot.revision,"unavailable":snapshot.unavailable,"source_locale":params.source_locale,"target_locale":params.target_locale,"terms":[],"entries":{},"count":0,"term_count":0}),
+        );
+    };
+    let projection = glossary::project_legacy_entries(
+        document,
         &params.source_locale,
         &params.target_locale,
         params.filter.as_deref(),
     );
-    let count = entries.len();
-    let result = GlossaryResult {
-        source_locale: params.source_locale,
-        target_locale: params.target_locale,
-        entries,
-        count,
-    };
-    Ok(serde_json::to_value(result)?)
+    let terms: Vec<_> = document
+        .terms
+        .iter()
+        .filter(|term| {
+            term.source_locale == params.source_locale && term.target_locale == params.target_locale
+        })
+        .filter(|term| matches_filter(term, params.filter.as_deref()))
+        .collect();
+    Ok(
+        json!({"status":snapshot.status,"revision":snapshot.revision,"unavailable":snapshot.unavailable,"needs_migration":snapshot.needs_migration,"source_locale":params.source_locale,"target_locale":params.target_locale,"count":projection.entries.len(),"term_count":terms.len(),"entries":projection.entries,"omitted_term_ids":projection.omitted_term_ids,"terms":terms}),
+    )
+}
+fn matches_filter(term: &GlossaryTerm, filter: Option<&str>) -> bool {
+    filter.is_none_or(|filter| {
+        let filter = filter.to_lowercase();
+        std::iter::once(&term.source)
+            .chain(&term.source_variants)
+            .chain(&term.preferred)
+            .chain(&term.accepted_variants)
+            .chain(&term.forbidden)
+            .any(|form| form.to_lowercase().contains(&filter))
+    })
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub(crate) struct UpdateGlossaryParams {
-    /// Source locale (e.g. "en")
-    pub source_locale: String,
-    /// Target locale (e.g. "uk")
-    pub target_locale: String,
-    /// Source term → preferred translation pairs, e.g. {"Settings": "Налаштування"}. Existing terms are overwritten, new terms are added.
-    pub entries: BTreeMap<String, String>,
+    /// Required together with target_locale for the legacy entries adapter.
+    #[serde(default)]
+    pub source_locale: Option<String>,
+    #[serde(default)]
+    pub target_locale: Option<String>,
+    /// Legacy source-to-preferred map. Cannot be combined with upsert/remove_ids.
+    #[serde(default)]
+    pub entries: Option<BTreeMap<String, String>>,
+    /// Complete rules to create or replace by stable ID; preserve unknown fields on replacement.
+    #[serde(default)]
+    pub upsert: Vec<GlossaryTerm>,
+    #[serde(default)]
+    pub remove_ids: Vec<String>,
+    /// Exact policy revision obtained from get_glossary or a dry run. Required on apply.
+    #[serde(default)]
+    pub expected_revision: Option<String>,
+    #[serde(default)]
+    pub dry_run: bool,
 }
-
-#[derive(Debug, Serialize)]
-struct UpdateGlossaryResult {
-    updated: usize,
-    source_locale: String,
-    target_locale: String,
-}
-
 pub(crate) async fn handle_update_glossary(
     store: &dyn FileStore,
-    glossary_path: &Path,
+    path: &Path,
     write_lock: &Mutex<()>,
     params: UpdateGlossaryParams,
-) -> Result<serde_json::Value, XcStringsError> {
+) -> Result<Value, XcStringsError> {
     let _guard = write_lock.lock().await;
-    let mut glossary_data = load_glossary(store, glossary_path)?;
-    let count = glossary::update_entries(
-        &mut glossary_data,
-        &params.source_locale,
-        &params.target_locale,
-        params.entries,
-    );
-    save_glossary(store, glossary_path, &glossary_data)?;
-    let result = UpdateGlossaryResult {
-        updated: count,
-        source_locale: params.source_locale,
-        target_locale: params.target_locale,
+    let snapshot = GuidanceSnapshot::load(store, path);
+    let document = snapshot.document.as_ref().ok_or_else(|| {
+        XcStringsError::GlossaryError(
+            snapshot
+                .unavailable
+                .as_ref()
+                .map_or("glossary unavailable".into(), |d| d.detail.clone()),
+        )
+    })?;
+    let revision = snapshot
+        .revision
+        .as_deref()
+        .ok_or_else(|| XcStringsError::GlossaryError("glossary revision unavailable".into()))?;
+    if params
+        .expected_revision
+        .as_deref()
+        .is_some_and(|expected| expected != revision)
+    {
+        return Err(XcStringsError::GlossaryError(
+            "stale_glossary_revision".into(),
+        ));
+    }
+    if !params.dry_run && params.expected_revision.is_none() {
+        return Err(XcStringsError::GlossaryError(
+            "glossary apply requires expected_revision".into(),
+        ));
+    }
+    let (candidate, updated) = if let Some(entries) = &params.entries {
+        if !params.upsert.is_empty() || !params.remove_ids.is_empty() {
+            return Err(XcStringsError::GlossaryError(
+                "conflicting_glossary_edit: entries cannot be combined with rich edits".into(),
+            ));
+        }
+        let source = params.source_locale.as_deref().ok_or_else(|| {
+            XcStringsError::GlossaryError("entries requires source_locale".into())
+        })?;
+        let target = params.target_locale.as_deref().ok_or_else(|| {
+            XcStringsError::GlossaryError("entries requires target_locale".into())
+        })?;
+        (
+            glossary::legacy_upsert(document, source, target, entries),
+            entries.len(),
+        )
+    } else {
+        if params.upsert.is_empty() && params.remove_ids.is_empty() {
+            return Err(XcStringsError::GlossaryError("empty_glossary_edit".into()));
+        }
+        let count = params.upsert.len() + params.remove_ids.len();
+        (
+            glossary::apply_glossary_edit(
+                document,
+                &GlossaryEdit {
+                    upsert: params.upsert,
+                    remove_ids: params.remove_ids,
+                },
+            ),
+            count,
+        )
     };
-    Ok(serde_json::to_value(result)?)
+    let candidate = match candidate {
+        Ok(candidate) => candidate,
+        Err(rejected) => {
+            return Ok(
+                json!({"written":false,"dry_run":params.dry_run,"updated":0,"revision":revision,"rejected":rejected}),
+            );
+        }
+    };
+    let changed = candidate != *document || snapshot.needs_migration;
+    let content = glossary::serialize_glossary_document(&candidate)?;
+    if changed && !params.dry_run {
+        let identity = snapshot
+            .identity
+            .as_deref()
+            .ok_or_else(|| XcStringsError::GlossaryError("glossary identity unavailable".into()))?;
+        store.write_if_matches(identity, snapshot.raw_bytes.as_deref(), &content)?;
+    }
+    let written = changed && !params.dry_run;
+    Ok(
+        json!({"updated":updated,"source_locale":params.source_locale,"target_locale":params.target_locale,"written":written,"changed":changed,"dry_run":params.dry_run,"revision":if written {byte_revision(Some(content.as_bytes()))} else {revision.to_owned()},"input_revision":revision,"rejected":[],"terms":candidate.terms}),
+    )
 }
 
 #[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-
-    use super::*;
-    use crate::tools::test_helpers::MemoryStore;
-
-    #[tokio::test]
-    async fn handle_get_glossary_empty() {
-        let store = MemoryStore::new();
-        let path = PathBuf::from("/glossary.json");
-
-        let result = handle_get_glossary(
-            &store,
-            &path,
-            GetGlossaryParams {
-                source_locale: "en".to_string(),
-                target_locale: "uk".to_string(),
-                filter: None,
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(result["count"], 0);
-        assert!(result["entries"].as_object().unwrap().is_empty());
-    }
-
-    #[tokio::test]
-    async fn handle_update_then_get() {
-        let store = MemoryStore::new();
-        let path = PathBuf::from("/glossary.json");
-        let write_lock = Mutex::new(());
-
-        let mut entries = BTreeMap::new();
-        entries.insert("Settings".to_string(), "Nalashtuvannya".to_string());
-
-        let update_result = handle_update_glossary(
-            &store,
-            &path,
-            &write_lock,
-            UpdateGlossaryParams {
-                source_locale: "en".to_string(),
-                target_locale: "uk".to_string(),
-                entries,
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(update_result["updated"], 1);
-
-        let get_result = handle_get_glossary(
-            &store,
-            &path,
-            GetGlossaryParams {
-                source_locale: "en".to_string(),
-                target_locale: "uk".to_string(),
-                filter: None,
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(get_result["count"], 1);
-        assert_eq!(get_result["entries"]["Settings"], "Nalashtuvannya");
-    }
-
-    #[tokio::test]
-    async fn handle_get_glossary_with_filter() {
-        let store = MemoryStore::new();
-        let path = PathBuf::from("/glossary.json");
-        let write_lock = Mutex::new(());
-
-        let mut entries = BTreeMap::new();
-        entries.insert("Settings".to_string(), "Einstellungen".to_string());
-        entries.insert("Cancel".to_string(), "Abbrechen".to_string());
-
-        handle_update_glossary(
-            &store,
-            &path,
-            &write_lock,
-            UpdateGlossaryParams {
-                source_locale: "en".to_string(),
-                target_locale: "de".to_string(),
-                entries,
-            },
-        )
-        .await
-        .unwrap();
-
-        let result = handle_get_glossary(
-            &store,
-            &path,
-            GetGlossaryParams {
-                source_locale: "en".to_string(),
-                target_locale: "de".to_string(),
-                filter: Some("cancel".to_string()),
-            },
-        )
-        .await
-        .unwrap();
-
-        assert_eq!(result["count"], 1);
-        assert!(result["entries"]["Cancel"].as_str().is_some());
-    }
-}
+#[path = "glossary_tests.rs"]
+mod tests;

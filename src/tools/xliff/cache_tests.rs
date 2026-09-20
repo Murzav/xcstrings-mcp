@@ -1,4 +1,4 @@
-use super::{ImportXliffParams, handle_import_xliff};
+use super::{ImportXliffParams, import_with_current_checkpoint as handle_import_xliff};
 use crate::error::XcStringsError;
 use crate::io::FileStore;
 use crate::tools::FileCache;
@@ -50,6 +50,25 @@ impl FileStore for Store {
         self.wrote.store(true, Ordering::SeqCst);
         Ok(())
     }
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[crate::io::FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        if self.conflict {
+            return Err(XcStringsError::ConditionalWriteConflict {
+                path: path.into(),
+                expected_exists: true,
+                actual_exists: true,
+            });
+        }
+        self.inner
+            .write_if_inputs_match(path, expected, inputs, content)?;
+        self.wrote.store(true, Ordering::SeqCst);
+        Ok(())
+    }
     fn modified_time(&self, path: &Path) -> Result<SystemTime, XcStringsError> {
         if self.fail_modified_after_write && self.wrote.load(Ordering::SeqCst) {
             return Err(std::io::Error::other("metadata unavailable after committed write").into());
@@ -90,6 +109,7 @@ async fn setup(xml: &str, conflict: bool) -> (Store, Mutex<FileCache>) {
 
 fn params(dry_run: bool) -> ImportXliffParams {
     ImportXliffParams {
+        expected_source_versions: Default::default(),
         file_path: Some("/test/B.xcstrings".into()),
         original: None,
         xliff_path: "/test/input.xliff".into(),

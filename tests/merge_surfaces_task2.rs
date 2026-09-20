@@ -61,7 +61,7 @@ fn cli_help_and_json_dry_run_expose_the_complete_merge_contract() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("28 MCP tools"))
+        .stdout(predicate::str::contains("32 MCP tools"))
         .stdout(predicate::str::contains("merge"));
     cargo_bin_cmd!("xcstrings-mcp")
         .args(["merge", "--help"])
@@ -333,7 +333,7 @@ fn cli_stale_raw_input_exits_one_without_stdout_or_write() {
 }
 
 #[test]
-fn mcp_router_lists_28_tools_and_merge_returns_structured_content() {
+fn mcp_router_lists_32_tools_and_merge_returns_structured_content() {
     let dir = TempDir::new().unwrap();
     let (base, current, incoming, output) = write_catalogs(&dir);
     let binary = assert_cmd::cargo::cargo_bin!("xcstrings-mcp");
@@ -372,7 +372,7 @@ fn mcp_router_lists_28_tools_and_merge_returns_structured_content() {
         .collect::<Vec<_>>();
     assert_eq!(messages.len(), 3);
     let tools = messages[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 28);
+    assert_eq!(tools.len(), 32);
     let merge = tools
         .iter()
         .find(|tool| tool["name"] == "merge_xcstrings")

@@ -35,7 +35,7 @@ fn legacy_adapter_preserves_explicit_empty_ready_translation() {
     assert_eq!(
         serde_json::to_value(translations).unwrap(),
         serde_json::json!([
-            {"key":"key", "locale":"de", "value":""}
+            {"expected_source_version":"", "key":"key", "locale":"de", "value":""}
         ])
     );
 }

@@ -99,6 +99,9 @@ pub enum Command {
         /// Export all strings (including already translated)
         #[arg(long)]
         all: bool,
+        /// Captured source-version map (defaults to <output>.source-versions.json)
+        #[arg(long)]
+        source_versions_output: Option<PathBuf>,
     },
     /// Import Apple XLIFF 1.2 leaves atomically, preserving draft states
     Import {
@@ -107,6 +110,9 @@ pub enum Command {
         /// Path to XLIFF file to import
         #[arg(long)]
         xliff: PathBuf,
+        /// Source-version map saved by export; never regenerate it during import
+        #[arg(long)]
+        source_versions: PathBuf,
         /// Select an exact XLIFF file original when multiple catalog scopes exist
         #[arg(long)]
         original: Option<String>,
@@ -173,11 +179,11 @@ This is not a multi-file atomic snapshot; base/current/incoming are fingerprinte
     },
 }
 
-pub fn run(cmd: Command, json: bool) -> ExitCode {
+pub fn run(cmd: Command, json: bool, glossary_path: &std::path::Path) -> ExitCode {
     match cmd {
         Command::Info { file } => info::run(file, json),
         Command::Coverage { file, locale } => coverage::run(file, locale, json),
-        Command::Validate { file, locale } => validate::run(file, locale, json),
+        Command::Validate { file, locale } => validate::run(file, locale, json, glossary_path),
         Command::Search {
             pattern,
             file,
@@ -204,14 +210,32 @@ pub fn run(cmd: Command, json: bool) -> ExitCode {
             locale,
             output,
             original,
+            source_versions_output,
             all,
-        } => export_cmd::run(file, locale, output, original, all, json),
+        } => export_cmd::run(
+            file,
+            locale,
+            output,
+            original,
+            source_versions_output,
+            all,
+            json,
+        ),
         Command::Import {
             file,
             xliff,
             original,
+            source_versions,
             dry_run,
-        } => import_cmd::run(file, xliff, original, dry_run, json),
+        } => import_cmd::run(
+            file,
+            xliff,
+            original,
+            source_versions,
+            dry_run,
+            json,
+            glossary_path,
+        ),
         Command::Migrate {
             source_language,
             output,

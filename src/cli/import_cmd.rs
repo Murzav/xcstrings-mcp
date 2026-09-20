@@ -3,7 +3,7 @@ use std::process::ExitCode;
 
 use xcstrings_mcp::io::FileStore;
 use xcstrings_mcp::io::fs::FsFileStore;
-use xcstrings_mcp::xliff_operation::{ImportResult, execute_import};
+use xcstrings_mcp::xliff_operation::{ImportOptions, ImportResult, execute_import};
 
 use super::common::{EXIT_ERROR, EXIT_OK, EXIT_VALIDATION_ISSUES, handle_error, load_file};
 
@@ -11,8 +11,10 @@ pub fn run(
     file: Option<PathBuf>,
     xliff_path: PathBuf,
     original: Option<String>,
+    source_versions: PathBuf,
     dry_run: bool,
     json: bool,
+    glossary_path: &Path,
 ) -> ExitCode {
     let (path, _) = match load_file(file) {
         Ok(value) => value,
@@ -23,7 +25,25 @@ pub fn run(
         Ok(value) => value,
         Err(error) => return handle_error(error),
     };
-    match execute_import(&store, &path, &xml, original.as_deref(), dry_run) {
+    let versions = match store.read(&source_versions).and_then(|text| {
+        let value = xcstrings_mcp::service::parser::parse_unique_json(&text)?;
+        serde_json::from_value::<std::collections::BTreeMap<String, String>>(value)
+            .map_err(Into::into)
+    }) {
+        Ok(value) => value,
+        Err(error) => return handle_error(error),
+    };
+    match execute_import(
+        &store,
+        &path,
+        &xml,
+        ImportOptions {
+            original: original.as_deref(),
+            dry_run,
+            expected_source_versions: &versions,
+        },
+        glossary_path,
+    ) {
         Ok(outcome) => print_result(&outcome.result, &xliff_path, json),
         Err(error) => handle_error(error),
     }
@@ -54,6 +74,15 @@ fn print_result(result: &ImportResult, xliff_path: &Path, json: bool) -> ExitCod
             eprintln!(
                 "  key {:?} [{}]: {}",
                 warning.key, warning.issue_type, warning.message
+            );
+        }
+        if let Some(unavailable) = &result.guidance.unavailable {
+            eprintln!("Terminology QA unavailable: {}", unavailable.detail);
+        }
+        for issue in &result.guidance.issues {
+            eprintln!(
+                "Terminology: {}",
+                serde_json::to_string(issue).unwrap_or_default()
             );
         }
         for scope in &result.report.skipped_scopes {
@@ -96,6 +125,7 @@ mod tests {
 
         let translations = vec![CompletedTranslation {
             key: "nonexistent_key".to_string(),
+            expected_source_version: String::new(),
             locale: "de".to_string(),
             value: "Something".to_string(),
             plural_forms: None,
@@ -115,6 +145,7 @@ mod tests {
 
         let translations = vec![CompletedTranslation {
             key: "greeting".to_string(),
+            expected_source_version: String::new(),
             locale: "de".to_string(),
             value: "Hallo".to_string(),
             plural_forms: None,

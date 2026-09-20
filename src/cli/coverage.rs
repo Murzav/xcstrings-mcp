@@ -3,22 +3,27 @@ use std::process::ExitCode;
 
 use xcstrings_mcp::service::coverage as coverage_svc;
 
-use super::common::{EXIT_OK, handle_error, load_file};
+use super::common::{EXIT_OK, handle_error, load_snapshot};
 
 pub fn run(file: Option<PathBuf>, locale: Option<String>, json: bool) -> ExitCode {
-    let (_path, parsed) = match load_file(file) {
+    let snapshot = match load_snapshot(file) {
         Ok(v) => v,
         Err(e) => return handle_error(e),
     };
+    let view = match snapshot.view() {
+        Ok(view) => view,
+        Err(error) => return handle_error(error),
+    };
+    let parsed = &view.effective_catalog;
 
-    let mut report = coverage_svc::get_coverage(&parsed);
+    let mut report = coverage_svc::get_coverage(parsed);
 
     if let Some(ref loc) = locale {
         report.locales.retain(|lc| lc.locale == *loc);
     }
 
     if json {
-        match serde_json::to_string_pretty(&report) {
+        match super::common::workflow_json(&report, &snapshot, &view) {
             Ok(out) => println!("{out}"),
             Err(e) => {
                 eprintln!("error: failed to serialize: {e}");
@@ -26,6 +31,7 @@ pub fn run(file: Option<PathBuf>, locale: Option<String>, json: bool) -> ExitCod
             }
         }
     } else {
+        super::common::print_view_tracking(&view);
         println!(
             "Source: {} | Keys: {} ({} translatable)",
             report.source_language, report.total_keys, report.translatable_keys

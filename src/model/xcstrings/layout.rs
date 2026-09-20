@@ -74,7 +74,7 @@ pub(super) fn default_true(fields: &mut Map<String, Value>, name: &str) -> Resul
 
 /// Reject duplicate members at every physical level, including future metadata.
 /// The temporary Value is consumed while constructing the typed catalog.
-pub(super) struct UniqueValue(pub Value);
+pub(crate) struct UniqueValue(pub Value);
 
 impl<'de> Deserialize<'de> for UniqueValue {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {

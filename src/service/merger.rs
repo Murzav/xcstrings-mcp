@@ -113,7 +113,7 @@ mod tests {
         let locs = file.strings["greeting"].localizations.as_ref().unwrap();
         let uk = locs["uk"].string_unit.as_ref().unwrap();
         assert_eq!(uk.value, "Привіт");
-        assert_eq!(uk.state, TranslationState::Translated);
+        assert_eq!(uk.state, TranslationState::NeedsReview);
     }
 
     #[test]
@@ -133,7 +133,7 @@ mod tests {
             .as_ref()
             .unwrap();
         assert_eq!(uk.value, "Новий переклад");
-        assert_eq!(uk.state, TranslationState::Translated);
+        assert_eq!(uk.state, TranslationState::NeedsReview);
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
         );
         assert_eq!(
             plural["one"].string_unit.as_ref().unwrap().state,
-            TranslationState::Translated
+            TranslationState::NeedsReview
         );
     }
 

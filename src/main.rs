@@ -12,7 +12,7 @@ use tracing_subscriber::EnvFilter;
 #[command(
     name = "xcstrings-mcp",
     about = "MCP server & CLI for iOS/macOS .xcstrings (String Catalog) localization.\n\n\
-             28 MCP tools + 12 CLI commands for the full localization lifecycle:\n\
+             32 MCP tools + 12 CLI commands for the full localization lifecycle:\n\
              migrate → create → extract → translate → validate → merge → export.\n\n\
              Without a subcommand, starts the MCP server (stdio transport).\n\
              Use subcommands for direct CLI access to localization operations.",
@@ -35,7 +35,7 @@ use tracing_subscriber::EnvFilter;
 )]
 struct Cli {
     /// Path to glossary JSON file for consistent terminology across translations
-    #[arg(long, default_value = "glossary.json")]
+    #[arg(long, global = true, default_value = "glossary.json")]
     glossary_path: PathBuf,
 
     /// Output JSON instead of human-readable text (CLI commands only)
@@ -74,6 +74,6 @@ async fn main() -> ExitCode {
                 }
             }
         }
-        Some(cmd) => cli::run(cmd, cli.json),
+        Some(cmd) => cli::run(cmd, cli.json, &cli.glossary_path),
     }
 }

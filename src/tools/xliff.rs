@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,10 +9,12 @@ use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
 use crate::io::FileStore;
-use crate::service::xliff;
 use crate::tools::parse::CachedFile;
-use crate::tools::{FileCache, mcp_log, resolve_file};
-use crate::xliff_operation::{execute_import, resolve_export_destination};
+use crate::tools::{FileCache, mcp_log};
+use crate::workflow_operation::CatalogSnapshot;
+use crate::xliff_operation::{
+    ImportOptions, execute_import, prepare_export, resolve_export_destination,
+};
 
 fn default_true() -> bool {
     true
@@ -37,6 +42,7 @@ struct ExportResult {
     output_path: String,
     locale: String,
     exported_count: usize,
+    source_versions: BTreeMap<String, String>,
 }
 
 /// Export every supported Apple translation leaf with its exact variation identity.
@@ -45,7 +51,16 @@ pub(crate) async fn handle_export_xliff(
     cache: &Mutex<FileCache>,
     params: ExportXliffParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let path = match &params.file_path {
+        Some(path) => PathBuf::from(path),
+        None => cache
+            .lock()
+            .await
+            .active_path()
+            .cloned()
+            .ok_or(XcStringsError::NoActiveFile)?,
+    };
+    let snapshot = CatalogSnapshot::load(store, &path)?;
 
     let original = params.original.as_deref().unwrap_or_else(|| {
         path.file_name()
@@ -53,12 +68,22 @@ pub(crate) async fn handle_export_xliff(
             .unwrap_or("Localizable.xcstrings")
     });
 
-    let (xml, count) =
-        xliff::export_xliff(&file, &params.locale, original, params.untranslated_only)?;
+    let prepared = prepare_export(
+        &snapshot,
+        &params.locale,
+        original,
+        params.untranslated_only,
+    )?;
+    let count = prepared.exported_count;
 
     let output_path =
         resolve_export_destination(store, &path, &PathBuf::from(&params.output_path))?;
-    store.write(&output_path, &xml)?;
+    let expected = if store.exists(&output_path) {
+        Some(store.read_bytes(&output_path)?)
+    } else {
+        None
+    };
+    store.write_if_matches(&output_path, expected.as_deref(), &prepared.xml)?;
 
     mcp_log(&format!("Exported {count} translation leaves to XLIFF"));
 
@@ -66,6 +91,7 @@ pub(crate) async fn handle_export_xliff(
         output_path: params.output_path,
         locale: params.locale,
         exported_count: count,
+        source_versions: prepared.source_versions,
     };
     Ok(serde_json::to_value(result)?)
 }
@@ -80,6 +106,8 @@ pub(crate) struct ImportXliffParams {
     pub original: Option<String>,
     /// Path to the XLIFF file to import
     pub xliff_path: String,
+    /// Source versions captured when exporting; required for every target-bearing key.
+    pub expected_source_versions: BTreeMap<String, String>,
     /// If true, validate without writing
     #[serde(default)]
     pub dry_run: bool,
@@ -90,6 +118,7 @@ pub(crate) async fn handle_import_xliff(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
     write_lock: &Mutex<()>,
+    glossary_path: &Path,
     params: ImportXliffParams,
 ) -> Result<serde_json::Value, XcStringsError> {
     let path = match params.file_path {
@@ -110,8 +139,12 @@ pub(crate) async fn handle_import_xliff(
         store,
         &path,
         &xml,
-        params.original.as_deref(),
-        params.dry_run,
+        ImportOptions {
+            original: params.original.as_deref(),
+            dry_run: params.dry_run,
+            expected_source_versions: &params.expected_source_versions,
+        },
+        glossary_path,
     )?;
     if let Some(content) = outcome.updated_file {
         match store.modified_time(&outcome.path) {
@@ -137,198 +170,8 @@ pub(crate) async fn handle_import_xliff(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tools::FileCache;
-    use crate::tools::parse::{ParseParams, handle_parse};
-    use crate::tools::test_helpers::{MemoryStore, SIMPLE_FIXTURE};
-    use std::path::Path;
-
-    #[tokio::test]
-    async fn test_export_xliff_writes_file() {
-        let store = MemoryStore::new();
-        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(FileCache::new());
-
-        let parse_params = ParseParams {
-            file_path: "/test/file.xcstrings".to_string(),
-        };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
-
-        let params = ExportXliffParams {
-            original: None,
-            file_path: None,
-            locale: "de".to_string(),
-            output_path: "/test/output.xliff".to_string(),
-            untranslated_only: false,
-        };
-
-        let result = handle_export_xliff(&store, &cache, params).await.unwrap();
-        assert_eq!(result["locale"], "de");
-        assert!(result["exported_count"].as_u64().unwrap() > 0);
-
-        let content = store.get_content(Path::new("/test/output.xliff")).unwrap();
-        assert!(content.contains("<xliff"));
-        assert!(content.contains("target-language=\"de\""));
-    }
-
-    #[tokio::test]
-    async fn test_export_xliff_rejects_non_xliff_output_path() {
-        let store = MemoryStore::new();
-        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(FileCache::new());
-
-        let parse_params = ParseParams {
-            file_path: "/test/file.xcstrings".to_string(),
-        };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
-
-        let params = ExportXliffParams {
-            original: None,
-            file_path: None,
-            locale: "de".to_string(),
-            output_path: "/test/output.txt".to_string(),
-            untranslated_only: false,
-        };
-
-        let result = handle_export_xliff(&store, &cache, params).await;
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(
-            matches!(err, XcStringsError::InvalidPath { .. }),
-            "expected InvalidPath, got: {err:?}"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_import_xliff_dry_run() {
-        let store = MemoryStore::new();
-        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(FileCache::new());
-        let write_lock = Mutex::new(());
-
-        let parse_params = ParseParams {
-            file_path: "/test/file.xcstrings".to_string(),
-        };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
-
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="de" original="file.xcstrings" datatype="plaintext">
-    <body>
-      <trans-unit id="greeting">
-        <source>Hello</source>
-        <target state="translated">Hallo</target>
-      </trans-unit>
-    </body>
-  </file>
-</xliff>"#;
-        store.add_file("/test/input.xliff", xliff);
-
-        let params = ImportXliffParams {
-            original: None,
-            file_path: None,
-            xliff_path: "/test/input.xliff".to_string(),
-            dry_run: true,
-        };
-
-        let result = handle_import_xliff(&store, &cache, &write_lock, params)
-            .await
-            .unwrap();
-        assert_eq!(result["dry_run"], true);
-        assert_eq!(result["accepted"], 1);
-
-        // File should NOT be modified
-        let content = store
-            .get_content(Path::new("/test/file.xcstrings"))
-            .unwrap();
-        assert!(!content.contains("Hallo"));
-    }
-
-    #[tokio::test]
-    async fn test_import_xliff_writes_translations() {
-        let store = MemoryStore::new();
-        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(FileCache::new());
-        let write_lock = Mutex::new(());
-
-        let parse_params = ParseParams {
-            file_path: "/test/file.xcstrings".to_string(),
-        };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
-
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="de" original="file.xcstrings" datatype="plaintext">
-    <body>
-      <trans-unit id="greeting">
-        <source>Hello</source>
-        <target state="translated">Hallo</target>
-      </trans-unit>
-      <trans-unit id="welcome_message">
-        <source>Welcome to the app</source>
-        <target state="translated">Willkommen in der App</target>
-      </trans-unit>
-    </body>
-  </file>
-</xliff>"#;
-        store.add_file("/test/input.xliff", xliff);
-
-        let params = ImportXliffParams {
-            original: None,
-            file_path: None,
-            xliff_path: "/test/input.xliff".to_string(),
-            dry_run: false,
-        };
-
-        let result = handle_import_xliff(&store, &cache, &write_lock, params)
-            .await
-            .unwrap();
-        assert_eq!(result["dry_run"], false);
-        assert_eq!(result["accepted"], 2);
-
-        let content = store
-            .get_content(Path::new("/test/file.xcstrings"))
-            .unwrap();
-        assert!(content.contains("Hallo"));
-        assert!(content.contains("Willkommen"));
-    }
-
-    #[tokio::test]
-    async fn test_import_empty_xliff() {
-        let store = MemoryStore::new();
-        store.add_file("/test/file.xcstrings", SIMPLE_FIXTURE);
-        let cache = Mutex::new(FileCache::new());
-        let write_lock = Mutex::new(());
-
-        let parse_params = ParseParams {
-            file_path: "/test/file.xcstrings".to_string(),
-        };
-        handle_parse(&store, &cache, parse_params).await.unwrap();
-
-        let xliff = r#"<?xml version="1.0" encoding="UTF-8"?>
-<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
-  <file source-language="en" target-language="de" original="file.xcstrings" datatype="plaintext">
-    <body>
-    </body>
-  </file>
-</xliff>"#;
-        store.add_file("/test/input.xliff", xliff);
-
-        let params = ImportXliffParams {
-            original: None,
-            file_path: None,
-            xliff_path: "/test/input.xliff".to_string(),
-            dry_run: false,
-        };
-
-        let result = handle_import_xliff(&store, &cache, &write_lock, params)
-            .await
-            .unwrap();
-        assert_eq!(result["accepted"], 0);
-        assert!(result["rejected"].as_array().unwrap().is_empty());
-    }
-}
+#[path = "xliff/tests.rs"]
+mod tests;
 
 #[cfg(test)]
 #[path = "xliff/structure_tests.rs"]
@@ -345,3 +188,52 @@ mod cdata_tests;
 #[cfg(test)]
 #[path = "xliff/cache_tests.rs"]
 mod cache_tests;
+
+/// Existing XML behavior fixtures explicitly adopt and capture source inputs at
+/// setup. Revision/race tests call the real handler with previously captured data.
+#[cfg(test)]
+pub(super) async fn import_with_current_checkpoint(
+    store: &dyn FileStore,
+    cache: &Mutex<FileCache>,
+    lock: &Mutex<()>,
+    mut params: ImportXliffParams,
+) -> Result<serde_json::Value, XcStringsError> {
+    let path = match &params.file_path {
+        Some(path) => PathBuf::from(path),
+        None => cache
+            .lock()
+            .await
+            .active_path()
+            .cloned()
+            .ok_or(XcStringsError::NoActiveFile)?,
+    };
+    let mut snapshot = CatalogSnapshot::load(store, &path)?;
+    if snapshot.workflow.source_baseline.is_none() {
+        let plan = crate::service::workflow::plan_source_sync(
+            snapshot.identity_text()?,
+            &snapshot.catalog,
+            &snapshot.workflow,
+            crate::model::workflow::SyncMode::AdoptExisting,
+        )?;
+        let checkpoint = crate::service::workflow::plan_checkpoint(
+            &snapshot.catalog,
+            &snapshot.workflow,
+            &plan,
+        )?;
+        store.write(
+            &snapshot.workflow_path,
+            &crate::service::workflow::format_document(&checkpoint)?,
+        )?;
+        snapshot = CatalogSnapshot::load(store, &path)?;
+    }
+    params.expected_source_versions = crate::service::workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?
+    .keys
+    .into_iter()
+    .map(|(key, status)| (key, status.source_version))
+    .collect();
+    handle_import_xliff(store, cache, lock, Path::new("/test/glossary.json"), params).await
+}

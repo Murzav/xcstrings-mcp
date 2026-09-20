@@ -2,7 +2,7 @@ use super::extract::{GetKeyParams, handle_get_key};
 use super::files::handle_list_files;
 use super::parse::{ParseParams, handle_parse};
 use super::test_helpers::MemoryStore;
-use super::xliff::{ImportXliffParams, handle_import_xliff};
+use super::xliff::{ImportXliffParams, import_with_current_checkpoint as handle_import_xliff};
 use super::*;
 use serde_json::json;
 use std::path::Path;
@@ -48,6 +48,28 @@ impl FileStore for AliasStore {
         self.inner
             .write_if_matches(&self.file_identity(path)?, expected, content)
     }
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[crate::io::FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        let identities = inputs
+            .iter()
+            .map(|input| self.file_identity(input.path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let guards = inputs
+            .iter()
+            .zip(&identities)
+            .map(|(input, path)| crate::io::FilePrecondition {
+                path,
+                expected: input.expected,
+            })
+            .collect::<Vec<_>>();
+        self.inner
+            .write_if_inputs_match(&self.file_identity(path)?, expected, &guards, content)
+    }
     fn modified_time(&self, _: &Path) -> Result<SystemTime, XcStringsError> {
         Ok(SystemTime::UNIX_EPOCH)
     }
@@ -87,6 +109,7 @@ async fn implicit_read_after_import_refreshes_retargeted_alias_even_with_equal_m
         &cache,
         &Mutex::new(()),
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             file_path: Some(ALIAS.into()),
             original: None,
             xliff_path: "/test/input.xliff".into(),

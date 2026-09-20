@@ -13,6 +13,9 @@ pub struct LeafSubstitution {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct TranslationLeaf {
+    /// Workflow annotations are absent in catalog-only services.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<crate::model::workflow::LeafWorkflowStatus>,
     pub path: LeafPath,
     pub source_text: String,
     #[serde(skip_serializing_if = "Option::is_none")]

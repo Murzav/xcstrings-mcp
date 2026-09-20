@@ -4,9 +4,9 @@ use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
 use crate::io::FileStore;
-use crate::service::{coverage, file_validator};
+use crate::service::coverage;
 use crate::tools::FileCache;
-use crate::tools::resolve_file;
+use crate::tools::workflow::{read_result, resolve_read_snapshot};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub(crate) struct GetCoverageParams {
@@ -20,9 +20,10 @@ pub(crate) async fn handle_get_coverage(
     cache: &Mutex<FileCache>,
     params: GetCoverageParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-    let report = coverage::get_coverage(&file);
-    Ok(serde_json::to_value(report)?)
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = snapshot.view()?;
+    let report = coverage::get_coverage(&view.effective_catalog);
+    read_result(report, &snapshot, &view)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -38,11 +39,17 @@ pub(crate) struct ValidateFileParams {
 pub(crate) async fn handle_validate_file(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
+    glossary_path: &std::path::Path,
     params: ValidateFileParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-    let reports = file_validator::validate_file(&file, params.locale.as_deref());
-    Ok(serde_json::to_value(reports)?)
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let guidance = crate::guidance_operation::GuidanceSnapshot::load(store, glossary_path);
+    let report = crate::workflow_operation::read::validate_catalog(
+        &snapshot,
+        &guidance,
+        params.locale.as_deref(),
+    )?;
+    Ok(serde_json::to_value(report)?)
 }
 
 #[cfg(test)]
@@ -77,9 +84,16 @@ mod tests {
             file_path: Some("/test/file.xcstrings".to_string()),
             locale: Some("uk".to_string()),
         };
-        let result = handle_validate_file(&store, &cache, params).await.unwrap();
+        let result = handle_validate_file(
+            &store,
+            &cache,
+            std::path::Path::new("/glossary.json"),
+            params,
+        )
+        .await
+        .unwrap();
 
-        let reports = result.as_array().unwrap();
+        let reports = result["reports"].as_array().unwrap();
         assert_eq!(reports.len(), 1);
         assert!(reports[0]["errors"].as_array().unwrap().is_empty());
     }

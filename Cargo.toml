@@ -1,6 +1,6 @@
 [package]
 name = "xcstrings-mcp"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2024"
 rust-version = "1.88"
 license = "MIT OR Apache-2.0"
@@ -27,7 +27,6 @@ indexmap = { version = "2", features = ["serde"] }
 language-tags = "0.3.2"
 schemars = { version = "1.0", features = ["indexmap2"] }
 thiserror = "2.0"
-async-trait = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 regex = "1.12"
@@ -36,6 +35,8 @@ clap_complete = "4"
 quick-xml = { version = "0.42", features = ["serialize"] }
 libc = "0.2.186"
 unicode-script = "0.5.8"
+unicode-normalization = "0.1.25"
+unicode-segmentation = "1.13.3"
 sha2 = "0.11.0"
 
 [dev-dependencies]

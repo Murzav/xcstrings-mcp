@@ -108,6 +108,7 @@ def apple_states(h):
     ]
     for case, unsupported, updates in cases:
         catalog = h.copy(PREFIX + case + "/source.xcstrings", "apple-states/" + case + ".xcstrings")
+        h.prepare(catalog)
         xml = h.fixture(PREFIX + case + "/import-edited.xliff")
         rejected = import_rejected(h, catalog, xml, {"unsupported_state"}, case + " unknown states reject whole batch")
         h.equal({item["unit_id"] for item in rejected["rejected"]}, unsupported, case + " exact unsupported units")
@@ -125,6 +126,7 @@ def apple_scopes(h):
     for source, original, other in (("source.xcstrings", "Localizable.xcstrings", "Custom.xcstrings"),
                                     ("source-custom.xcstrings", "Custom.xcstrings", "Localizable.xcstrings")):
         catalog = h.copy(PREFIX + case + "/" + source, "apple-scopes/" + source)
+        h.prepare(catalog)
         before = catalog.read_bytes()
         h.on("import_xliff", catalog, "multiple originals require selection", "multiple file originals", xliff_path=str(xml))
         h.equal(catalog.read_bytes(), before, "ambiguous scope preserves bytes")
@@ -144,21 +146,25 @@ def apple_scopes(h):
 def apple_import_shapes(h):
     case = "behavior/missing-locale-uk"
     catalog = h.copy(PREFIX + case + "/source.xcstrings", "apple-import/missing.xcstrings")
+    h.prepare(catalog)
     before = catalog.read_bytes()
     result = import_success(h, catalog, h.fixture(PREFIX + case + "/exported.xliff"), h.read(catalog), 0, "all missing targets")
     h.equal(result["missing_targets"], 4, "all four absent Ukrainian targets")
     h.equal(catalog.read_bytes(), before, "missing target import does not even reformat")
     case = "negative/new-target-substitution-loss"
     catalog = h.copy(PREFIX + case + "/destination-before-import.xcstrings", "apple-import/new-substitution.xcstrings")
+    h.prepare(catalog)
     expected = h.read(h.fixture(PREFIX + case + "/source.xcstrings"))
     import_success(h, catalog, h.fixture(PREFIX + case + "/exported.xliff"), expected, 3, "construct target-only substitution without Apple data loss")
     case = "behavior/plural-fallback"
     catalog = h.copy(PREFIX + case + "/source.xcstrings", "apple-import/fallback.xcstrings")
+    h.prepare(catalog)
     result = import_success(h, catalog, h.fixture(PREFIX + case + "/exported.xliff"), h.read(catalog), 2,
                             "only-other preserved and varied source simple target accepted")
     h.equal(result["missing_targets"], 1, "missing synthesized French one remains absent")
     case = "behavior/inline-import"
     catalog = h.copy(PREFIX + case + "/source.xcstrings", "apple-import/inline.xcstrings")
+    h.prepare(catalog)
     xml = h.fixture(PREFIX + case + "/import-edited.xliff")
     before = catalog.read_bytes()
     h.on("import_xliff", catalog, "opaque inline x cannot silently lose its meaning", "inline", xliff_path=str(xml))
@@ -169,14 +175,24 @@ def apple_import_shapes(h):
     expected = h.read(catalog)
     expected["strings"]["ph"]["localizations"]["en"]["stringUnit"]["value"] = "source %@ ph"
     h.write(catalog, expected)
+    h.checkpoint(catalog, "review")
+    h.capture_sources(catalog)
+    # A new translation round must use the updated catalog source as well as its token.
+    refreshed = ET.parse(xml)
+    for unit in refreshed.findall(".//" + NS + "trans-unit"):
+        if unit.attrib["id"] == "ph":
+            unit.find(NS + "source").text = "source %@ ph"
+    refreshed.write(xml, encoding="utf-8", xml_declaration=True)
+    expected = h.read(catalog)
     for key, value in {"g": "before middle after", "ph": "before %@ after"}.items():
-        expected["strings"][key]["localizations"]["fr"]["stringUnit"]["value"] = value
+        expected["strings"][key]["localizations"]["fr"]["stringUnit"].update(value=value, state="translated")
     import_success(h, catalog, xml, expected, 2, "standard inline content preserves exact text and arguments")
 
 
 def apple_matrix_import(h):
     case = "positive/catalog-matrix"
     catalog = h.copy(PREFIX + case + "/source.xcstrings", "apple-matrix-import/Localizable.xcstrings")
+    h.prepare(catalog)
     expected = h.read(catalog)
     expected["strings"]["multi"]["localizations"]["fr"]["stringUnit"]["value"] = "Yards %#@YARDS@ oiseaux %#@BIRDS@"
     xml = h.fixture(PREFIX + case + "/exported.xliff")
@@ -204,6 +220,7 @@ def apple_unsafe_exports(h):
         h.equal(output.read_bytes(), b"previous output must survive\n", case + " previous export conservation")
         h.equal(catalog.read_bytes(), before, case + " native source conservation")
     catalog = h.copy(PREFIX + "negative/delimiter-substitution-loss/source.xcstrings", "apple-unsafe/delimiter-import.xcstrings")
+    h.capture_sources(catalog)
     import_rejected(h, catalog, h.fixture(PREFIX + "negative/delimiter-substitution-loss/exported.xliff"),
                     {"unsupported_destination"}, "unsafe Apple delimiter import is atomic")
 
@@ -221,6 +238,7 @@ def write_units(path, units):
 
 def apple_atomic_errors(h):
     catalog = h.copy(PREFIX + "positive/catalog-matrix/source.xcstrings", "apple-atomic/Localizable.xcstrings")
+    h.prepare(catalog)
     xml = catalog.with_suffix(".xliff")
     valid = ("simple", "EN simple", "FR modifié")
     cases = [
@@ -248,6 +266,7 @@ def apple_atomic_errors(h):
     write_units(xml, [valid])
     import_rejected(h, catalog, xml, {"not_translatable"}, "protected key import")
     collision = h.copy(PREFIX + "negative/id-collision/source.xcstrings", "apple-atomic/collision.xcstrings")
+    h.capture_sources(collision)
     write_units(xml, [("ambiguous|==|plural.one", "source", "%lld cible")])
     import_rejected(h, collision, xml, {"ambiguous_destination"}, "literal ID never wins over competing varied destination")
 
@@ -259,6 +278,7 @@ def apple_partial_substitution(h):
         initial = h.read(catalog)
         del initial["strings"]["substitution"]["localizations"]["fr"]
         h.write(catalog, initial)
+        h.prepare(catalog)
         xml = catalog.with_suffix(".xliff")
         if leaf_only:
             write_units(xml, [("substitution|==|substitutions.COUNT.plural.one", "EN substitution %lld one", "FR %1$lld partiel")])

@@ -144,6 +144,16 @@ pub fn plan_import(
                 report.missing_targets += 1;
                 continue;
             }
+            if let Err(message) = validate_source(file, &destination, unit) {
+                reject(
+                    &mut report,
+                    "source_text_mismatch",
+                    &unit.id,
+                    message,
+                    Some(destination),
+                );
+                continue;
+            }
             let state = match state(unit) {
                 Ok(state) => state,
                 Err(message) => {
@@ -395,4 +405,40 @@ fn expanded_references<'a>(
         result.replace_range(reference.start..reference.end, &format!("%{number}${spec}"));
     }
     Ok(result)
+}
+
+fn validate_source(
+    file: &XcStringsFile,
+    destination: &XliffDestination,
+    unit: &XliffUnit,
+) -> Result<(), String> {
+    let Some(incoming) = unit.source.as_deref() else {
+        return Ok(());
+    };
+    let source = file.strings[&destination.key]
+        .localizations
+        .as_ref()
+        .and_then(|locales| locales.get(&file.source_language));
+    let resolved = source.and_then(|root| apple_export::source_leaf(root, &destination.path));
+    if resolved.is_none()
+        && destination
+            .path
+            .iter()
+            .any(|step| matches!(step, LeafStep::Substitution(_)))
+    {
+        // Apple uses an ID as source for target-only substitution cases. The
+        // workflow operation separately requires the captured source version.
+        return Ok(());
+    }
+    let expected = apple_export::source_text(source, &destination.key, &destination.path)
+        .map_err(|error| error.to_string())?;
+    let actual = match (source, resolved) {
+        (Some(root), Some((path, _))) => apple_substitutions::export_text(incoming, root, &path)?,
+        _ => incoming.to_owned(),
+    };
+    if actual == expected {
+        Ok(())
+    } else {
+        Err("XLIFF source text does not match current catalog source; export again before translating".into())
+    }
 }

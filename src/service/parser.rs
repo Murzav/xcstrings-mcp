@@ -4,6 +4,13 @@ use crate::error::XcStringsError;
 use crate::model::translation::FileSummary;
 use crate::model::xcstrings::XcStringsFile;
 
+/// Parse metadata with the same recursive duplicate-member rejection as catalogs.
+pub fn parse_unique_json(content: &str) -> Result<serde_json::Value, XcStringsError> {
+    serde_json::from_str::<crate::model::xcstrings::UniqueValue>(content)
+        .map(|value| value.0)
+        .map_err(|error| XcStringsError::JsonParse(error.to_string()))
+}
+
 /// Parse an xcstrings JSON string into the typed model.
 pub fn parse(content: &str) -> Result<XcStringsFile, XcStringsError> {
     let file: XcStringsFile =

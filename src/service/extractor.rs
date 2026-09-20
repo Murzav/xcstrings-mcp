@@ -42,6 +42,8 @@ pub(crate) fn build_translation_unit(
         .and_then(|node| assessment::source_unit(node, &[]))
         .map_or_else(|| key.to_string(), |unit| unit.value.clone());
     TranslationUnit {
+        source_version: None,
+        source_freshness: None,
         key: key.into(),
         format_specifiers: extract_specifiers(&source_text)
             .into_iter()

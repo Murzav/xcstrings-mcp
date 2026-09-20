@@ -1,17 +1,23 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use serde_json::json;
 use xcstrings_mcp::{
     model::translation::CompletedTranslation,
     service::{merger, parser, validator},
 };
 
-fn parse_requests(value: serde_json::Value) -> Vec<CompletedTranslation> {
-    serde_json::from_value(value).unwrap()
+fn parse_requests(
+    file: &xcstrings_mcp::model::xcstrings::XcStringsFile,
+    value: serde_json::Value,
+) -> Vec<CompletedTranslation> {
+    serde_json::from_value(workflow_fixture::capture(file, value)).unwrap()
 }
 
 #[test]
 fn different_device_leaves_are_independent_requests_in_the_same_key() {
     let mut file = parser::parse(r#"{"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"stringUnit":{"state":"translated","value":"%lld birds"}}}}},"version":"1.0"}"#).unwrap();
     let requests = parse_requests(
+        &file,
         json!([{"key":"k","locale":"de","path":[{"device":"iphone"}],"value":"%lld Handyvögel"},{"key":"k","locale":"de","path":[{"device":"ipad"}],"value":"%lld Tabletvögel"}]),
     );
 
@@ -31,6 +37,7 @@ fn explicit_substitution_path_requires_parent_template_even_with_metadata() {
     let mut file = parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"substitutions":{"N":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg birds"}}}}}}}}}},"version":"1.0"}).to_string()).unwrap();
     let before = serde_json::to_string(&file).unwrap();
     let requests = parse_requests(
+        &file,
         json!([{"key":"k","locale":"de","path":[{"substitution":"N"},{"plural":"other"}],"value":"%arg Vögel"}]),
     );
 
@@ -47,8 +54,10 @@ fn explicit_substitution_path_requires_parent_template_even_with_metadata() {
 #[test]
 fn parent_substitution_reference_keeps_argument_identity_and_occurrences() {
     let file = parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"stringUnit":{"state":"translated","value":"%1$#@A@ %2$#@B@"},"substitutions":{"A":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg birds"}}}}},"B":{"argNum":2,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg nests"}}}}}}}}}},"version":"1.0"}).to_string()).unwrap();
-    let requests =
-        parse_requests(json!([{"key":"k","locale":"de","path":[],"value":"%2$#@A@ %1$#@B@"}]));
+    let requests = parse_requests(
+        &file,
+        json!([{"key":"k","locale":"de","path":[],"value":"%2$#@A@ %1$#@B@"}]),
+    );
 
     let rejected = validator::validate_translations(&file, &requests);
 
@@ -64,6 +73,7 @@ fn parent_substitution_reference_keeps_argument_identity_and_occurrences() {
 fn target_only_substitution_parent_uses_metadata_for_typed_format_comparison() {
     let file = parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"stringUnit":{"state":"translated","value":"%lld total"}},"fr":{"stringUnit":{"state":"translated","value":"Total %#@COUNT@"},"substitutions":{"COUNT":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg au total"}}}}}}}}}},"version":"1.0"}).to_string()).unwrap();
     let requests = parse_requests(
+        &file,
         json!([{"key":"k","locale":"fr","path":[],"value":"Total %#@COUNT@ modifié"}]),
     );
 
@@ -92,6 +102,7 @@ fn nested_source_state_change_is_not_reported_as_source_text_change() {
 fn target_only_substitution_missing_category_uses_existing_other_format_template() {
     let file = parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"stringUnit":{"state":"translated","value":"%lld total"}},"fr":{"stringUnit":{"state":"translated","value":"Total %#@COUNT@"},"substitutions":{"COUNT":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg au total"}}}}}}}}}},"version":"1.0"}).to_string()).unwrap();
     let requests = parse_requests(
+        &file,
         json!([{"key":"k","locale":"fr","path":[{"substitution":"COUNT"},{"plural":"many"}],"value":"%arg éléments"}]),
     );
 
@@ -105,6 +116,7 @@ fn legacy_substitution_request_cannot_create_an_orphan_subtree() {
     let mut file = parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"substitutions":{"N":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"other":{"stringUnit":{"state":"translated","value":"%arg birds"}}}}}}}}}},"version":"1.0"}).to_string()).unwrap();
     let before = serde_json::to_string(&file).unwrap();
     let requests = parse_requests(
+        &file,
         json!([{"key":"k","locale":"de","value":"","substitution_name":"N","plural_forms":{"other":"%arg Vögel"}}]),
     );
 

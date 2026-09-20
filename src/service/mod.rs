@@ -20,4 +20,5 @@ pub mod strings_parser;
 pub mod stringsdict_parser;
 pub(crate) mod submission;
 pub mod validator;
+pub mod workflow;
 pub mod xliff;

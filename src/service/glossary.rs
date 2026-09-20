@@ -1,3 +1,15 @@
+mod matching;
+mod qa;
+mod storage;
+mod validation;
+pub use matching::{TerminologyInput, relevant_terms};
+pub use qa::check_terminology;
+pub use storage::{
+    apply_glossary_edit, legacy_upsert, parse_glossary_document, project_legacy_entries,
+    serialize_glossary_document,
+};
+pub use validation::validate_glossary;
+
 use std::collections::BTreeMap;
 
 use crate::error::XcStringsError;
@@ -12,9 +24,9 @@ pub(crate) fn locale_pair_key(source: &str, target: &str) -> String {
 /// Deserialize glossary from a raw JSON string. Returns empty glossary if input is None.
 pub fn parse_glossary(raw: Option<&str>) -> Result<Glossary, XcStringsError> {
     match raw {
-        Some(json) => {
-            serde_json::from_str(json).map_err(|e| XcStringsError::GlossaryError(e.to_string()))
-        }
+        Some(json) => super::parser::parse_unique_json(json)
+            .and_then(|value| serde_json::from_value(value).map_err(XcStringsError::Serde))
+            .map_err(|e| XcStringsError::GlossaryError(e.to_string())),
         None => Ok(Glossary::new()),
     }
 }

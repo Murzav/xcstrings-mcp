@@ -1,10 +1,18 @@
 mod atomic_write;
 pub mod fs;
+#[cfg(test)]
+mod guard_contract_tests;
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use crate::error::XcStringsError;
+
+/// An exact input snapshot that must remain unchanged until a guarded write commits.
+pub struct FilePrecondition<'a> {
+    pub path: &'a Path,
+    pub expected: Option<&'a [u8]>,
+}
 
 pub trait FileStore: Send + Sync {
     /// Stable cache identity for a path. Stores without alias awareness retain
@@ -26,6 +34,20 @@ pub trait FileStore: Send + Sync {
         content: &str,
     ) -> Result<(), XcStringsError> {
         let _ = (expected, content);
+        Err(XcStringsError::ConditionalWriteUnsupported {
+            path: path.to_path_buf(),
+        })
+    }
+    /// Compare the output and every input under one ordered lock set, then replace
+    /// only the output. A sequence of independent comparisons is not sufficient.
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        let _ = (expected, inputs, content);
         Err(XcStringsError::ConditionalWriteUnsupported {
             path: path.to_path_buf(),
         })

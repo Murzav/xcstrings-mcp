@@ -1,5 +1,9 @@
 use std::collections::BTreeMap;
 
+#[path = "observed.rs"]
+mod observed;
+pub use observed::{FormatArgumentRole, ObservedFormatArgument, observed_format_arguments};
+
 use super::{
     FormatAnalysis, FormatArgument, FormatComparison, FormatComparisonIssue, analyze_format,
     is_supported_unspaced_script,
@@ -178,8 +182,13 @@ fn compare_substitution_placeholders(
 }
 
 fn count_substitution_placeholders(text: &str) -> usize {
+    substitution_placeholder_ranges(text).len()
+}
+
+/// Exact, unescaped Apple substitution tokens, excluding longer Unicode words.
+pub fn substitution_placeholder_ranges(text: &str) -> Vec<std::ops::Range<usize>> {
     let mut cursor = 0;
-    let mut count = 0;
+    let mut ranges = Vec::new();
     while cursor < text.len() {
         let Some(relative) = text[cursor..].find('%') else {
             break;
@@ -198,14 +207,14 @@ fn count_substitution_placeholders(text: &str) -> usize {
                         || (!value.is_alphanumeric() && value != '_')
                 })
             {
-                count += 1;
+                ranges.push(candidate..after);
                 cursor = after;
                 continue;
             }
         }
         cursor = run_start + run_length;
     }
-    count
+    ranges
 }
 
 fn compare_ambiguous_sequences(

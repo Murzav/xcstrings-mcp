@@ -93,7 +93,7 @@ fn live_tool_schemas() -> BTreeMap<String, Value> {
         json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
     ]);
     let tools = responses[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 28);
+    assert_eq!(tools.len(), 32);
 
     tools
         .iter()
@@ -225,7 +225,7 @@ fn shipped_skill_examples_match_live_tool_schemas() {
     let skill = include_str!("../skills/xcstrings-mcp/SKILL.md");
     let (count, violations) = validate_skill_examples(skill, &schemas);
 
-    assert_eq!(count, 75, "shipped MCP invocation coverage changed");
+    assert_eq!(count, 76, "shipped MCP invocation coverage changed");
     assert!(
         violations.is_empty(),
         "skill examples drifted from live tools/list schemas:\n{}",
@@ -237,12 +237,12 @@ fn shipped_skill_examples_match_live_tool_schemas() {
 fn shipped_skill_schema_guard_rejects_value_and_nested_shape_mutations() {
     let schemas = live_tool_schemas();
     let skill = include_str!("../skills/xcstrings-mcp/SKILL.md");
-    let valid = r#"submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})"#;
+    let valid = r#"submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})"#;
     let mutations = [
-        r#"submit_translations({"translations":{"key":"button.save","locale":"uk","value":"Зберегти"}})"#,
+        r#"submit_translations({"translations":{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}})"#,
         r#"submit_translations({"translations":"invalid"})"#,
-        r#"submit_translations({"translations":[{"locale":"uk","value":"Зберегти"}]})"#,
-        r#"submit_translations({"translations":[{"key":7,"locale":"uk","value":"Зберегти"}]})"#,
+        r#"submit_translations({"translations":[{"locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})"#,
+        r#"submit_translations({"translations":[{"key":7,"locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})"#,
     ];
 
     assert!(

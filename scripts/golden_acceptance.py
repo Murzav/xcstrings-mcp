@@ -19,6 +19,7 @@ import tempfile
 
 sys.dont_write_bytecode = True
 
+from golden_acceptance.workflow import workflow_scenarios
 from golden_acceptance.scenarios import catalog_scenarios, mutation_scenarios
 from golden_acceptance.formats import legacy_scenarios, merge_scenarios, xliff_scenarios
 from golden_acceptance.apple_shared_substitution import apple_shared_substitution
@@ -194,6 +195,7 @@ class Harness:
         self.temporary = temporary
         self.report = report
         self.used = set()
+        self.sources = {}
 
     def fixture(self, relative):
         path = self.fixtures / relative
@@ -211,8 +213,48 @@ class Harness:
     def call(self, name, arguments, case, error=None):
         return self.client.call(name, arguments, case, error)
 
+    def checkpoint(self, path, mode="adopt_existing"):
+        """Explicit setup/review decision; never infer adoption during a write."""
+        before = path.read_bytes()
+        preview = self.on("sync_source_changes", path, "source checkpoint preview", mode=mode, dry_run=True)
+        equal(path.read_bytes(), before, "checkpoint preview preserves catalog bytes")
+        result = self.on("sync_source_changes", path, "explicit source checkpoint", mode=mode,
+                         dry_run=False, expected=preview["input_revisions"])
+        equal((result["retry_required"], result["phase_error"]), (False, None), "checkpoint completed")
+        if mode == "adopt_existing":
+            equal(path.read_bytes(), before, "explicit adoption preserves native states")
+        return result
+
+    def capture_sources(self, path, keys=None):
+        """Capture before authoring targets; callers retain this exact manifest."""
+        keys = self.read(path)["strings"] if keys is None else keys
+        captured = {key: self.on("get_key", path, "capture source before translation", key=key)["source_version"]
+                    for key in keys}
+        self.sources[str(path)] = captured
+        return dict(captured)
+
+    def prepare(self, path, keys=None):
+        self.checkpoint(path)
+        return self.capture_sources(path, keys)
+
     def on(self, name, path, case, error=None, **arguments):
-        return self.call(name, {"file_path": str(path), **arguments}, case, error)
+        held = self.sources.get(str(path))
+        if name == "submit_translations":
+            requests = []
+            for request in arguments["translations"]:
+                if "expected_source_version" not in request:
+                    require(held is not None and request["key"] in held,
+                            case + ": capture source before authoring this translation")
+                    request = {**request, "expected_source_version": held[request["key"]]}
+                requests.append(request)
+            arguments["translations"] = requests
+        elif name == "import_xliff" and "expected_source_versions" not in arguments:
+            require(held is not None, case + ": capture the source manifest before translating XML")
+            arguments["expected_source_versions"] = dict(held)
+        result = self.call(name, {"file_path": str(path), **arguments}, case, error)
+        if name == "export_xliff" and error is None:
+            self.sources[str(path)] = dict(result["source_versions"])
+        return result
 
 
 def main():
@@ -250,7 +292,7 @@ def main():
                 for scenario in (catalog_scenarios, mutation_scenarios, legacy_scenarios, xliff_scenarios, merge_scenarios,
                                  apple_inventory, apple_native_reads, apple_native_paths, apple_delimiter_native, apple_legacy_orphan_rejected, apple_exports,
                                  apple_states, apple_scopes, apple_import_shapes, apple_matrix_import,
-                                 apple_unsafe_exports, apple_atomic_errors, apple_partial_substitution, apple_shared_substitution):
+                                 apple_unsafe_exports, apple_atomic_errors, apple_partial_substitution, apple_shared_substitution, workflow_scenarios):
                     try:
                         scenario(h)
                     except Exception as error:

@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::fs;
@@ -170,7 +172,11 @@ fn validate_json() {
 
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
-    assert!(parsed.is_array());
+    assert_eq!(
+        parsed["reports"],
+        serde_json::json!([{"locale":"uk","errors":[],"warnings":[]}])
+    );
+    assert_eq!(parsed["tracking"], "uninitialized");
 }
 
 #[test]
@@ -495,6 +501,11 @@ fn import_roundtrip() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success();
@@ -528,6 +539,11 @@ fn import_dry_run() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
             "--dry-run",
         ])
         .assert()
@@ -811,6 +827,11 @@ fn import_json_output() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success();
@@ -848,6 +869,11 @@ fn import_json_dry_run() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
             "--dry-run",
         ])
         .assert()
@@ -870,6 +896,11 @@ fn import_nonexistent_xcstrings() {
             "/tmp/nonexistent_xcstrings_12345.xcstrings",
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new("/tmp/nonexistent_xcstrings_12345.xcstrings"),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .failure()
@@ -887,6 +918,11 @@ fn import_nonexistent_xliff() {
             dst.to_str().unwrap(),
             "--xliff",
             "/tmp/nonexistent_xliff_12345.xliff",
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new("/tmp/nonexistent_xliff_12345.xliff"),
+            ),
         ])
         .assert()
         .failure()
@@ -906,6 +942,11 @@ fn import_invalid_xliff() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .failure()
@@ -939,6 +980,11 @@ fn import_with_all_flag() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success();
@@ -1044,7 +1090,11 @@ fn validate_json_with_locale() {
 
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
-    assert!(parsed.is_array());
+    assert_eq!(
+        parsed["reports"],
+        serde_json::json!([{"locale":"en","errors":[],"warnings":[]}])
+    );
+    assert_eq!(parsed["tracking"], "uninitialized");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1493,7 +1543,14 @@ fn validate_with_issues_json_output() {
 
     let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
-    assert!(parsed.is_array());
+    assert!(parsed["reports"].is_array());
+    assert_eq!(parsed["reports"][0]["locale"], "uk");
+    assert_eq!(parsed["reports"][0]["errors"][0]["key"], "items_count");
+    assert_eq!(
+        parsed["reports"][0]["errors"][0]["issue_type"],
+        "format_specifier_count_mismatch"
+    );
+    assert_eq!(parsed["tracking"], "uninitialized");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1527,6 +1584,11 @@ fn import_writes_valid_translations() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success()
@@ -1567,6 +1629,11 @@ fn import_dry_run_with_valid_translations() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
             "--dry-run",
         ])
         .assert()
@@ -1657,6 +1724,11 @@ fn import_with_rejected_translations_text() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .code(EXIT_VALIDATION_ISSUES)
@@ -1690,6 +1762,11 @@ fn import_with_rejected_translations_json() {
             dst.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(dst.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .code(EXIT_VALIDATION_ISSUES);
@@ -1812,6 +1889,11 @@ fn import_invalid_json_xcstrings() {
             path.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(path.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
         ])
         .assert()
         .failure()

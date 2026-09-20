@@ -22,6 +22,17 @@ pub fn export_xliff(
     original: &str,
     untranslated_only: bool,
 ) -> Result<(String, usize), XcStringsError> {
+    export_xliff_with_keys(file, locale, original, untranslated_only)
+        .map(|(xml, count, _)| (xml, count))
+}
+
+/// Export and capture exactly the catalog keys represented in the emitted XML.
+pub fn export_xliff_with_keys(
+    file: &XcStringsFile,
+    locale: &str,
+    original: &str,
+    untranslated_only: bool,
+) -> Result<(String, usize, Vec<String>), XcStringsError> {
     if locale.trim().is_empty() {
         return Err(XcStringsError::XliffFormat("target locale is empty".into()));
     }
@@ -48,6 +59,7 @@ pub fn export_xliff(
     entries.sort_by(|a, b| a.0.cmp(b.0));
     let mut seen = HashSet::new();
     let mut count = 0;
+    let mut exported_keys = Vec::new();
     for (key, entry) in entries {
         if !entry.should_translate {
             continue;
@@ -103,6 +115,9 @@ pub fn export_xliff(
                 .transpose()?;
             units.push((id, source_value, target_value, target_unit));
         }
+        if !units.is_empty() {
+            exported_keys.push(key.clone());
+        }
         units.sort_by(|a, b| a.0.cmp(&b.0));
         for (id, source_value, target_value, target_unit) in units {
             valid_xml(&id)?;
@@ -152,7 +167,7 @@ pub fn export_xliff(
     }
     let xml = String::from_utf8(writer.into_inner().into_inner())
         .map_err(|e| XcStringsError::XliffFormat(e.to_string()))?;
-    Ok((xml, count))
+    Ok((xml, count, exported_keys))
 }
 fn export_paths(
     localization: &Localization,

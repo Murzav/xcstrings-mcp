@@ -14,6 +14,8 @@ import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 
+from xcode_workflow import adopt, native_review
+
 NS = "urn:oasis:names:tc:xliff:document:1.2"
 ET.register_namespace("", NS)
 SUFFIX = " · oracle ✓"
@@ -118,7 +120,8 @@ def matrix(binary, corpus, directory, logs, report):
     run(["xcrun", "xcstringstool", "compile", catalog, "--output-directory", compiled], "compile-before", logs, report, directory)
 
     exported = directory / "tool.xliff"
-    response = json.loads(run([binary, "export", catalog, "--locale", "fr", "--all", "--original", "Localizable.xcstrings", "--output", exported, "--json"], "tool-export", logs, report, directory))
+    adopt(binary, tool_catalog, directory, report)
+    response = json.loads(run([binary, "export", tool_catalog, "--locale", "fr", "--all", "--original", "Localizable.xcstrings", "--output", exported, "--json"], "tool-export", logs, report, directory))
     tool_units = units(exported)
     require(response["exported_count"] == len(tool_units), "export count differs from XML unit count")
     recorded = units(corpus / "positive/catalog-matrix/exported.xliff")
@@ -154,7 +157,7 @@ def matrix(binary, corpus, directory, logs, report):
     require(units(incoming) == edited, "oracle XML serialization changed unit identities or text")
     shutil.copyfile(incoming, logs / "edited.xliff")
     shutil.copyfile(exported, logs / "tool-exported.xliff")
-    imported = json.loads(run([binary, "import", tool_catalog, "--xliff", incoming, "--original", "Localizable.xcstrings", "--json"], "tool-import", logs, report, directory))
+    imported = json.loads(run([binary, "import", tool_catalog, "--xliff", incoming, "--source-versions", str(exported) + ".source-versions.json", "--original", "Localizable.xcstrings", "--json"], "tool-import", logs, report, directory))
     require(imported["rejected"] == [] and imported["accepted"] == len(edited) and imported["written"], "tool import did not accept every edited leaf")
     run(["xcrun", "xcstringstool", "compile", tool_catalog, "--output-directory", compiled], "compile-tool-result", logs, report, directory)
     expected_catalog = read(tool_catalog)
@@ -193,7 +196,10 @@ def matrix(binary, corpus, directory, logs, report):
         verified.append(identity[1])
     reimport_catalog = directory / "reimport.xcstrings"
     shutil.copyfile(catalog, reimport_catalog)
-    reimported = json.loads(run([binary, "import", reimport_catalog, "--xliff", reexported_file, "--original", "Localizable.xcstrings", "--json"], "tool-reimport-xcode", logs, report, directory))
+    adopt(binary, reimport_catalog, directory, report)
+    reimport_map_xml = directory / "reimport-source.xliff"
+    run([binary, "export", reimport_catalog, "--locale", "fr", "--all", "--original", "Localizable.xcstrings", "--output", reimport_map_xml, "--json"], "capture-reimport-source", logs, report, directory)
+    reimported = json.loads(run([binary, "import", reimport_catalog, "--xliff", reexported_file, "--source-versions", str(reimport_map_xml) + ".source-versions.json", "--original", "Localizable.xcstrings", "--json"], "tool-reimport-xcode", logs, report, directory))
     require(reimported["rejected"] == [] and reimported["accepted"] == len(actual_units) and reimported["written"], "tool cannot reimport Xcode's actual reexport")
     require(normalize_references(read(reimport_catalog)) == normalize_references(actual_catalog), "reimporting Xcode output changed semantic catalog data")
     return {"name": "catalog-matrix", "status": "passed", "keys": len(initial["strings"]), "changed_units": len(edited), "verified_unit_ids": verified, "draft_policy_difference": ["state_new", "state_needs_review"]}
@@ -231,14 +237,15 @@ def device_root_substitution(binary, corpus, directory, logs, report):
     compiled.mkdir()
     run(["xcrun", "xcstringstool", "compile", catalog, "--output-directory", compiled], "device-compile-before", logs, report, directory)
     exported = directory / "tool.xliff"
-    response = json.loads(run([binary, "export", catalog, "--locale", "de", "--all", "--original", "Localizable.xcstrings", "--output", exported, "--json"], "device-tool-export", logs, report, directory))
+    adopt(binary, tool_catalog, directory, report)
+    response = json.loads(run([binary, "export", tool_catalog, "--locale", "de", "--all", "--original", "Localizable.xcstrings", "--output", exported, "--json"], "device-tool-export", logs, report, directory))
     require(response["exported_count"] == 4 and units(exported) == units(fixture / "exported.xliff"), "device/root-substitution export differs from Apple")
     tree = ET.parse(exported)
     for target in tree.getroot().iter(f"{{{NS}}}target"):
         target.text = (target.text or "") + SUFFIX
     incoming = directory / "edited.xliff"
     incoming.write_bytes(ET.tostring(tree.getroot(), encoding="utf-8", xml_declaration=True).replace(b"\r", b"&#13;"))
-    imported = json.loads(run([binary, "import", tool_catalog, "--xliff", incoming, "--original", "Localizable.xcstrings", "--json"], "device-tool-import", logs, report, directory))
+    imported = json.loads(run([binary, "import", tool_catalog, "--xliff", incoming, "--source-versions", str(exported) + ".source-versions.json", "--original", "Localizable.xcstrings", "--json"], "device-tool-import", logs, report, directory))
     require(imported["accepted"] == 4 and imported["rejected"] == [] and imported["written"], "device/root-substitution import rejected leaves")
     run(["xcrun", "xcstringstool", "compile", tool_catalog, "--output-directory", compiled], "device-compile-tool", logs, report, directory)
     run(["xcodebuild", "-importLocalizations", "-project", project, "-localizationPath", incoming], "device-xcode-import", logs, report, directory)
@@ -275,6 +282,7 @@ def main():
             report["scenarios"].append(unsafe_literal(binary, corpus, directory, logs, report))
             report["scenarios"].append(matrix(binary, corpus, directory, logs, report))
             report["scenarios"].append(device_root_substitution(binary, corpus, directory, logs, report))
+            report["scenarios"].append(native_review(binary, corpus, directory, logs, report, run, units))
         require(sha(binary) == report["binary_sha256"], "binary changed during acceptance")
         report["checks"] = dict.fromkeys(report["checks"], True)
         report["status"] = "passed"

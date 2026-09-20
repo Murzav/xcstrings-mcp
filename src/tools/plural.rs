@@ -3,11 +3,15 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 
 use crate::error::XcStringsError;
+use crate::guidance_operation::GuidanceSnapshot;
 use crate::io::FileStore;
-use crate::model::translation::{ContextKey, PluralUnit};
+use crate::model::translation::{PluralUnit, TranslationDestination};
+use crate::service::workflow;
 use crate::service::{context, plural_extractor};
 use crate::tools::FileCache;
-use crate::tools::resolve_file;
+use crate::tools::workflow::{read_result, resolve_read_snapshot};
+use crate::workflow_operation::read::{annotate_plural, annotate_unit};
+use std::path::Path;
 
 fn default_plural_batch_size() -> usize {
     20
@@ -47,15 +51,23 @@ pub(crate) async fn handle_get_plurals(
     cache: &Mutex<FileCache>,
     params: GetPluralsParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
 
-    let (units, total) = plural_extractor::get_untranslated_plurals(
-        &file,
+    let (mut units, total) = plural_extractor::get_untranslated_plurals(
+        &view.effective_catalog,
         &params.locale,
         params.batch_size,
         params.offset,
     )?;
 
+    for unit in &mut units {
+        annotate_plural(&snapshot, &view, unit)?;
+    }
     let has_more = params.offset + units.len() < total;
 
     let result = GetPluralsResult {
@@ -66,7 +78,7 @@ pub(crate) async fn handle_get_plurals(
         has_more,
     };
 
-    Ok(serde_json::to_value(result)?)
+    read_result(result, &snapshot, &view)
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -74,27 +86,67 @@ pub(crate) struct GetContextParams {
     /// Path to .xcstrings file (optional if already parsed)
     #[serde(default)]
     pub file_path: Option<String>,
-    /// The key to find context for. Returns nearby keys sharing a common dot-separated prefix (e.g., "settings.title" finds other "settings.*" keys).
+    /// Requested key. Returns its full translation/context package plus bounded related keys.
     pub key: String,
     /// Target locale code (e.g., "uk", "de")
     pub locale: String,
-    /// Number of context keys to return (default 5)
+    /// Neighbor limit (0-50, default 5); the requested key is always included.
     #[serde(default = "default_context_count")]
     pub count: usize,
 }
 
-/// Get nearby context keys for a specific key.
+/// Read current context and terminology from one captured workflow snapshot.
 pub(crate) async fn handle_get_context(
     store: &dyn FileStore,
     cache: &Mutex<FileCache>,
+    glossary_path: &Path,
     params: GetContextParams,
 ) -> Result<serde_json::Value, XcStringsError> {
-    let (_path, file) = resolve_file(store, cache, params.file_path.as_deref()).await?;
-
-    let context_keys: Vec<ContextKey> =
-        context::get_context(&file, &params.key, &params.locale, params.count);
-
-    Ok(serde_json::to_value(context_keys)?)
+    let snapshot = resolve_read_snapshot(store, cache, params.file_path.as_deref()).await?;
+    let view = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?;
+    let guidance = GuidanceSnapshot::load(store, glossary_path);
+    let mut package = context::build_context_package(
+        &view.effective_catalog,
+        &snapshot.workflow.contexts,
+        guidance.document.as_ref(),
+        &params.key,
+        &params.locale,
+        params.count,
+    )?;
+    annotate_unit(&snapshot, &view, &mut package.current)?;
+    for neighbor in &mut package.neighbors {
+        annotate_unit(&snapshot, &view, &mut neighbor.unit)?;
+    }
+    let destinations: Vec<_> = package
+        .current
+        .leaves
+        .iter()
+        .map(|leaf| TranslationDestination {
+            key: params.key.clone(),
+            locale: params.locale.clone(),
+            path: leaf.path.clone(),
+        })
+        .collect();
+    let mut result = read_result(package, &snapshot, &view)?;
+    result["guidance"] = serde_json::to_value(guidance.check_destinations(
+        &snapshot.catalog,
+        &snapshot.workflow.contexts,
+        &destinations,
+    ))?;
+    // Raw selected record allows get-modify-set without dropping unknown authored fields.
+    result["authored_contexts"] = serde_json::to_value(
+        snapshot
+            .workflow
+            .contexts
+            .iter()
+            .filter(|(key, _)| *key == &params.key)
+            .collect::<std::collections::BTreeMap<_, _>>(),
+    )?;
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -149,9 +201,12 @@ mod tests {
             locale: "uk".to_string(),
             count: 5,
         };
-        let result = handle_get_context(&store, &cache, params).await.unwrap();
-        let arr = result.as_array().unwrap();
-        assert!(!arr.is_empty());
+        let result = handle_get_context(&store, &cache, Path::new("/glossary.json"), params)
+            .await
+            .unwrap();
+        assert_eq!(result["current"]["key"], "greeting");
+        assert_eq!(result["guidance"]["status"], "absent");
+        assert_eq!(result["tracking"], "uninitialized");
     }
 
     #[tokio::test]
@@ -166,8 +221,41 @@ mod tests {
             locale: "uk".to_string(),
             count: 5,
         };
-        let result = handle_get_context(&store, &cache, params).await.unwrap();
-        let arr = result.as_array().unwrap();
-        assert!(arr.is_empty());
+        let result = handle_get_context(&store, &cache, Path::new("/glossary.json"), params).await;
+        assert!(matches!(result, Err(XcStringsError::KeyNotFound(key)) if key == "nonexistent"));
+    }
+}
+
+#[cfg(test)]
+mod context_workflow_contract_tests {
+    use super::*;
+    use crate::tools::test_helpers::MemoryStore;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn zero_neighbor_context_returns_requested_key_and_review_version() {
+        let store = MemoryStore::new();
+        store.add_file("/test/catalog.xcstrings",&json!({"sourceLanguage":"en","version":"1.0","strings":{"screen.title":{"comment":"Screen heading","localizations":{"en":{"stringUnit":{"state":"translated","value":"Settings"}},"fr":{"stringUnit":{"state":"needs_review","value":"Réglages"}}}}}}).to_string());
+        let result = handle_get_context(
+            &store,
+            &Mutex::new(FileCache::new()),
+            Path::new("/glossary.json"),
+            GetContextParams {
+                file_path: Some("/test/catalog.xcstrings".into()),
+                key: "screen.title".into(),
+                locale: "fr".into(),
+                count: 0,
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(result["current"]["key"], "screen.title");
+        assert_eq!(result["current"]["comment"], "Screen heading");
+        assert_eq!(
+            result["current"]["leaves"][0]["workflow"]["native_state"],
+            "needs_review"
+        );
+        assert_eq!(result["tracking"], "uninitialized");
+        assert_eq!(result["neighbors"], json!([]));
     }
 }

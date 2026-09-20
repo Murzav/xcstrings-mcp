@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 mod layout;
 pub mod paths;
 pub use layout::ObjectLayout;
+pub(crate) use layout::UniqueValue;
 use layout::catalog_object;
 
 /// Semantic maps retain the catalog's insertion order.

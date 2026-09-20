@@ -2,13 +2,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use rmcp::{
-    ServerHandler,
     handler::server::{
         router::{prompt::PromptRouter, tool::ToolRouter},
         wrapper::Parameters,
     },
-    model::{ProtocolVersion, ServerCapabilities, ServerConfig},
-    prompt_handler, tool, tool_handler, tool_router,
+    tool, tool_router,
 };
 use tokio::sync::Mutex;
 use tracing::error;
@@ -27,9 +25,6 @@ use crate::tools::{
         handle_get_stale, handle_get_untranslated, handle_search_keys,
     },
     files::{DiscoverFilesParams, ListFilesParams, handle_discover_files, handle_list_files},
-    glossary::{
-        GetGlossaryParams, UpdateGlossaryParams, handle_get_glossary, handle_update_glossary,
-    },
     keys::{
         DeleteKeysParams, DeleteTranslationsParams, RenameKeyParams, handle_delete_keys,
         handle_delete_translations, handle_rename_key,
@@ -39,13 +34,14 @@ use crate::tools::{
         handle_list_locales, handle_remove_locale,
     },
     parse::{ParseParams, handle_parse},
-    plural::{GetContextParams, GetPluralsParams, handle_get_context, handle_get_plurals},
     strings::{ImportStringsParams, handle_import_strings},
     translate::{SubmitTranslationsParams, handle_submit_translations},
-    xliff::{ExportXliffParams, ImportXliffParams, handle_export_xliff, handle_import_xliff},
 };
 
+mod exchange_tools;
 mod merge_tool;
+mod protocol;
+mod workflow_tools;
 
 #[derive(Clone)]
 pub struct XcStringsMcpServer {
@@ -62,6 +58,8 @@ impl XcStringsMcpServer {
     pub fn new(store: Arc<dyn FileStore>, glossary_path: PathBuf) -> Self {
         let mut tool_router = Self::tool_router();
         tool_router.merge(Self::merge_tool_router());
+        tool_router.merge(Self::workflow_tool_router());
+        tool_router.merge(Self::exchange_tool_router());
         Self {
             store,
             cache: Arc::new(Mutex::new(FileCache::new())),
@@ -99,7 +97,7 @@ impl XcStringsMcpServer {
     /// Get untranslated strings for a target locale with batching support.
     #[tool(
         name = "get_untranslated",
-        description = "Get untranslated strings for one or more target locales. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are excluded and diagnosed during validation. Returns batched results — repeat with offset += batch_size while has_more is true. Each key includes all recursive leaves with typed paths, current states, completeness and diagnostics. Plural completeness uses CLDR recommendations; draft states are incomplete, translated or machine_translated explicit blanks are ready."
+        description = "Get untranslated strings for one or more target locales. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are excluded and diagnosed during validation. Returns batched results. Capture a finite worklist before writes; drafts stay incomplete and must not be resubmitted in a loop. Each key carries source_version for expected_source_version. Each key includes all recursive leaves with typed paths, current states, completeness and diagnostics. Plural completeness uses CLDR recommendations; draft states are incomplete, translated or machine_translated explicit blanks are ready."
     )]
     async fn get_untranslated(
         &self,
@@ -119,14 +117,20 @@ impl XcStringsMcpServer {
     /// merges into the file, and writes back atomically.
     #[tool(
         name = "submit_translations",
-        description = "Submit translations for validation and atomic writing. Definite Foundation format arguments must preserve position, conversion, length modifier (including integer j), flags, width, and precision; valid positional reordering is allowed, including next to unspaced Han, Hiragana, Katakana, or Hangul text. Invalid positional indices block. Named substitution forms require exact %arg tokens, rejecting longer Unicode words while permitting those unspaced-script adjacencies. Percent sequences that can also be prose are accepted only with machine-readable warnings[]. Use path=[] for the root or typed device/plural/substitution paths for individual leaves; do not combine path with plural_forms or substitution_name. Partial updates are valid; duplicate or overlapping destinations reject every involved request. accepted counts requests and accepted_destinations identifies written leaves. Explicit blanks are intentional. Use dry_run=true first. Check rejected[] for blocking failures and warnings[] for accepted ambiguities. Set continue_on_error=false to reject the entire batch on any blocking failure."
+        description = "Save translations as needs_review drafts with validation and atomic writing. Each request requires expected_source_version captured when reading its source; stale inputs reject. Separate approve_translations marks reviewed leaves ready. Terminology checks are advisory. Definite Foundation format arguments must preserve position, conversion, length modifier (including integer j), flags, width, and precision; valid positional reordering is allowed, including next to unspaced Han, Hiragana, Katakana, or Hangul text. Invalid positional indices block. Named substitution forms require exact %arg tokens, rejecting longer Unicode words while permitting those unspaced-script adjacencies. Percent sequences that can also be prose are accepted only with machine-readable warnings[]. Use path=[] for the root or typed device/plural/substitution paths for individual leaves; do not combine path with plural_forms or substitution_name. Partial updates are valid; duplicate or overlapping destinations reject every involved request. accepted counts requests and accepted_destinations identifies written leaves. Explicit blanks are intentional. Use dry_run=true first. Check rejected[] for blocking failures and warnings[] for accepted ambiguities. Set continue_on_error=false to reject the entire batch on any blocking failure."
     )]
     async fn submit_translations(
         &self,
         Parameters(params): Parameters<SubmitTranslationsParams>,
     ) -> Result<String, String> {
-        match handle_submit_translations(self.store.as_ref(), &self.cache, &self.write_lock, params)
-            .await
+        match handle_submit_translations(
+            self.store.as_ref(),
+            &self.cache,
+            &self.write_lock,
+            &self.glossary_path,
+            params,
+        )
+        .await
         {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
@@ -197,13 +201,20 @@ impl XcStringsMcpServer {
     /// Validate translations in the file for correctness.
     #[tool(
         name = "validate_translations",
-        description = "Validate simple, plural, and substitution translations with the same source resolver and format comparator used by submit_translations. Definite Foundation argument mismatches and invalid positional indices are errors, including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text; named substitution forms require exact %arg tokens and reject longer Unicode words. Ambiguous percent-in-prose differences are warnings. Also reports missing plural forms and empty values. Optionally filter by locale."
+        description = "Validate simple, plural, and substitution translations with the same source resolver and format comparator used by submit_translations. Definite Foundation argument mismatches and invalid positional indices are errors, including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text; named substitution forms require exact %arg tokens and reject longer Unicode words. Ambiguous percent-in-prose differences are warnings. Returns an object with reports, advisory terminology, tracking, source_changed_keys, untracked_keys and input_revisions. Also reports missing plural forms and empty values. Optionally filter by locale."
     )]
     async fn validate_translations_file(
         &self,
         Parameters(params): Parameters<ValidateFileParams>,
     ) -> Result<String, String> {
-        match handle_validate_file(self.store.as_ref(), &self.cache, params).await {
+        match handle_validate_file(
+            self.store.as_ref(),
+            &self.cache,
+            &self.glossary_path,
+            params,
+        )
+        .await
+        {
             Ok(value) => serde_json::to_string_pretty(&value)
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
@@ -271,44 +282,6 @@ impl XcStringsMcpServer {
         }
     }
 
-    /// Get keys requiring plural/device translation for a locale.
-    #[tool(
-        name = "get_plurals",
-        description = "Get keys needing plural or device-variant translation. format_specifiers contains only definite Foundation arguments; percent-in-prose ambiguities are diagnosed during validation. Returns required CLDR forms per locale (e.g., one/few/many/other for Ukrainian), existing partial translations, and substitution info. All substitutions and nested devices appear in leaves with typed paths and states. Submit individual leaves using path, or direct aggregate plural_forms where unambiguous; partial submissions need not complete every CLDR category."
-    )]
-    async fn get_plurals(
-        &self,
-        Parameters(params): Parameters<GetPluralsParams>,
-    ) -> Result<String, String> {
-        match handle_get_plurals(self.store.as_ref(), &self.cache, params).await {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "get_plurals failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    /// Get nearby context keys for a translation key.
-    #[tool(
-        name = "get_context",
-        description = "Get nearby keys sharing a common prefix with the given key. Helps translators understand context by seeing related strings and their translations."
-    )]
-    async fn get_context(
-        &self,
-        Parameters(params): Parameters<GetContextParams>,
-    ) -> Result<String, String> {
-        match handle_get_context(self.store.as_ref(), &self.cache, params).await {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "get_context failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
     /// List all cached .xcstrings files.
     #[tool(
         name = "list_files",
@@ -342,90 +315,6 @@ impl XcStringsMcpServer {
                 .map_err(|e| format!("serialization error: {e}")),
             Err(e) => {
                 error!(error = %e, "get_diff failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    /// Get glossary entries for a language pair.
-    #[tool(
-        name = "get_glossary",
-        description = "Get glossary entries for a source/target locale pair. The glossary persists across sessions and stores preferred translations for terms. Supports optional substring filter."
-    )]
-    async fn get_glossary(
-        &self,
-        Parameters(params): Parameters<GetGlossaryParams>,
-    ) -> Result<String, String> {
-        match handle_get_glossary(self.store.as_ref(), &self.glossary_path, params).await {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "get_glossary failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    /// Update glossary entries for a language pair.
-    #[tool(
-        name = "update_glossary",
-        description = "Add or update glossary entries for a source/target locale pair. The glossary persists across sessions. Upserts entries — existing terms are overwritten, new terms are added."
-    )]
-    async fn update_glossary(
-        &self,
-        Parameters(params): Parameters<UpdateGlossaryParams>,
-    ) -> Result<String, String> {
-        match handle_update_glossary(
-            self.store.as_ref(),
-            &self.glossary_path,
-            &self.glossary_write_lock,
-            params,
-        )
-        .await
-        {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "update_glossary failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    /// Export translations to XLIFF 1.2 format for external tools.
-    #[tool(
-        name = "export_xliff",
-        description = "Export supported Apple String Catalog leaves to XLIFF 1.2, including plural, all seven device categories, substitutions, and supported chains. By default exports incomplete leaves; set untranslated_only=false for all. original sets the exact file scope and defaults to the catalog filename. exported_count counts trans-units, not catalog keys. Rejects unsafe shapes, ambiguous IDs, literal keys resembling valid variation IDs, and unsafe substitution names before writing. Xcode may lose newly introduced target-only substitutions; compare content after external import."
-    )]
-    async fn export_xliff(
-        &self,
-        Parameters(params): Parameters<ExportXliffParams>,
-    ) -> Result<String, String> {
-        match handle_export_xliff(self.store.as_ref(), &self.cache, params).await {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "export_xliff failed");
-                Err(e.to_string())
-            }
-        }
-    }
-
-    /// Import translations from XLIFF 1.2 file.
-    #[tool(
-        name = "import_xliff",
-        description = "Atomically import supported Apple XLIFF 1.2 translation leaves. Select exact original when multiple file scopes exist; skipped_scopes reports unselected files. Preserve draft new/needs-review text and state; translated + leveraged-mt maps to machine_translated. Missing target is a no-op; explicit empty target intentionally clears a leaf. Resolve empty keys and variation IDs in catalog context. accepted counts trans-units; accepted_destinations identifies original/key/locale/path/unit_id. Any rejected unit or stale conditional write prevents the whole selected import and leaves cache unchanged. Strict structure, namespace, duplicate ID, format, and state validation remains; XLIFF 2.x and opaque inline placeholders are unsupported. Use dry_run=true, inspect rejected/warnings, then apply."
-    )]
-    async fn import_xliff(
-        &self,
-        Parameters(params): Parameters<ImportXliffParams>,
-    ) -> Result<String, String> {
-        match handle_import_xliff(self.store.as_ref(), &self.cache, &self.write_lock, params).await
-        {
-            Ok(value) => serde_json::to_string_pretty(&value)
-                .map_err(|e| format!("serialization error: {e}")),
-            Err(e) => {
-                error!(error = %e, "import_xliff failed");
                 Err(e.to_string())
             }
         }
@@ -606,63 +495,5 @@ impl XcStringsMcpServer {
                 Err(e.to_string())
             }
         }
-    }
-}
-
-#[tool_handler(router = self.tool_router)]
-#[prompt_handler(router = self.prompt_router)]
-impl ServerHandler for XcStringsMcpServer {
-    fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .enable_prompts()
-                .build(),
-        )
-        .with_protocol_version(ProtocolVersion::V_2025_06_18)
-        .with_instructions(
-            "MCP server for iOS/macOS .xcstrings String Catalog localization.\n\
-                 \n\
-                 SETUP: discover_files to find files, parse_xcstrings to load \
-                 (required before other tools unless file_path is passed). \
-                 create_xcstrings for new files.\n\
-                 \n\
-                 TRANSLATE: get_untranslated → translate → submit_translations \
-                 (use dry_run=true first). Inspect leaves and diagnostics; copy each leaf path \
-                 into its submission (path=[] explicitly selects the root). get_plurals covers \
-                 plural/device/substitution chains. Legacy plural_forms/substitution_name \
-                 require omitting path. Use continue_on_error=false for an atomic native batch. \
-                 Use get_context for nearby keys, get_glossary for term consistency.\n\
-                 \n\
-                 REVIEW: get_coverage for statistics, validate_translations for blocking errors \
-                 and non-blocking warnings (format arguments, ambiguous percent prose, missing plurals), get_stale for removed keys, \
-                 get_diff for changes since last parse.\n\
-                 COMPLETENESS: every required leaf must be translated or machine_translated; \
-                 intentional empty text in those states is complete. Draft/missing leaves, \
-                 unsupported shapes, and unknown locales remain incomplete. CLDR 48.2.1 \
-                 recommendations are not Xcode's compiler minimum. Report diagnostics; \
-                 never delete unknown data or invent translations to force 100% coverage.\n\
-                 \n\
-                 MANAGE: list_locales, add_locale/remove_locale, \
-                 add_keys/delete_keys/rename_key/get_key, search_keys, \
-                 update_comments, delete_translations, list_files.\n\
-                 MERGE: merge_xcstrings performs a conservative three-way catalog merge. \
-                 Dry-run first, resolve conflicts, then apply with returned fingerprints.\n\
-                 \n\
-                 MIGRATE: import_strings for legacy .strings/.stringsdict → .xcstrings. \
-                 export_xliff/import_xliff support Apple XLIFF 1.2 variations and exact original \
-                 scopes. Imports preserve draft states and explicit empty targets; missing \
-                 targets are no-ops. Any rejection prevents the entire selected import. \
-                 Inspect accepted_destinations: native accepted counts requests, XLIFF counts \
-                 trans-units. Unsafe Apple interoperability cases are rejected explicitly; \
-                 compare changed content after Xcode import.\n\
-                 \n\
-                 GLOSSARY: get_glossary/update_glossary — persists across sessions for \
-                 term consistency.\n\
-                 \n\
-                 Pagination: batched tools return has_more/offset/total — repeat with \
-                 offset += batch_size while has_more is true. \
-                 Source locale translations cannot be submitted or deleted.",
-        )
     }
 }

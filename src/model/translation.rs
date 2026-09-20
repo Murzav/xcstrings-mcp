@@ -10,6 +10,11 @@ use serde::{Deserialize, Serialize};
 /// A string needing translation, returned by get_untranslated, get_stale, and search_keys.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct TranslationUnit {
+    /// Captured input version for guarded submissions; absent in catalog-only helpers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_freshness: Option<crate::model::workflow::SourceFreshness>,
     /// Localization key name
     pub key: String,
     /// Source language text to translate from
@@ -36,6 +41,9 @@ pub struct TranslationUnit {
 pub struct CompletedTranslation {
     /// Localization key exactly as returned by get_untranslated or get_plurals
     pub key: String,
+    /// Required source/context version captured when this translation was requested.
+    /// A current version must never be invented while submitting an older draft.
+    pub expected_source_version: String,
     /// Target locale code (e.g., "uk", "de"). Must not be the source language.
     pub locale: String,
     /// Translated text for simple strings. Must preserve each definite format argument's conversion, length modifier, flags, width, and precision. Positional reordering is allowed. Ignored when plural_forms is set.
@@ -163,6 +171,10 @@ pub struct LocaleInfo {
 /// A key requiring plural translation (returned by get_plurals).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct PluralUnit {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_freshness: Option<crate::model::workflow::SourceFreshness>,
     /// Localization key name
     pub key: String,
     /// Source language text

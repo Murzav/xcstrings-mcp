@@ -1,3 +1,10 @@
+mod authored;
+mod package;
+mod validation;
+pub use authored::{apply_context_edits, authored_snapshot, resolve_context};
+pub use package::build_context_package;
+pub use validation::{validate_authored_context, validate_context_bindings};
+
 use crate::model::translation::ContextKey;
 #[cfg(test)]
 use crate::model::xcstrings::TranslationState;

@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use serde_json::json;
 use xcstrings_mcp::{
     model::{translation::CompletedTranslation, xcstrings::XcStringsFile},
@@ -7,8 +9,11 @@ use xcstrings_mcp::{
 fn global_source() -> XcStringsFile {
     parser::parse(&json!({"sourceLanguage":"en","strings":{"k":{"localizations":{"en":{"substitutions":{"N":{"argNum":1,"formatSpecifier":"lld","variations":{"plural":{"one":{"stringUnit":{"state":"translated","value":"%arg item"}},"other":{"stringUnit":{"state":"translated","value":"%arg items"}}}}}},"variations":{"device":{"iphone":{"stringUnit":{"state":"translated","value":"%#@N@ phone"}},"other":{"stringUnit":{"state":"translated","value":"%lld other"}}}}}}}},"version":"1.0"}).to_string()).unwrap()
 }
-fn requests(value: serde_json::Value) -> Vec<CompletedTranslation> {
-    serde_json::from_value(value).unwrap()
+fn requests(
+    file: &xcstrings_mcp::model::xcstrings::XcStringsFile,
+    value: serde_json::Value,
+) -> Vec<CompletedTranslation> {
+    serde_json::from_value(workflow_fixture::capture(file, value)).unwrap()
 }
 
 #[test]
@@ -21,6 +26,7 @@ fn root_substitution_can_be_referenced_from_device_leaf() {
         .unwrap()
         .insert("fr".into(), source);
     let translations = requests(
+        &file,
         json!([{"key":"k","locale":"fr","path":[{"device":"iphone"}],"value":"%#@N@ téléphone"},{"key":"k","locale":"fr","path":[{"substitution":"N"},{"plural":"other"}],"value":"%arg éléments"}]),
     );
 
@@ -33,6 +39,7 @@ fn root_substitution_can_be_referenced_from_device_leaf() {
 fn missing_target_substitution_initializes_device_parent_references_as_new() {
     let mut file = global_source();
     let translations = requests(
+        &file,
         json!([{"key":"k","locale":"fr","path":[{"substitution":"N"},{"plural":"other"}],"value":"%arg éléments"}]),
     );
 
@@ -77,7 +84,10 @@ fn invalid_substitution_specifier_is_incomplete_with_diagnostic() {
 #[test]
 fn blank_parent_cannot_orphan_existing_substitution_metadata() {
     let file = invalid_metadata(1, "lld");
-    let translations = requests(json!([{"key":"k","locale":"de","path":[],"value":""}]));
+    let translations = requests(
+        &file,
+        json!([{"key":"k","locale":"de","path":[],"value":""}]),
+    );
     let rejected = validator::validate_translations(&file, &translations);
     assert_eq!(rejected.len(), 1);
     assert!(rejected[0].reason.contains("no reference"));

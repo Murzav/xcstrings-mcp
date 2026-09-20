@@ -1,4 +1,6 @@
 mod helpers;
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 
 use std::path::PathBuf;
 
@@ -68,7 +70,13 @@ fn parse_validate_merge_roundtrip() {
     assert_eq!(result.accepted, 1);
     assert!(result.rejected.is_empty());
 
-    // Verify: welcome_message should now be translated for "uk"
+    assert_eq!(
+        extractor::get_untranslated(&file, "uk", 100, 0).unwrap().1,
+        1,
+        "saved draft remains reviewable"
+    );
+    workflow_fixture::approve_drafts(&mut file, "uk");
+    // Explicit approval makes welcome_message ready for uk.
     let (batch, total) = extractor::get_untranslated(&file, "uk", 100, 0).unwrap();
     assert_eq!(total, 0, "no more untranslated keys for uk");
     assert!(batch.is_empty());
@@ -185,7 +193,13 @@ fn sequential_merges_no_corruption() {
     let r2 = merger::merge_translations(&mut file, &t2);
     assert_eq!(r2.accepted, 1);
 
-    // Both translations should exist, and original en/uk should be preserved
+    assert_eq!(
+        extractor::get_untranslated(&file, "de", 100, 0).unwrap().1,
+        2,
+        "both new drafts require review"
+    );
+    workflow_fixture::approve_drafts(&mut file, "de");
+    // Both approved translations exist; original en/uk are preserved.
     let (batch, total) = extractor::get_untranslated(&file, "de", 100, 0).unwrap();
     assert_eq!(total, 0);
     assert!(batch.is_empty());
@@ -238,7 +252,12 @@ fn full_roundtrip_with_memory_store() {
     let result = merger::merge_translations(&mut file, &translations);
     assert_eq!(result.accepted, 2);
 
-    // Format and write back to store
+    assert_eq!(
+        extractor::get_untranslated(&file, "de", 100, 0).unwrap().1,
+        2
+    );
+    workflow_fixture::approve_drafts(&mut file, "de");
+    // Format and write approved values back to store
     let formatted = formatter::format_xcstrings(&file).unwrap();
     store.add_file(&path, &formatted);
 
@@ -933,7 +952,13 @@ fn batch_retry_continue_on_error_writes_valid() {
     assert_eq!(result.accepted, 1);
     assert!(result.accepted_keys.contains(&"plain_key".to_string()));
 
-    // Verify plain_key is translated, specifier_key is not
+    assert_eq!(
+        extractor::get_untranslated(&file, "de", 100, 0).unwrap().1,
+        2,
+        "saved plain_key still needs review"
+    );
+    workflow_fixture::approve_drafts(&mut file, "de");
+    // Verify plain_key is approved and the invalid specifier_key is still missing.
     let (batch, total) = extractor::get_untranslated(&file, "de", 100, 0).unwrap();
     assert_eq!(total, 1);
     assert_eq!(batch[0].key, "specifier_key");
@@ -1410,7 +1435,18 @@ fn full_lifecycle_create_add_translate_coverage() {
     let merge_result = merger::merge_translations(&mut file, &translations);
     assert_eq!(merge_result.accepted, 2);
 
-    // Check coverage = 100%
+    assert_eq!(
+        coverage::get_coverage(&file)
+            .locales
+            .iter()
+            .find(|locale| locale.locale == "uk")
+            .unwrap()
+            .percentage,
+        0.0,
+        "drafts are incomplete before explicit approval"
+    );
+    workflow_fixture::approve_drafts(&mut file, "uk");
+    // Check coverage after explicit approval.
     let report = coverage::get_coverage(&file);
     let uk_coverage = report.locales.iter().find(|l| l.locale == "uk").unwrap();
     assert!(

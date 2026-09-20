@@ -47,6 +47,16 @@ fn default_conditional_write_fails_closed_for_source_compatible_stores() {
 }
 
 #[test]
+fn default_guarded_write_fails_closed_even_without_extra_inputs() {
+    let error = LegacyStore
+        .write_if_inputs_match(Path::new("/output.xcstrings"), None, &[], "new")
+        .unwrap_err();
+    assert!(
+        matches!(error, XcStringsError::ConditionalWriteUnsupported { path } if path == Path::new("/output.xcstrings"))
+    );
+}
+
+#[test]
 fn fs_conditional_write_compares_exact_raw_bytes_and_expected_absence() {
     let dir = TempDir::new().unwrap();
     let output = dir.path().join("output.xcstrings");

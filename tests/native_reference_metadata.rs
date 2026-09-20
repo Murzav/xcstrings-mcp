@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use serde_json::json;
 use xcstrings_mcp::{
     model::translation::CompletedTranslation,
@@ -21,9 +23,11 @@ fn existing_target_metadata_cannot_hide_format_type_mismatch() {
         json!({"stringUnit":{"state":"translated","value":"%#@N@"},"substitutions":{"N":substitution(1,"lld")}}),
         json!({"stringUnit":{"state":"translated","value":"%#@N@"},"substitutions":{"N":substitution(1,"@")}}),
     );
-    let request: CompletedTranslation =
-        serde_json::from_value(json!({"key":"k","locale":"de","path":[],"value":"%#@N@ neu"}))
-            .unwrap();
+    let request: CompletedTranslation = serde_json::from_value(workflow_fixture::capture(
+        &file,
+        json!({"key":"k","locale":"de","path":[],"value":"%#@N@ neu"}),
+    ))
+    .unwrap();
 
     let rejected = validator::validate_translations(&file, &[request]);
     let reports = file_validator::validate_file(&file, Some("de"));
@@ -43,9 +47,10 @@ fn target_reference_positions_use_target_metadata_independently() {
         json!({"stringUnit":{"state":"translated","value":"%1$#@N@ %2$#@M@"},"substitutions":{"N":substitution(1,"lld"),"M":substitution(2,"lld")}}),
         json!({"stringUnit":{"state":"translated","value":"%1$#@M@ %2$#@N@"},"substitutions":{"N":substitution(2,"lld"),"M":substitution(1,"lld")}}),
     );
-    let request: CompletedTranslation = serde_json::from_value(
+    let request: CompletedTranslation = serde_json::from_value(workflow_fixture::capture(
+        &file,
         json!({"key":"k","locale":"de","path":[],"value":"%1$#@M@ mit %2$#@N@"}),
-    )
+    ))
     .unwrap();
 
     let rejected = validator::validate_translations(&file, &[request]);

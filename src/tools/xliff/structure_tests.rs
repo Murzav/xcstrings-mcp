@@ -1,3 +1,4 @@
+use super::import_with_current_checkpoint as handle_import_xliff;
 use super::*;
 use crate::tools::test_helpers::{MemoryStore, SIMPLE_FIXTURE};
 use std::path::Path;
@@ -22,6 +23,7 @@ async fn assert_rejected_without_write(contents: &str, expected: &str) {
         &cache,
         &write_lock,
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: Some("/test/catalog.xcstrings".to_string()),
             xliff_path: "/test/input.xliff".to_string(),

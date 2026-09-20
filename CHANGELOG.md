@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-09-20
+
+### Added
+- A separate draft review queue and explicit approval that verifies the exact source and draft inspected, then changes only the translation state.
+- Durable source/context checkpoints and preserved old/new source evidence. Changed sources immediately lower effective coverage; synchronization preserves target text and marks affected ready leaves for review.
+- Structured glossary rules with preferred/forbidden terms, do-not-translate names, accepted inflections and contextual exceptions. Submission, import, approval and validation expose advisory checks with policy revisions and explicit unavailable diagnostics.
+- Current-key context packages with authored screen, role, purpose, variable meanings, variation overrides and neighbor provenance. Context updates preserve unrelated metadata; screenshot references remain inert authored data.
+
+### Changed
+- **BREAKING:** native translation submissions save `needs_review` drafts. Every request requires `expected_source_version` captured with its input. Use `get_review_queue` and `approve_translations` after reviewing drafts; generation alone no longer completes coverage.
+- **BREAKING:** XLIFF import requires `expected_source_versions` saved from export; ready targets additionally require a current source checkpoint. CLI export writes a source-version companion map; import requires `--source-versions PATH`.
+- **BREAKING:** `get_context` returns a current-key package instead of a neighbor array. `validate_translations` and CLI validation JSON return an object; the previous validation array is in `reports`, alongside terminology, tracking, freshness lists and input revisions.
+- **BREAKING:** glossary apply requires a captured `expected_revision`. Legacy glossaries remain readable and migrate only on explicit updates. Rust `FileStore` implementations must implement guarded multi-input writes to use the new workflow operations.
+- Initialize tracking with a previewed `sync_source_changes` call and pass its `input_revisions` as `expected` on apply. The default mode requests review of existing ready translations; explicit `adopt_existing` trusts their native states with unknown historical freshness. Keep the catalog's `.xcstrings-mcp.json` sidecar in version control. See README migration instructions for the complete 3.0 workflow.
+- Translation prompts consume finite captured worklists and stop at drafts; review prompts use exact source/target tokens and restart queue pagination after writes.
+
+### Fixed
+- Human-readable coverage, info and validation output disclose uninitialized source tracking; validation also names new untracked keys after initialization. Native readiness is no longer presented without its freshness limitation.
+- Guarded writes compare the catalog and its review/context metadata together before replacing either file, so concurrent context edits cannot admit an outdated translation. Partial source synchronization reports which durable phase committed and permits conservative retry.
+- Stable lock ordering uses physical lock-file identity, avoiding deadlocks between case aliases on case-insensitive filesystems. Policy metadata writes reject symlink redirection and preserve concurrent edits.
+
 ## [2.0.0] - 2026-09-20
 
 ### Added

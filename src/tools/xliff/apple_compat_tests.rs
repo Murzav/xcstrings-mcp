@@ -1,3 +1,4 @@
+use super::import_with_current_checkpoint as handle_import_xliff;
 use super::*;
 use crate::service::parser;
 use crate::tools::test_helpers::MemoryStore;
@@ -44,6 +45,7 @@ async fn import(
         &Mutex::new(FileCache::new()),
         &Mutex::new(()),
         ImportXliffParams {
+            expected_source_versions: Default::default(),
             original: None,
             file_path: Some(CATALOG_PATH.to_string()),
             xliff_path: XLIFF_PATH.to_string(),

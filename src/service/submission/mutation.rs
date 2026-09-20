@@ -65,7 +65,7 @@ fn prepare_entry(
         if node.variations.is_some() {
             return Err("simple target write would flatten an existing variation tree".into());
         }
-        node.set_translation(TranslationState::Translated, value);
+        node.set_translation(TranslationState::NeedsReview, value);
     }
     assessment::validate_substitution_references(target)?;
     Ok(Some((first.key.clone(), candidate)))

@@ -104,7 +104,7 @@ Bash("find . -name '*.xcstrings'")
 
 ## Runtime Compatibility
 
-Version 2.0 keeps the binary name and stdio configuration. Rust embedders need `rmcp` 3.4 and Rust 1.88 or newer. Catalog maps now use `OrderedMap` (`IndexMap`), and plural/device branches are recursive `Localization` values. Use catalog constructors or `..Default::default()` for new objects; preserve parsed `extra`/`layout` metadata. `CompletedTranslation` adds optional `path` (`None` for legacy submissions). `XcStringsError` is non-exhaustive; downstream matches need a wildcard arm.
+Version 3.0 keeps the binary name and stdio configuration. Rust embedders need `rmcp` 3.4 and Rust 1.88 or newer. Catalog maps now use `OrderedMap` (`IndexMap`), and plural/device branches are recursive `Localization` values. Use catalog constructors or `..Default::default()` for new objects; preserve parsed `extra`/`layout` metadata. `CompletedTranslation` requires `expected_source_version` captured with the source and supports optional `path` (`None` for legacy submissions). Native writes now save `needs_review`; only explicit approval marks drafts ready. `get_context` returns a current-key package, and `validate_translations` returns an object with `reports`, `terminology`, tracking, freshness lists and input revisions. `XcStringsError` is non-exhaustive; downstream matches need a wildcard arm.
 
 ---
 
@@ -150,15 +150,34 @@ discover_files({"directory":"."})                         // Step 0: always firs
 
 // Spawn one subagent per locale simultaneously:
 Subagent per locale:
-  loop:
-    get_untranslated({"locale":"uk","batch_size":50}) // optimal batch size: 50
-    inspect leaves and diagnostics; translate supported required incomplete leaves
-    submit_translations({"translations":[{"key":"button.save","locale":"uk","path":[],"value":"Зберегти"}]})
-    if no progress because of unsupported diagnostics → report them; do not loop forever
-  validate_translations and get_coverage; claim completion only when required leaves are complete
+  read all get_untranslated pages before writing to capture a finite worklist:
+    get_untranslated({"locale":"uk","batch_size":50})
+    retain each source_version; preserve existing drafts for review
+    inspect leaves and diagnostics; translate each planned leaf once
+    submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","path":[],"value":"Зберегти"}]})
+    accepted values stay needs_review; do not resubmit them because coverage is incomplete
+  validate_translations and report get_review_queue for separate acceptance
 ```
 
 **Always parallelize — one subagent per locale. Writes are atomic and lock-protected.**
+
+### Review drafts and track source changes
+
+Native submissions save `needs_review`, preserving text without counting it as complete. Draft generation must process a finite captured worklist once. Do not repeatedly submit existing drafts or approve them merely to improve coverage.
+
+1. Preview `sync_source_changes` with `dry_run:true`. On first initialization the default `review` mode moves ready targets to review; `adopt_existing` is an explicit trust decision that preserves native states while acknowledging unknown historical freshness.
+2. Apply the chosen mode with `expected` copied from the preview's `input_revisions`. Check `catalog_written`, `checkpoint_written`, `retry_required`, and `phase_error`. Two guarded file writes are not one transaction; on partial failure obtain a fresh preview and retry.
+3. Read `get_review_queue`. Inspect source, previous-source evidence, actual draft text, diagnostics, and `get_context`. Missing translations are drafting work, not approval items.
+4. Only after review, submit `approve_translations` with each item's `destination` flattened to `key`/`locale`/`path`, `expected_source_version` from `source_version`, and `expected_target_version` from `target_version`. Preview first. Approval changes state only and rejects the entire batch if any item is stale or invalid.
+5. After any mutation restart the queue at offset zero. Later unchanged pages require `expected_queue_version` from the same first page. Report unresolved items.
+
+Keep `<catalog>.xcstrings-mcp.json` alongside its catalog in version control: it stores source checkpoints, authored context and bounded pending-review evidence. Source/context edits immediately reduce effective readiness on reads; synchronization persists `needs_review` without losing text. Before initialization existing native ready states retain their counts but are explicitly untracked. External editors can author ready states after a current checkpoint; this is native readiness, not proof of approval through MCP. Pending evidence follows matching content and is not an audit log.
+
+### Author context without inventing facts
+
+Read `get_context` for the current key even when neighbor count is zero. `current` includes the source token, `authored_contexts` exposes the raw record for get-modify-set, and `leaf_contexts` contains exact variation overrides. Explicit neighbors rank before same-screen neighbors and the labeled prefix heuristic. Variable positions/formats are observed; their meanings must be authored.
+
+Use `update_context` with `edits:[{"action":"set","key":"button.save","context":{"context":{"screen":"Editor","role":"button","purpose":"Save the current document"}}}]`. `set` replaces the whole addressed record: preserve unknown fields and leaf overrides when editing. Preview with `dry_run:true`, then pass the preview `input_revisions` as `expected`. `remove` deletes one authored record. Authored context changes invalidate source versions and require tracked translations to be reviewed. Screenshot references are inert metadata; they are not fetched or analyzed.
 
 ### Add a new language
 
@@ -167,8 +186,9 @@ discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
 → add_locale({"locale":"uk"})                            // creates empty entries
 → get_untranslated({"locale":"uk","batch_size":50})
-→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
-→ get_coverage({})                                      // verify result
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})
+→ get_review_queue({"locale":"uk"})                   // drafts await separate review
+→ get_coverage({})                                      // drafts remain incomplete
 ```
 
 ### Remove a language
@@ -200,7 +220,7 @@ Or manually:
 ```
 validate_translations({})
 → search_keys({"pattern":"button.save","locale":"uk"})
-→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})
 ```
 
 ### Handle plurals, devices, substitutions, and chains
@@ -210,8 +230,8 @@ discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
 → get_plurals({"locale":"uk"})                        // inspect leaves[].path and diagnostics
 → submit_translations({"translations":[
-    {"key":"phone_items","locale":"uk","path":[{"device":"iphone"},{"plural":"few"}],"value":"%lld елементи"},
-    {"key":"bird_count","locale":"uk","path":[{"substitution":"BIRDS"},{"plural":"other"}],"value":"%arg птаха"}
+    {"key":"phone_items","locale":"uk","expected_source_version":"<copy source_version captured with this input>","path":[{"device":"iphone"},{"plural":"few"}],"value":"%lld елементи"},
+    {"key":"bird_count","locale":"uk","expected_source_version":"<copy source_version captured with this input>","path":[{"substitution":"BIRDS"},{"plural":"other"}],"value":"%arg птаха"}
   ],"dry_run":true})
 → inspect rejected/warnings, then submit with dry_run=false
 ```
@@ -229,7 +249,7 @@ discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
 → add_keys({"keys":[{"key":"button.save","source_text":"Save","comment":"Save button title"}]})
 → get_untranslated({"locale":"uk"}) for each locale
-→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})
 ```
 
 ### Extract hardcoded strings from Swift code
@@ -256,12 +276,14 @@ discover_files({"directory":"."})                        // finds .xcstrings AND
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
 → get_plurals({"locale":"uk"})                        // verify .stringsdict plural rules imported
 → get_untranslated({"locale":"uk"}) for remaining gaps
-→ submit_translations({"translations":[{"key":"button.save","locale":"uk","value":"Зберегти"}]})
+→ submit_translations({"translations":[{"key":"button.save","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Зберегти"}]})
 ```
 
 Supports UTF-8 and UTF-16, merge into existing `.xcstrings`.
 
 ### Export for external translators (XLIFF)
+
+Synchronize source tracking before exporting. Save the returned `source_versions` map together with the XML; it belongs to this catalog identity and this export. Import requires that captured map, including every imported key. Never replace old tokens with current ones to force outdated work through. CLI export also writes a `.source-versions.json` companion; CLI import requires `--source-versions PATH`.
 
 Export supports Apple XLIFF 1.2 IDs for simple, plural, device, substitution, and supported chained leaves. It includes incomplete leaves by default; set `untranslated_only:false` for all leaves. Set `original` to the exact file scope expected by the recipient.
 
@@ -282,7 +304,7 @@ Ambiguous destinations, duplicate IDs after XML normalization, malformed structu
 ```
 discover_files({"directory":"."})
 → parse_xcstrings({"file_path":"Localizable.xcstrings"})
-→ import_xliff({"xliff_path":"translations_uk.xliff","original":"App/Localizable.xcstrings","dry_run":true})
+→ import_xliff({"xliff_path":"translations_uk.xliff","original":"App/Localizable.xcstrings","expected_source_versions":{"button.save":"<copy this key from the saved export source_versions map>"},"dry_run":true})
 → review result, then repeat with dry_run=false
 → validate_translations({})
 → get_coverage({})
@@ -295,9 +317,13 @@ get_glossary({"source_locale":"en","target_locale":"uk"}) // check existing term
 → update_glossary({
     "source_locale":"en",
     "target_locale":"uk",
-    "entries":{"Dashboard":"Панель","Settings":"Налаштування"}
+    "entries":{"Dashboard":"Панель","Settings":"Налаштування"},
+    "expected_revision":"<copy revision from get_glossary>",
+    "dry_run":true
   })
 ```
+
+Preview, inspect `rejected`, then apply with `dry_run:false` and the same captured revision. Rich `upsert` rules support `preferred`, `forbidden`, `do_not_translate`, source/accepted variants and scoped exceptions. Checks are advisory: `status:unavailable` means policy could not be evaluated, while `absent` means no policy exists. Legacy files migrate only on explicit update.
 
 **Always consult glossary before translating to ensure brand/product term consistency.**
 
@@ -343,7 +369,7 @@ discover_files({"directory":"."})
 → validate_translations({})
 → delete_translations({"keys":["broken_key"],"locale":"uk"}) // reset to untranslated
 → get_untranslated({"locale":"uk"})                            // re-translate
-→ submit_translations({"translations":[{"key":"broken_key","locale":"uk","value":"Виправлено"}]})
+→ submit_translations({"translations":[{"key":"broken_key","locale":"uk","expected_source_version":"<copy source_version captured with this input>","value":"Виправлено"}]})
 ```
 
 ### Merge conflicting String Catalog branches
@@ -419,12 +445,16 @@ The `merge-v1:` and `sha256:` placeholders above show the exact wire shape. Over
 | `add_locale` | Add a new language |
 | `remove_locale` | Remove a language |
 | `get_untranslated` | Get next batch to translate |
-| `submit_translations` | Write completed translations atomically |
+| `submit_translations` | Save drafts atomically using captured source versions |
+| `get_review_queue` | Inspect existing drafts and source-change evidence |
+| `approve_translations` | Mark explicitly reviewed drafts ready without changing text |
+| `sync_source_changes` | Preview/apply source checkpoints and invalidate stale ready states |
+| `update_context` | Set/remove authored context with revision guards |
 | `get_coverage` | Check translation progress per locale |
 | `validate_translations` | Find format/plural errors |
 | `get_stale` | Find unused keys |
 | `get_plurals` | Inspect required typed leaves for plural/device/substitution chains |
-| `get_context` | Find related keys by shared prefix |
+| `get_context` | Current source, authored context, variables, terms and neighbors with provenance |
 | `search_keys` | Search by key name or source text |
 | `add_keys` | Add new localization keys |
 | `create_xcstrings` | Create new empty catalog from scratch |

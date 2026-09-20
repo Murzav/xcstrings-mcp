@@ -69,11 +69,22 @@ impl FileStore for Store {
         *bytes = content.as_bytes().to_vec();
         Ok(())
     }
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[crate::io::FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        assert_eq!(inputs.len(), 1);
+        assert_eq!(inputs[0].expected, None);
+        self.write_if_matches(path, expected, content)
+    }
     fn modified_time(&self, _: &Path) -> Result<SystemTime, XcStringsError> {
         Ok(SystemTime::UNIX_EPOCH)
     }
-    fn exists(&self, _: &Path) -> bool {
-        true
+    fn exists(&self, path: &Path) -> bool {
+        path.extension().and_then(|part| part.to_str()) == Some("xcstrings")
     }
     fn create_parent_dirs(&self, _: &Path) -> Result<(), XcStringsError> {
         Ok(())
@@ -93,7 +104,27 @@ fn draft() -> String {
 }
 
 fn execute(store: &Store, xml: &str, dry_run: bool) -> Result<ImportOutcome, XcStringsError> {
-    execute_import(store, Path::new("Catalog.xcstrings"), xml, None, dry_run)
+    let snapshot = CatalogSnapshot::load(store, Path::new("Catalog.xcstrings"))?;
+    let versions = workflow::inspect(
+        snapshot.identity_text()?,
+        &snapshot.catalog,
+        &snapshot.workflow,
+    )?
+    .keys
+    .into_iter()
+    .map(|(key, status)| (key, status.source_version))
+    .collect();
+    execute_import(
+        store,
+        Path::new("Catalog.xcstrings"),
+        xml,
+        ImportOptions {
+            original: None,
+            dry_run,
+            expected_source_versions: &versions,
+        },
+        Path::new("glossary.json"),
+    )
 }
 
 #[test]

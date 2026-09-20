@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -46,6 +48,11 @@ fn run_import(catalog: &Path, input: &Path) -> std::process::Output {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
         ])
         .output()
         .unwrap()

@@ -4,6 +4,7 @@ use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
+use super::FilePrecondition;
 use crate::error::XcStringsError;
 
 pub(super) enum ExpectedContent<'a> {
@@ -27,13 +28,69 @@ fn write_with_replace(
     expected: ExpectedContent<'_>,
     replace: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
 ) -> Result<(), XcStringsError> {
+    let lock_path = stable_lock_path(target)?;
+    let lock_file = open_stable_lock(&lock_path)?;
+    lock_exclusive(&lock_file)?;
+    write_locked(target, content, expected, replace)
+}
+
+pub(super) fn write_guarded(
+    target: &Path,
+    content: &str,
+    expected: Option<&[u8]>,
+    inputs: &[FilePrecondition<'_>],
+) -> Result<(), XcStringsError> {
+    let mut paths = Vec::with_capacity(inputs.len() + 1);
+    paths.push(target);
+    paths.extend(inputs.iter().map(|input| input.path));
+    paths.sort_unstable();
+    if paths.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err(XcStringsError::InvalidPath {
+            path: target.to_path_buf(),
+            reason: "guarded write inputs must have distinct canonical identities".into(),
+        });
+    }
+    // Open first: case/normalization aliases can name one inode even when an
+    // absent target has distinct canonical-parent plus filename spellings.
+    let mut locks = Vec::with_capacity(paths.len());
+    for path in paths {
+        let lock = open_stable_lock(&stable_lock_path(path)?)?;
+        let metadata = lock.metadata()?;
+        locks.push(((metadata.dev(), metadata.ino()), lock));
+    }
+    locks.sort_unstable_by_key(|(identity, _)| *identity);
+    if locks.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err(XcStringsError::InvalidPath {
+            path: target.to_path_buf(),
+            reason: "guarded write inputs share a physical lock identity".into(),
+        });
+    }
+    // Physical identity gives every cooperating process the same ordering.
+    // Keep every descriptor alive until replacement completes.
+    for (_, lock) in &locks {
+        lock_exclusive(lock)?;
+    }
+    for input in inputs {
+        compare_expected(input.path, ExpectedContent::Exact(input.expected))?;
+    }
+    write_locked(
+        target,
+        content,
+        ExpectedContent::Exact(expected),
+        |temp, target| fs::rename(temp, target),
+    )
+}
+
+fn write_locked(
+    target: &Path,
+    content: &str,
+    expected: ExpectedContent<'_>,
+    replace: impl FnOnce(&Path, &Path) -> std::io::Result<()>,
+) -> Result<(), XcStringsError> {
     let directory = target.parent().ok_or_else(|| XcStringsError::InvalidPath {
         path: target.to_path_buf(),
         reason: "no parent directory".into(),
     })?;
-    let lock_path = stable_lock_path(target)?;
-    let lock_file = open_stable_lock(&lock_path)?;
-    lock_exclusive(&lock_file)?;
 
     let temp_path = stable_temp_path(target)?;
     cleanup_orphan(&temp_path)?;
@@ -148,7 +205,18 @@ fn compare_expected(target: &Path, expected: ExpectedContent<'_>) -> Result<(), 
         return Ok(());
     };
     let actual_exists = match fs::symlink_metadata(target) {
-        Ok(_) => true,
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink()
+                && target.extension().and_then(|value| value.to_str()) != Some("xcstrings")
+                && expected.is_some()
+            {
+                return Err(XcStringsError::InvalidPath {
+                    path: target.into(),
+                    reason: "conditional metadata path must not redirect to another file".into(),
+                });
+            }
+            true
+        }
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
         Err(error) => return Err(error.into()),
     };

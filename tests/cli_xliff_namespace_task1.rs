@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -45,6 +47,11 @@ fn assert_cli_rejected_without_writing(file_name: &str, xliff: &str, expected_er
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
         ])
         .assert()
         .failure()
@@ -71,6 +78,11 @@ fn cli_import_accepts_prefix_bound_xliff_for_dry_run_and_apply() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
             "--dry-run",
         ])
         .assert()
@@ -91,6 +103,11 @@ fn cli_import_accepts_prefix_bound_xliff_for_dry_run_and_apply() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success();
@@ -141,6 +158,8 @@ fn cli_import_rejects_wrong_namespace_without_writing() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(std::path::Path::new(catalog.to_str().unwrap()),std::path::Path::new(input.to_str().unwrap())),
         ])
         .assert()
         .failure()
@@ -177,6 +196,8 @@ fn cli_import_rejects_unqualified_child_in_official_document_without_writing() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(std::path::Path::new(catalog.to_str().unwrap()),std::path::Path::new(input.to_str().unwrap())),
         ])
         .assert()
         .failure()
@@ -213,6 +234,8 @@ fn cli_import_rejects_qualified_child_in_legacy_document_without_writing() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(std::path::Path::new(catalog.to_str().unwrap()),std::path::Path::new(input.to_str().unwrap())),
         ])
         .assert()
         .failure()
@@ -248,6 +271,11 @@ fn cli_import_rejects_duplicate_namespace_without_writing() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
         ])
         .assert()
         .failure()
@@ -392,6 +420,11 @@ fn cli_import_accepts_normalized_official_namespace_and_bound_extension() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
             "--dry-run",
         ])
         .assert()
@@ -411,6 +444,11 @@ fn cli_import_accepts_normalized_official_namespace_and_bound_extension() {
             catalog.to_str().unwrap(),
             "--xliff",
             input.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog.to_str().unwrap()),
+                std::path::Path::new(input.to_str().unwrap()),
+            ),
         ])
         .assert()
         .success();

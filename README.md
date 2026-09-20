@@ -18,7 +18,7 @@ xcstrings-mcp is a small Rust process that sits between the assistant and the fi
 
 ## Features
 
-- 28 MCP tools, 8 prompts, and 12 CLI commands for the full translation lifecycle
+- 32 MCP tools, 8 prompts, and 12 CLI commands for the full translation lifecycle
 - Batch translation that fits the context window: pull 50–100 keys at a time
 - Recursive Apple plural, device, substitution, and supported chained variations, with typed paths for individual translation leaves
 - Deterministic Foundation format-argument and CLDR plural validation: definite `%d`/`%@`/`%jd` mismatches block (including arguments next to unspaced Han, Hiragana, Katakana, or Hangul text such as `%lld日`), while percent signs in prose such as `85% of` are accepted with explicit warnings; substitution plurals require exact `%arg` placeholders and reject longer Unicode words
@@ -144,7 +144,23 @@ transport: stdio
 ```
 </details>
 
-### Upgrading to 2.0
+### Upgrading to 3.0
+
+Version 3 separates drafting from acceptance. Native `submit_translations` now saves `needs_review`, and every request requires `expected_source_version` copied from the input key's `source_version`. A source or authored-context edit invalidates that token. Read the new source and reconsider the translation after rejection; copying a fresh token onto an old answer defeats the protection.
+
+- Initialize tracking with `sync_source_changes`: preview, then apply with `expected` copied from `input_revisions`. The default `review` mode preserves text and marks existing ready targets for review. Choose `adopt_existing` only when deliberately trusting existing native states; their historical freshness remains unknown.
+- Review existing drafts with `get_review_queue`, then explicitly call `approve_translations` with exact key/locale/path and captured source/target versions. Approval changes state only. After mutations restart queue pagination at offset zero; subsequent unchanged pages require `expected_queue_version`.
+- `export_xliff` returns the captured `source_versions` map. Pass it as `expected_source_versions` on import. CLI export writes a companion map, and CLI import now requires `--source-versions PATH`. Ready imports require a current checkpoint. Maps bind to the canonical catalog identity, so exporting a copy does not authorize importing into a different catalog.
+- `get_context` now returns a package with `current`, authored facts, variables, terms and neighbors, rather than just a neighbor array. `validate_translations` and CLI `validate --json` return an object: read the previous validation array from `reports`; `terminology`, `tracking`, freshness lists and `input_revisions` are separate fields.
+- `update_glossary` apply requires `expected_revision` from a read or preview. Existing maps read without rewriting; explicit updates migrate them to structured schema 2. Preserve unknown metadata when replacing rules.
+
+Keep the new `<catalog>.xcstrings-mcp.json` sidecar with the catalog in version control. It contains portable source snapshots, authored context and pending-review evidence. Reads account for source/context changes without rewriting the catalog. Synchronization writes the catalog first and the checkpoint second, each guarded against stale inputs. These are two writes, not a cross-file transaction: inspect `retry_required`/`phase_error` and preview again after partial failure. Locks coordinate cooperating writers; external applications may ignore those locks.
+
+Before initialization, native ready states still count and are labeled untracked. With a current checkpoint, a ready state authored by an external editor is accepted as native readiness, not evidence of MCP approval. Pending-review evidence follows matching target content; it is bounded change context, not a historical event log. An unobserved external ready-to-draft cycle with identical content cannot be distinguished from the prior draft.
+
+Rust callers must populate `CompletedTranslation::expected_source_version` and pass captured maps through `xliff_operation::ImportOptions`. Use `CatalogSnapshot`, guarded operations and `FileStore::write_if_inputs_match` for workflow-aware integration; pure catalog helpers do not perform I/O revision checks. Custom stores default to rejecting guarded writes until they implement the contract. The binary name, stdio configuration, Rust 1.88 minimum and recursive catalog model remain unchanged.
+
+### Earlier 2.0 migration
 
 The binary name and stdio MCP configuration are unchanged. Rust applications that embed `XcStringsMcpServer` need Rust 1.88 or newer and a compatible `rmcp` 3.4 dependency:
 
@@ -175,11 +191,13 @@ match error {
 The basic loop:
 
 1. Parse the `.xcstrings` once to cache it.
-2. Pull untranslated strings in batches.
-3. Submit translations. The server validates and writes atomically.
+2. Capture a finite worklist and source versions before writing.
+3. Submit each planned translation once. The server validates and atomically saves drafts.
+4. Inspect context and the review queue, then explicitly approve reviewed drafts. Drafts remain incomplete in coverage; do not loop over them or auto-approve to reach 100%.
 
 ```
-parse_xcstrings → get_untranslated → submit_translations
+parse_xcstrings → sync_source_changes → get_untranslated → submit_translations
+get_review_queue → review source/context/text → approve_translations
 ```
 
 For projects with multiple `.xcstrings` files, parse each one. The server keeps them all in memory and tracks which is "active". `list_files` shows what's loaded. If the same displayed symlink is retargeted and parsed again, its obsolete canonical identity is evicted so the list contains one current entry.
@@ -190,7 +208,7 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 |------|-------------|
 | `parse_xcstrings` | Parse and cache `.xcstrings` file |
 | `get_untranslated` | Get untranslated strings with batching; `format_specifiers` lists definite arguments only |
-| `submit_translations` | Validate and write atomically; blocking format failures go to `rejected[]`, accepted percent-prose ambiguities to `warnings[]` |
+| `submit_translations` | Validate and save drafts atomically; blocking format failures go to `rejected[]`, accepted percent-prose ambiguities to `warnings[]` |
 | `get_coverage` | Per-locale coverage statistics |
 | `get_stale` | Find stale/removed keys; `format_specifiers` excludes percent-in-prose ambiguities |
 | `validate_translations` | File-wide errors/warnings using the same simple, plural, and substitution format rules as submit |
@@ -198,7 +216,11 @@ For projects with multiple `.xcstrings` files, parse each one. The server keeps 
 | `add_locale` | Add new locale with empty translations |
 | `remove_locale` | Remove a locale from all entries |
 | `get_plurals` | Extract keys needing plural translation with definite-only `format_specifiers` |
-| `get_context` | Find related keys by shared prefix |
+| `get_review_queue` | Existing drafts, exact versions and previous-source evidence |
+| `approve_translations` | Approve reviewed drafts without changing their text |
+| `sync_source_changes` | Checkpoint sources and persist stale-state invalidation |
+| `update_context` | Set/remove authored context with revision guards |
+| `get_context` | Current source, authored context, variables, relevant terms and neighbors |
 | `list_files` | List all cached files with active status |
 | `get_diff` | Compare cached vs on-disk file (added/removed/modified keys) |
 | `get_glossary` | Get translation glossary entries for a locale pair |
@@ -223,9 +245,9 @@ Inspect `leaves` from `get_untranslated`, `get_plurals`, or each locale in `get_
 
 ```json
 {"translations":[
-  {"key":"items","locale":"fr","path":[{"plural":"many"}],"value":"%lld éléments"},
-  {"key":"phone_items","locale":"fr","path":[{"device":"iphone"},{"plural":"other"}],"value":"%lld éléments"},
-  {"key":"bird_count","locale":"fr","path":[{"substitution":"BIRDS"},{"plural":"one"}],"value":"%arg oiseau"}
+  {"key":"items","locale":"fr","expected_source_version":"<copy captured source_version>","path":[{"plural":"many"}],"value":"%lld éléments"},
+  {"key":"phone_items","locale":"fr","expected_source_version":"<copy captured source_version>","path":[{"device":"iphone"},{"plural":"other"}],"value":"%lld éléments"},
+  {"key":"bird_count","locale":"fr","expected_source_version":"<copy captured source_version>","path":[{"substitution":"BIRDS"},{"plural":"one"}],"value":"%arg oiseau"}
 ],"dry_run":true}
 ```
 
@@ -234,6 +256,12 @@ Inspect `leaves` from `get_untranslated`, `get_plurals`, or each locale in `get_
 Supported device categories are `iphone`, `ipad`, `mac`, `applewatch`, `appletv`, `applevision`, and `other`. Supported chains include device→plural. Device text can reference substitutions declared at the localization root; their leaf paths start with `substitution`, independently of the device path. Nested substitutions inside a device branch are unsupported. A plural case cannot be further varied, and `device.other` must be a simple fallback. Source and target may use different valid shapes, including target-only variations. Unknown fields and enum values survive native edits; unsupported axes/shapes and unknown locales remain diagnostic and incomplete.
 
 Coverage requires every required leaf to be `translated` or `machine_translated`. Explicit empty text in either state is complete; missing, `new`, and `needs_review` leaves are incomplete. Required plural categories come from pinned CLDR 48.2.1: for example Ukrainian requires `one/few/many/other`, and French `one/many/other`. These are completeness recommendations, not Xcode's minimum compiler requirements. Successful compilation alone does not prove translation completeness.
+
+### Context and terminology
+
+`get_context` always includes the current key, even with zero neighbors. Author screen, role, purpose, variable meanings, explicit neighbors and leaf overrides through `update_context`. Set replaces a complete record: read `authored_contexts`, preserve unknown fields, preview the edit, then apply with `expected` from `input_revisions`. Positional arguments and substitution names come from actual format strings; meanings stay unknown unless authored. Neighbor provenance distinguishes explicit relationships, shared screens and the prefix heuristic. Screenshot references are inert metadata; the server does not fetch images or infer UI facts.
+
+Glossary rules support preferred and forbidden terms, do-not-translate names, accepted inflections, source variants, exact key/path or authored screen/role scopes, and scoped exceptions with reasons. Matching is deterministic and case-sensitive with Unicode normalization; choose word or literal matching explicitly. Format placeholders are masked. Checks report advisory diagnostics on submission, import, approval and validation without silently rewriting text. Missing policy is `absent`; unreadable or malformed policy is `unavailable`, never a false clean result. Unknown context needed for a scoped rule is reported as unevaluated.
 
 ### Apple XLIFF workflow
 
@@ -362,7 +390,7 @@ catalog translation.
 
 ```sh
 xcstrings-mcp export Localizable.xcstrings --locale fr --all --original App/Localizable.xcstrings -o fr.xliff
-xcstrings-mcp import Localizable.xcstrings --xliff fr.xliff --original App/Localizable.xcstrings --dry-run --json
+xcstrings-mcp import Localizable.xcstrings --xliff fr.xliff --source-versions fr.xliff.source-versions.json --original App/Localizable.xcstrings --dry-run --json
 ```
 
 `--json` is available everywhere for machine-readable output. Mutating commands support `--dry-run`. Validation keeps definite format mismatches and invalid positional arguments blocking, recognizes arguments next to unspaced Han, Hiragana, Katakana, and Hangul text, and rejects `%arg` when it is merely a prefix of a longer Unicode word. XLIFF import reports accepted ambiguous percent sequences in `warnings[]` (and on stderr in human-readable mode).
@@ -379,7 +407,7 @@ xcstrings-mcp --glossary-path ./my-glossary.json
 
 ## Claude Code Skill
 
-There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the project that teaches Claude how to drive all 28 tools well. It activates automatically on localization-related requests.
+There's a [Claude Code skill](skills/xcstrings-mcp/SKILL.md) shipped with the project that teaches Claude how to drive all 32 tools well. It activates automatically on localization-related requests.
 
 What it actually does for you:
 

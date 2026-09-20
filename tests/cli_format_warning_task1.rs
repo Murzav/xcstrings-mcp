@@ -1,3 +1,5 @@
+#[path = "support/workflow_fixture.rs"]
+mod workflow_fixture;
 use std::fs;
 
 use assert_cmd::Command;
@@ -30,6 +32,11 @@ fn cli_xliff_import_returns_machine_readable_ambiguous_warning() {
             catalog_path.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog_path.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
             "--dry-run",
             "--json",
         ])
@@ -69,6 +76,11 @@ fn cli_xliff_import_blocks_definite_modifier_mismatch() {
             catalog_path.to_str().unwrap(),
             "--xliff",
             xliff_path.to_str().unwrap(),
+            "--source-versions",
+            &workflow_fixture::import_versions(
+                std::path::Path::new(catalog_path.to_str().unwrap()),
+                std::path::Path::new(xliff_path.to_str().unwrap()),
+            ),
             "--dry-run",
             "--json",
         ])

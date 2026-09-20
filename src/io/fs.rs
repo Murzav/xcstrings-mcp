@@ -6,8 +6,8 @@ use tracing::info;
 
 use crate::error::XcStringsError;
 
-use super::FileStore;
 use super::atomic_write::{self, ExpectedContent};
+use super::{FilePrecondition, FileStore};
 
 pub struct FsFileStore {
     max_file_size: u64,
@@ -91,6 +91,33 @@ impl FsFileStore {
     fn strip_bom(content: &str) -> &str {
         content.strip_prefix('\u{feff}').unwrap_or(content)
     }
+
+    fn conditional_identity(&self, path: &Path) -> Result<PathBuf, XcStringsError> {
+        let canonical = self.validate_path(path)?;
+        if path.extension().and_then(|value| value.to_str()) == Some("xcstrings") {
+            return Ok(canonical);
+        }
+        let parent = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or(Path::new("."));
+        let name = path
+            .file_name()
+            .ok_or_else(|| XcStringsError::InvalidPath {
+                path: path.into(),
+                reason: "no filename".into(),
+            })?;
+        let direct = self.validate_path(parent)?.join(name);
+        if canonical != direct {
+            return Err(XcStringsError::InvalidPath {
+                path: path.into(),
+                reason: "conditional metadata path must not redirect to another file".into(),
+            });
+        }
+        // Preserve the directory entry identity for metadata outputs/guards.
+        // Atomic replacement must never be redirected to a symlink's target.
+        Ok(direct)
+    }
 }
 
 fn reject_reserved_sidecar(path: &Path) -> Result<(), XcStringsError> {
@@ -168,7 +195,7 @@ impl FileStore for FsFileStore {
         expected: Option<&[u8]>,
         content: &str,
     ) -> Result<(), XcStringsError> {
-        let canonical = self.validate_path(path)?;
+        let canonical = self.conditional_identity(path)?;
         atomic_write::write(&canonical, content, ExpectedContent::Exact(expected))?;
         info!(
             "conditionally wrote {} bytes to {}",
@@ -176,6 +203,29 @@ impl FileStore for FsFileStore {
             canonical.display()
         );
         Ok(())
+    }
+
+    fn write_if_inputs_match(
+        &self,
+        path: &Path,
+        expected: Option<&[u8]>,
+        inputs: &[FilePrecondition<'_>],
+        content: &str,
+    ) -> Result<(), XcStringsError> {
+        let canonical = self.conditional_identity(path)?;
+        let identities = inputs
+            .iter()
+            .map(|input| self.conditional_identity(input.path))
+            .collect::<Result<Vec<_>, _>>()?;
+        let guards = inputs
+            .iter()
+            .zip(&identities)
+            .map(|(input, path)| FilePrecondition {
+                path,
+                expected: input.expected,
+            })
+            .collect::<Vec<_>>();
+        atomic_write::write_guarded(&canonical, content, expected, &guards)
     }
 
     fn modified_time(&self, path: &Path) -> Result<SystemTime, XcStringsError> {

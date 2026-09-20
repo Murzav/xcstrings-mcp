@@ -62,6 +62,8 @@ pub fn get_untranslated_plurals(
             }
         }
         results.push(PluralUnit {
+            source_version: unit.source_version,
+            source_freshness: unit.source_freshness,
             key: unit.key,
             source_text: unit.source_text,
             target_locale: unit.target_locale,

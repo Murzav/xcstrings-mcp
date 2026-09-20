@@ -26,6 +26,9 @@ fn translate_batch_returns_content() {
     assert!(text.contains("definite Foundation format arguments"));
     assert!(text.contains("warnings[]"));
     assert!(text.contains("positional reordering"));
+    assert!(text.contains("expected_source_version captured with the input key"));
+    assert!(text.contains("Each accepted submission is needs_review"));
+    assert!(text.contains("Process this captured batch once"));
 }
 
 #[test]
@@ -58,6 +61,10 @@ fn review_translations_returns_content() {
     assert!(text.contains("validate_translations"));
     assert!(text.contains("blocking errors"));
     assert!(text.contains("non-blocking warnings"));
+    assert!(text.contains("approve_translations"));
+    assert!(text.contains("expected_source_version/expected_target_version"));
+    assert!(text.contains("restart the queue at offset=0"));
+    assert!(text.contains("Never approve solely to increase coverage"));
 }
 
 #[test]

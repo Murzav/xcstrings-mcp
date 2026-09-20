@@ -57,12 +57,15 @@ def catalog_scenarios(h):
 
     path = h.copy("simple.xcstrings", "inspect/simple.xcstrings")
     coverage = h.on("get_coverage", path, "simple exact coverage")
-    h.equal(coverage, {"source_language": "en", "total_keys": 2, "translatable_keys": 2,
+    h.equal({k: coverage[k] for k in ("source_language", "total_keys", "translatable_keys", "locales")}, {"source_language": "en", "total_keys": 2, "translatable_keys": 2,
         "locales": [
             {"locale": "en", "total_keys": 2, "translatable_keys": 2, "translated": 2, "percentage": 100.0},
             {"locale": "uk", "total_keys": 2, "translatable_keys": 2, "translated": 1, "percentage": 50.0},
         ]}, "coverage report")
-    h.equal(h.on("list_locales", path, "exact locale coverage"), [
+    h.equal(coverage["tracking"], "uninitialized", "legacy coverage tracking explicit")
+    locale_report = h.on("list_locales", path, "exact locale coverage")
+    h.equal([item["tracking"] for item in locale_report], ["uninitialized"] * 2)
+    h.equal([{k: v for k, v in item.items() if k not in ("tracking", "input_revisions")} for item in locale_report], [
         {"locale": "en", "translated": 2, "total": 2, "percentage": 100.0},
         {"locale": "uk", "translated": 1, "total": 2, "percentage": 50.0},
     ], "locale report")
@@ -78,12 +81,11 @@ def catalog_scenarios(h):
     h.equal([u["key"] for u in search["units"]], ["greeting"], "search results")
     h.equal(search["total"], 1, "search total")
     context = h.on("get_context", path, "neighbor context", key="greeting", locale="uk", count=1)
-    h.equal([{k: v for k, v in item.items() if k not in ("leaves", "diagnostics")} for item in context],
-            [{"key": "welcome_message", "source_text": "Welcome to the app"}], "legacy context text")
-    h.equal(context[0]["diagnostics"], [], "simple context diagnostics")
-    h.equal(context[0]["leaves"], [{"path": [], "source_text": "Welcome to the app", "required": True,
-                                   "complete": False, "substitutions": []}], "context missing root leaf")
-    h.equal(h.on("get_context", path, "unknown context key", key="absent", locale="uk"), [], "unknown context")
+    h.equal(context["current"]["key"], "greeting", "context includes requested key")
+    h.equal(context["current"]["source_text"], "Hello", "context exact source")
+    h.equal(context["neighbors"], [], "unrelated zero-prefix keys are not invented neighbors")
+    h.equal(context["tracking"], "uninitialized", "context tracking explicit")
+    h.on("get_context", path, "unknown context key", "not found", key="absent", locale="uk")
     stale = h.on("get_stale", h.temporary / "with_stale.xcstrings", "stale excludes nontranslatable", locale="uk")
     h.equal([u["key"] for u in stale["units"]], ["removed_feature", "renamed_key"], "stale keys")
     for fixture, names in (
@@ -94,7 +96,7 @@ def catalog_scenarios(h):
         result = h.on("get_plurals", h.temporary / fixture, fixture + " varied inspection", locale="fr")
         h.equal([unit["key"] for unit in result["units"]], names, fixture + " varied keys")
         h.equal(result["total"], len(names), fixture + " varied total")
-    h.equal(h.on("validate_translations", path, "clean existing translation", locale="uk"),
+    h.equal(h.on("validate_translations", path, "clean existing translation", locale="uk")["reports"],
             [{"locale": "uk", "errors": [], "warnings": []}], "clean validation")
 
 
@@ -114,6 +116,7 @@ def mutation_scenarios(h):
     h.equal(h.on("add_keys", path, "duplicate key", keys=[entries[0]]),
             {"added": 0, "skipped": ["__acceptance.title"]}, "duplicate report")
     h.equal(h.read(path), current, "duplicate does not change catalog")
+    h.prepare(path, ["__acceptance.title", "__acceptance.count"])
     requests = [{"key": "__acceptance.title", "locale": "ca", "value": "Un títol"},
                 {"key": "__acceptance.count", "locale": "ca", "value": "%lld objectes"}]
     before = path.read_bytes()
@@ -125,7 +128,7 @@ def mutation_scenarios(h):
     expected = current
     for request in requests:
         expected["strings"][request["key"]]["localizations"]["ca"] = {
-            "stringUnit": {"state": "translated", "value": request["value"]}}
+            "stringUnit": {"state": "needs_review", "value": request["value"]}}
     h.equal(h.read(path), expected, "golden exact translated catalog")
     before = path.read_bytes()
     rejected = h.on("submit_translations", path, "atomic mixed-validity submission", continue_on_error=False,
@@ -180,9 +183,10 @@ def mutation_scenarios(h):
     h.on("create_xcstrings", created, "protect existing catalog", "already exists", source_language="en")
     h.equal(created.read_bytes(), raw, "create collision no write")
     empty = h.call("get_glossary", {"source_locale": "en", "target_locale": "ca"}, "empty glossary")
-    h.equal(empty, {"source_locale": "en", "target_locale": "ca", "entries": {}, "count": 0}, "empty glossary")
-    h.equal(h.call("update_glossary", {"source_locale": "en", "target_locale": "ca", "entries": {"Settings": "Configuració", "Save": "Desa"}}, "persist glossary"),
-            {"updated": 2, "source_locale": "en", "target_locale": "ca"}, "glossary update")
-    h.equal(h.call("get_glossary", {"source_locale": "en", "target_locale": "ca", "filter": "CONFIG"}, "translated-value filter"),
-            {"source_locale": "en", "target_locale": "ca", "entries": {"Settings": "Configuració"}, "count": 1}, "filtered glossary")
+    h.equal((empty["entries"], empty["count"], empty["status"]), ({}, 0, "absent"), "empty glossary")
+    updated = h.call("update_glossary", {"source_locale": "en", "target_locale": "ca",
+        "entries": {"Settings": "Configuració", "Save": "Desa"}, "expected_revision": empty["revision"]}, "persist glossary")
+    h.equal((updated["updated"], updated["written"]), (2, True), "glossary update")
+    filtered = h.call("get_glossary", {"source_locale": "en", "target_locale": "ca", "filter": "CONFIG"}, "translated-value filter")
+    h.equal((filtered["entries"], filtered["count"]), ({"Settings": "Configuració"}, 1), "filtered glossary")
     h.require((h.temporary / "glossary.json").is_file(), "glossary persisted")
